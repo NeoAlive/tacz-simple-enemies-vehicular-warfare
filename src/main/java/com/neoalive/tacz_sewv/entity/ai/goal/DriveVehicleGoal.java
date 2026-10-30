@@ -144,6 +144,11 @@ public class DriveVehicleGoal extends Goal {
     private int selectedRole = VehicleWeapons.UNCLASSIFIED;
     /** Standoff Schmitt state: 0 hold, 1 closing, -1 opening. See {@link #maintainVehicleStandoff}. */
     private byte standoffPhase;
+    /** The point the hull is parked on (see {@link #parkedOn}), or null while driving. */
+    private Vec3 parkedDest;
+    /** {@link #getTargetPos} memo: resolved once per game tick, however many of canUse/canContinueToUse/tick ask. */
+    private long targetPosTick = Long.MIN_VALUE;
+    private BlockPos targetPosMemo;
     /** Backing off a tripod: released only past standoff + margin, so an idle hull can't hover on the line. */
     private boolean tripodRetreat;
     /** Throttle for posture override logs (game time of last line). */
@@ -230,7 +235,7 @@ public class DriveVehicleGoal extends Goal {
         this.selectedRole = VehicleWeapons.UNCLASSIFIED;
         this.standoffPhase = 0;
         this.allyAssist.clear();
-        this.driver.clear();
+        this.driver.softClear(); // keeps the route: see VehicleDriver.softClear
         this.breaker.clear();
         // taskLatch / taskDriving deliberately survive a stop: the goal stops whenever the crew is briefly
         // between targets with nowhere to go, and resetting them re-ran the run start (log line + smoke volley)
@@ -541,7 +546,7 @@ public class DriveVehicleGoal extends Goal {
         double dx = destination.getX() + 0.5 - this.vehicle.getX();
         double dz = destination.getZ() + 0.5 - this.vehicle.getZ();
         double arrive = VehicleTargeting.arrivalDistance(this.unit, this.vehicle);
-        if (dx * dx + dz * dz > arrive * arrive) {
+        if (!parkedOn(Vec3.atBottomCenterOf(destination), dx * dx + dz * dz, arrive)) {
             this.driver.navigateTo(destination, distanceSq);
         } else {
             parkOnStation(facing);
@@ -722,6 +727,20 @@ public class DriveVehicleGoal extends Goal {
     }
 
     /**
+     * Park/drive hysteresis shared by every drive-then-park site ({@link VehicleTargeting#holdsArrival}). The wider
+     * leave band only holds while the destination is still the one parked on: a destination that moved more than the
+     * arrival radius is a new one, and is arrived at from scratch.
+     */
+    private boolean parkedOn(Vec3 dest, double distSq, double arrive) {
+        boolean was = this.parkedDest != null
+                && (this.parkedDest.x - dest.x) * (this.parkedDest.x - dest.x)
+                        + (this.parkedDest.z - dest.z) * (this.parkedDest.z - dest.z) <= arrive * arrive;
+        boolean parked = VehicleTargeting.holdsArrival(was, distSq, arrive);
+        this.parkedDest = parked ? dest : null;
+        return parked;
+    }
+
+    /**
      * Fight from the latched battle position ({@link TacticalPosture#battlePosition}): drive there, then hold it with
      * the front armour on the target while the turret works. False when there is none, and the caller keeps its own
      * geometry. Every branch issues input, like the rest of the dispatch.
@@ -731,8 +750,7 @@ public class DriveVehicleGoal extends Goal {
         if (bp == null) return false;
         double dx = bp.x - this.vehicle.getX();
         double dz = bp.z - this.vehicle.getZ();
-        double arrive = BattlePosition.arriveRadius(this.vehicle);
-        if (dx * dx + dz * dz > arrive * arrive) {
+        if (!parkedOn(bp, dx * dx + dz * dz, BattlePosition.arriveRadius(this.vehicle))) {
             this.driver.navigateTo(BlockPos.containing(bp), this.vehicle.distanceToSqr(bp));
             return true;
         }
@@ -766,6 +784,13 @@ public class DriveVehicleGoal extends Goal {
         double[] point = TaskedDestination.pointFor(assign, plan);
         boolean drive = point != null && this.taskLatch.shouldDrive(assign.role(), assign.flankSide(),
                 point[0], point[1], this.vehicle.getX(), this.vehicle.getZ());
+        if (drive && this.taskLatch.stalled(point[0], point[1], this.vehicle.getX(), this.vehicle.getZ(),
+                this.unit.level().getGameTime())) {
+            drive = false;
+            SewvDiag.crew("{}#{} tasked dest ABANDON (no progress) role={} plan={} point={}",
+                    this.unit.getType().toShortString(), this.unit.getId(), assign.role(), plan.key,
+                    String.format("%.0f,%.0f", point[0], point[1]));
+        }
         if (drive != this.taskDriving) {
             this.taskDriving = drive;
             // A flank run or a withdrawal starts behind one smoke volley — once per run, never a standing screen.
@@ -872,7 +897,7 @@ public class DriveVehicleGoal extends Goal {
         double dx = point.x - this.vehicle.getX();
         double dz = point.z - this.vehicle.getZ();
         double arrive = this.vehicle.getBbWidth() * 0.5 + POSTURE_ARRIVE_PAD;
-        if (dx * dx + dz * dz <= arrive * arrive) {
+        if (parkedOn(point, dx * dx + dz * dz, arrive)) {
             this.driver.stop();
             this.driver.clearRecovery(); // on station — not stuck
             return;
@@ -1198,6 +1223,15 @@ public class DriveVehicleGoal extends Goal {
     }
 
     private BlockPos getTargetPos() {
+        long now = this.unit.level().getGameTime();
+        if (now != this.targetPosTick) {
+            this.targetPosTick = now;
+            this.targetPosMemo = resolveTargetPos();
+        }
+        return this.targetPosMemo;
+    }
+
+    private BlockPos resolveTargetPos() {
         // A named destination — MOVE / FOB / FOLLOW / FORM — is not a suggestion the utility
         // layer gets to improve on. The three plans below all substitute a destination of their
         // own (the last place an enemy was seen, an idle hold, an idle leg), and any of them

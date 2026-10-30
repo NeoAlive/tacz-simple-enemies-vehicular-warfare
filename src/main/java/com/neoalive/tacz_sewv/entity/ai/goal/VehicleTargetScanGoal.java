@@ -125,7 +125,7 @@ public class VehicleTargetScanGoal extends Goal {
             this.pendingTarget = copyDriverLockOrRareScan(v);
         } else {
             this.scanCooldown = EasyMode.scanIntervalTicks(this.unit, SewvConfig.VEHICLE_TARGET_SCAN_INTERVAL_TICKS.get());
-            this.pendingTarget = scanCylinder(v);
+            this.pendingTarget = scanCylinder(v, true);
         }
 
         SewvDiag.scan(
@@ -161,7 +161,7 @@ boolean needLos = EasyMode.vehicleTargetRequireLos()
         }
         // No usable shared lock (absent, invalid, or occluded from this seat) — rare own scan.
         this.scanCooldown = EasyMode.scanIntervalTicks(this.unit, SewvConfig.VEHICLE_TARGET_SCAN_INTERVAL_TICKS.get() * 2);
-        return scanCylinder(v);
+        return scanCylinder(v, true);
     }
 
     @Override
@@ -208,7 +208,7 @@ if (EasyMode.vehicleTargetRequireLos()
                     this.nextPublishTime = now + PUBLISH_INTERVAL_TICKS;
                     ContactBoard.publish(this.unit, target, ContactBoard.Source.DIRECT_SIGHT);
                 }
-            } else if (waivesLos(target)) {
+            } else if (isCombatant(target) && waivesLos(target)) {
                 // Beyond the close-in band and known to our side: hold the lock. The fire-time gate in
                 // MixinVehicleFireCooldown still refuses every shot until this crew sees it itself.
                 this.ticksWithoutLos = 0;
@@ -253,6 +253,11 @@ if (EasyMode.vehicleTargetRequireLos()
         this.ticksWithoutLos = 0;
     }
 
+    /** A unit, a player, or anything riding a hull: what a crew may hold a lock on without seeing it. */
+    private static boolean isCombatant(LivingEntity e) {
+        return e instanceof AbstractUnit || e instanceof Player || e.getVehicle() instanceof VehicleEntity;
+    }
+
     /** Every {@link #BLIND_RECHECK_TICKS} the lock goes unseen, move the gun to the nearest target in plain view. */
     private void switchOffBlindLock(VehicleEntity v) {
         LivingEntity current = this.unit.getTarget();
@@ -263,7 +268,7 @@ if (EasyMode.vehicleTargetRequireLos()
         }
         if (++this.blindTicks < BLIND_RECHECK_TICKS) return;
         this.blindTicks = 0;
-        LivingEntity seen = scanCylinder(v);
+        LivingEntity seen = scanCylinder(v, false); // quiet: only an actual switch is worth a log line
         if (seen == null || seen == current || !this.unit.getSensing().hasLineOfSight(seen)) return;
         SewvDiag.scan("VehicleTargetScanGoal.blindSwitch unit={}#{} from={}#{} to={}#{}",
                 this.unit.getClass().getSimpleName(), this.unit.getId(),
@@ -308,9 +313,9 @@ if (EasyMode.vehicleTargetRequireLos()
     // then the horizontal-distance filter rounds the corners off into a cylinder.
     // LOS raycasts (when enabled) only run down the sorted list until the first
     // visible candidate, not against everything found.
-    private LivingEntity scanCylinder(VehicleEntity v) {
+    private LivingEntity scanCylinder(VehicleEntity v, boolean log) {
         List<LivingEntity> candidates = collectCylinderCandidates(v, DriveHelicopterGoal.inFiringRun(v));
-        SewvDiag.scan(
+        if (log) SewvDiag.scan(
                 "VehicleTargetScanGoal.scanCylinder unit={}#{} rawCandidates={} ids={}",
                 this.unit.getClass().getSimpleName(), this.unit.getId(),
                 candidates.size(),
@@ -338,12 +343,14 @@ boolean needLos = EasyMode.vehicleTargetRequireLos()
         for (LivingEntity candidate : candidates) {
             boolean los = !needLos || this.unit.getSensing().hasLineOfSight(candidate);
             if (los) {
-                SewvDiag.scan("VehicleTargetScanGoal.scanCylinder PICK unit={}#{} candidate={}#{} needLos={}",
+                if (log) SewvDiag.scan("VehicleTargetScanGoal.scanCylinder PICK unit={}#{} candidate={}#{} needLos={}",
                         this.unit.getClass().getSimpleName(), this.unit.getId(),
                         candidate.getClass().getSimpleName(), candidate.getId(), needLos);
                 return candidate;
             }
-            if (blindKnown == null && waivesLos(candidate)) {
+            // Blind locks are for combatants only. A mob the side saw once (a Drowned underwater, say) is not worth
+            // a gun pointed at a wall; six crews held one for 20 s while a hostile hull was the real fight.
+            if (blindKnown == null && isCombatant(candidate) && waivesLos(candidate)) {
                 blindKnown = candidate;
                 continue;
             }
@@ -351,17 +358,17 @@ boolean needLos = EasyMode.vehicleTargetRequireLos()
             // for a clear engageable candidate further down the list.
             if (needLos && ContactSight.between(this.unit, candidate) == ContactSight.Kind.UNCERTAIN) {
                 if (foliageOnly == null) foliageOnly = candidate;
-                SewvDiag.scan("VehicleTargetScanGoal.scanCylinder FOLIAGE unit={}#{} candidate={}#{}",
+                if (log) SewvDiag.scan("VehicleTargetScanGoal.scanCylinder FOLIAGE unit={}#{} candidate={}#{}",
                         this.unit.getClass().getSimpleName(), this.unit.getId(),
                         candidate.getClass().getSimpleName(), candidate.getId());
             } else {
-                SewvDiag.scan("VehicleTargetScanGoal.scanCylinder SKIP_LOS unit={}#{} candidate={}#{}",
+                if (log) SewvDiag.scan("VehicleTargetScanGoal.scanCylinder SKIP_LOS unit={}#{} candidate={}#{}",
                         this.unit.getClass().getSimpleName(), this.unit.getId(),
                         candidate.getClass().getSimpleName(), candidate.getId());
             }
         }
         if (blindKnown != null) {
-            SewvDiag.scan("VehicleTargetScanGoal.scanCylinder PICK_BLIND unit={}#{} candidate={}#{} (board, no LOS)",
+            if (log) SewvDiag.scan("VehicleTargetScanGoal.scanCylinder PICK_BLIND unit={}#{} candidate={}#{} (board, no LOS)",
                     this.unit.getClass().getSimpleName(), this.unit.getId(),
                     blindKnown.getClass().getSimpleName(), blindKnown.getId());
             return blindKnown;
@@ -369,7 +376,7 @@ boolean needLos = EasyMode.vehicleTargetRequireLos()
         if (foliageOnly != null) {
             AwarenessCues.offerFoliageContact(v, foliageOnly);
         }
-        SewvDiag.scan("VehicleTargetScanGoal.scanCylinder NO_PICK unit={}#{} (empty or all failed LOS)",
+        if (log) SewvDiag.scan("VehicleTargetScanGoal.scanCylinder NO_PICK unit={}#{} (empty or all failed LOS)",
                 this.unit.getClass().getSimpleName(), this.unit.getId());
         return null;
     }

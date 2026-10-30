@@ -15,6 +15,7 @@ public final class PathBudgetSelfCheck {
         lowPriority();
         simulatedQueue();
         quantum();
+        churn();
         System.out.println("PathBudgetSelfCheck OK");
     }
 
@@ -80,4 +81,21 @@ public final class PathBudgetSelfCheck {
     }
 
     private PathBudgetSelfCheck() {}
+
+    /** Movement churn: drift scales with distance, flips back reuse the old route, parking has a leave band. */
+    private static void churn() {
+        assert VehicleDriver.driftTolerance(6, 10) == 6 : "close in: the configured floor";
+        assert VehicleDriver.driftTolerance(6, 80) == 16 : "far out: a fifth of the distance";
+        assert VehicleDriver.jumpTolerance(10) == 16 && VehicleDriver.jumpTolerance(100) == 40;
+        assert VehicleDriver.mayRestore(9, 36, 20, 40) : "a quick flip back to the old point";
+        assert !VehicleDriver.mayRestore(49, 36, 20, 40) : "somewhere else";
+        assert !VehicleDriver.mayRestore(9, 36, 41, 40) : "too long ago, the hull has left that route";
+        double a = 2.3;
+        assert VehicleTargeting.holdsArrival(false, 2.0 * 2.0, a) : "arrives inside the radius";
+        assert !VehicleTargeting.holdsArrival(false, 3.0 * 3.0, a) : "not yet";
+        assert VehicleTargeting.holdsArrival(true, 5.0 * 5.0, a) : "parked: stays parked to radius + 3";
+        assert !VehicleTargeting.holdsArrival(true, 5.5 * 5.5, a) : "and leaves past it";
+        assert VehicleTargeting.holdsArrival(true, 17.0 * 17.0, 12.0) && !VehicleTargeting.holdsArrival(true, 18.5 * 18.5, 12.0)
+                : "wide radius: 1.5x";
+    }
 }

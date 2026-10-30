@@ -394,7 +394,11 @@ public final class PatrolSupport {
 
         if (waypoint != null) {
             Entity body = vehicle != null ? vehicle : pmc;
-            boolean reached = horizontalDistSq(body, waypoint) <= SWEEP_ARRIVE_SQ;
+            // A hull parks at its arrival distance, which for a wide one is past the flat 12: it would never
+            // "reach" a leg and sat out the step timeout on every one. Same slack as a cruise leg.
+            double hullReach = vehicle != null
+                    ? VehicleTargeting.arrivalDistance(pmc, vehicle) + CRUISE_ARRIVE_SLACK : 0.0;
+            boolean reached = horizontalDistSq(body, waypoint) <= Math.max(SWEEP_ARRIVE_SQ, hullReach * hullReach);
             // A leg it cannot reach must not stall the sweep — time out and move on.
             if (!reached && now < task.sewv$getPatrolStepDeadline()) return waypoint;
             step++;

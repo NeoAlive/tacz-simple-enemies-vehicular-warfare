@@ -19,6 +19,10 @@ public final class TaskedDestination {
     static final double ARRIVE = 8.0;
     /** A reached point that has since moved this far is a new bound: drive again (× {@link TacticalScale}). */
     static final double RELATCH = 24.0;
+    /** Blocks closer the hull must get within {@link #STALL_TICKS} to count as still making for the point. */
+    static final double PROGRESS_STEP = 4.0;
+    /** Game ticks without that progress before a role point is given up as unreachable (10 s). */
+    static final long STALL_TICKS = 200;
 
     private TaskedDestination() {}
 
@@ -47,6 +51,11 @@ public final class TaskedDestination {
         @Nullable private Assignment.FlankSide side;
         private double reachedX = Double.NaN;
         private double reachedZ = Double.NaN;
+        // Progress toward the point, for stalled(): the closest the hull has been, when, and where the point was.
+        private double bestDist = Double.MAX_VALUE;
+        private long bestAt = Long.MIN_VALUE;
+        private double bestPx = Double.NaN;
+        private double bestPz = Double.NaN;
 
         /** Should the crew at {@code (hx, hz)} still drive to {@code (px, pz)}? */
         public boolean shouldDrive(Assignment.Role role, @Nullable Assignment.FlankSide side,
@@ -55,6 +64,7 @@ public final class TaskedDestination {
                 this.role = role;
                 this.side = side;
                 this.reachedX = Double.NaN;
+                forgetProgress();
             }
             double relatch = TacticalScale.of(RELATCH);
             double arrive = TacticalScale.of(ARRIVE);
@@ -70,10 +80,45 @@ public final class TaskedDestination {
             return true;
         }
 
+        /**
+         * Has the crew stopped closing on the point? True once it has gone {@link #STALL_TICKS} without getting
+         * {@link #PROGRESS_STEP} closer, and the point is then latched as if reached: the action's own geometry takes
+         * over until the coordinator moves the point past {@link #RELATCH}. Nothing checks a role point for
+         * reachability, so a point across water or out of a terrain pocket otherwise parked the hull at the shore,
+         * repathing a one-node stub forever. Measured by distance, not by the path, so it covers every way of
+         * failing to arrive. A point that moves more than {@link #RELATCH} restarts the clock.
+         */
+        public boolean stalled(double px, double pz, double hx, double hz, long now) {
+            double d = Math.sqrt(distSq(px, pz, hx, hz));
+            double relatch = TacticalScale.of(RELATCH);
+            boolean pointMoved = !Double.isNaN(this.bestPx)
+                    && distSq(px, pz, this.bestPx, this.bestPz) > relatch * relatch;
+            if (this.bestAt == Long.MIN_VALUE || pointMoved || d < this.bestDist - PROGRESS_STEP) {
+                this.bestDist = d;
+                this.bestAt = now;
+                this.bestPx = px;
+                this.bestPz = pz;
+                return false;
+            }
+            if (now - this.bestAt < STALL_TICKS) return false;
+            this.reachedX = px;
+            this.reachedZ = pz;
+            forgetProgress();
+            return true;
+        }
+
+        private void forgetProgress() {
+            this.bestDist = Double.MAX_VALUE;
+            this.bestAt = Long.MIN_VALUE;
+            this.bestPx = Double.NaN;
+            this.bestPz = Double.NaN;
+        }
+
         public void reset() {
             this.role = null;
             this.side = null;
             this.reachedX = Double.NaN;
+            forgetProgress();
         }
 
         private static double distSq(double ax, double az, double bx, double bz) {

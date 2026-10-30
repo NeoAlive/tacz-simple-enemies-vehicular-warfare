@@ -16,6 +16,7 @@ public final class TaskedDestinationSelfCheck {
         if (!on) throw new IllegalStateException("run with -ea");
         table();
         latch();
+        stall();
         System.out.println("TaskedDestinationSelfCheck OK");
     }
 
@@ -58,6 +59,31 @@ public final class TaskedDestinationSelfCheck {
         assert !l.shouldDrive(Role.MANEUVER, FlankSide.RIGHT, 130, 0, 128, 0);
         l.reset();
         assert l.shouldDrive(Role.MANEUVER, FlankSide.RIGHT, 130, 0, 60, 0) : "reset forgets arrival";
+    }
+
+    /** A point the hull cannot get closer to is given up and latched as reached, and only for that point. */
+    private static void stall() {
+        TaskedDestination.Latch l = new TaskedDestination.Latch();
+        long t = 1000;
+        assert l.shouldDrive(Role.MANEUVER, null, 200, 0, 0, 0);
+        assert !l.stalled(200, 0, 0, 0, t) : "first sample starts the clock";
+        assert !l.stalled(200, 0, 2, 0, t + TaskedDestination.STALL_TICKS - 1) : "creeping, not yet out of time";
+        assert l.stalled(200, 0, 3, 0, t + TaskedDestination.STALL_TICKS) : "no real progress in time: give up";
+        assert !l.shouldDrive(Role.MANEUVER, null, 200, 0, 3, 0) : "given up = latched as reached";
+
+        // Steady progress never stalls.
+        TaskedDestination.Latch p = new TaskedDestination.Latch();
+        for (int i = 0; i <= 40; i++) {
+            assert !p.stalled(200, 0, i * 5.0, 0, t + i * 20L) : "closing 5 blocks a second, i=" + i;
+        }
+
+        // A point that keeps moving away is a new point, not a stall.
+        TaskedDestination.Latch m = new TaskedDestination.Latch();
+        assert !m.stalled(200, 0, 0, 0, t);
+        assert !m.stalled(260, 0, 0, 0, t + TaskedDestination.STALL_TICKS) : "point moved > RELATCH: clock restarts";
+
+        // The abandonment is released when the coordinator moves the point.
+        assert l.shouldDrive(Role.MANEUVER, null, 260, 0, 3, 0) : "moved point: drive again";
     }
 
     private TaskedDestinationSelfCheck() {}

@@ -24,6 +24,8 @@ public final class PathingPerf {
     public static long cellCacheMisses;
     /** Searches pushed to a later tick by {@code pathSearchesPerTick}. */
     public static int pathDeferred;
+    /** Jumps answered by putting back the route the last jump replaced, instead of a search. */
+    public static int pathRestored;
     public static long treeScanNanos;
     public static int treeScans;
     public static int treeSectionsSkipped;
@@ -39,10 +41,10 @@ public final class PathingPerf {
 
     public static String snapshotAndReset() {
         String s = String.format(
-                "pathing fan=%.2fms/%d path=%.2fms/%d deferred=%d slotFlips=%d pathFlips=%d "
+                "pathing fan=%.2fms/%d path=%.2fms/%d deferred=%d restored=%d slotFlips=%d pathFlips=%d "
                         + "colCache=%d/%d gradeCache=%d/%d gradeSkip=%d cellCache=%d/%d"
                         + " | trees=%.2fms/%d sectionsSkipped=%d | cover=%.2fms/%d chunks | pods=%.2fms/%d refreshes | maneuver=%.2fms/%d",
-                fanNanos / 1.0e6, fanCalls, pathNanos / 1.0e6, pathCalls, pathDeferred, slotFlips, pathFlips,
+                fanNanos / 1.0e6, fanCalls, pathNanos / 1.0e6, pathCalls, pathDeferred, pathRestored, slotFlips, pathFlips,
                 columnCacheHits, columnCacheHits + columnCacheMisses,
                 gradeCacheHits, gradeCacheHits + gradeCacheMisses, gradeSkipped,
                 cellCacheHits, cellCacheHits + cellCacheMisses,
@@ -54,6 +56,7 @@ public final class PathingPerf {
         pathNanos = 0;
         pathCalls = 0;
         pathDeferred = 0;
+        pathRestored = 0;
         slotFlips = 0;
         pathFlips = 0;
         columnCacheHits = 0;

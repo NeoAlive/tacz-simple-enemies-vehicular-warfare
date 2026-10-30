@@ -252,6 +252,17 @@ public final class VehicleTargeting {
      * collapse onto the point man. A player MOVE click uses a tighter stop so the hull actually
      * reaches the ordered point.
      */
+    /**
+     * Park/drive hysteresis for any "drive to a point, then park" site: arrive inside {@code arrive}, and once parked
+     * stay parked until past {@code max(1.5 x arrive, arrive + 3)}. A single threshold flipped a hull between parked
+     * and driving on the boundary (worst at MOVE's ~2.3-block stop), and every parked tick clears recovery, so the
+     * flapping also dropped maneuvers mid-run.
+     */
+    public static boolean holdsArrival(boolean parked, double distSq, double arrive) {
+        double r = parked ? Math.max(arrive * 1.5, arrive + 3.0) : arrive;
+        return distSq <= r * r;
+    }
+
     public static double arrivalDistance(AbstractUnit unit, VehicleEntity vehicle) {
         return arrivalDistance(unit, vehicle.getBbWidth());
     }
@@ -416,6 +427,9 @@ public final class VehicleTargeting {
         private VehicleEntity assistAlly;
         private long lastAssistScanTime = Long.MIN_VALUE;
         private long lastEngagementTime = Long.MIN_VALUE;
+        // The ally whose ring this hull has parked in. Survives clear(): the goal stops while parked in the ring
+        // (no destination), and forgetting the band there restarted it the moment the ally moved a block.
+        private VehicleEntity ringAlly;
 
         /**
          * Same, but restricted to allies passing {@code allyFilter} (null = any), optionally
@@ -448,8 +462,10 @@ public final class VehicleTargeting {
 
             double dx = ally.getX() - vehicle.getX();
             double dz = ally.getZ() - vehicle.getZ();
-            double arrive = ASSIST_RING_RADIUS + ASSIST_RING_DEADBAND;
-            if (dx * dx + dz * dz <= arrive * arrive) return null; // inside the ring — done
+            boolean inRing = holdsArrival(ally == this.ringAlly, dx * dx + dz * dz,
+                    ASSIST_RING_RADIUS + ASSIST_RING_DEADBAND);
+            this.ringAlly = inRing ? ally : null;
+            if (inRing) return null; // inside the ring — done
 
             return computeStandoffPoint(vehicle, ally.blockPosition(), ASSIST_RING_RADIUS);
         }

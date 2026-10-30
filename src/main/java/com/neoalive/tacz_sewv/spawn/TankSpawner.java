@@ -293,8 +293,38 @@ public final class TankSpawner {
      */
     private static final double PLANE_AIR_SPAWN_ALT = 105.0;
 
-    /** Horizontal speed (blocks/tick) given to an airborne spawn so SBW's lift is non-zero before throttle spools. */
+    /** Floor on the airborne spawn speed (blocks/tick), only reached if the hull's data is unreadable. */
     private static final double PLANE_AIR_SPAWN_SPEED = 0.55;
+
+    /** SBW's level-flight throttle ceiling: aircraftEngine caps power at 1 unless sprinting. */
+    private static final float PLANE_CRUISE_POWER = 1.0F;
+
+    /**
+     * The speed SBW's {@code aircraftEngine} settles at in level flight at {@link #PLANE_CRUISE_POWER},
+     * for this hull's own SpeedRate/Resistance. Iterates SBW's per-tick airborne recurrence (view-axis
+     * nudge x1.04, drag {@code 0.96 - 0.0017 * res * v²}, thrust {@code 0.047 * power * speedRate}),
+     * so a slow, draggy airframe (Ju-87, KV-16) gets its real cruise and not a jet's. Lift scales
+     * with speed, so this is what keeps every airframe up from the first tick.
+     */
+    static double cruiseSpeed(double speedRate, double resistance) {
+        double v = PLANE_AIR_SPAWN_SPEED;
+        for (int i = 0; i < 600; i++) {
+            double f = Math.max(0.01, Math.min(0.99, 0.96 - 0.0017 * resistance * v * v));
+            v = 1.04 * f * v + 0.047 * PLANE_CRUISE_POWER * speedRate;
+        }
+        return Math.max(PLANE_AIR_SPAWN_SPEED, v);
+    }
+
+    private static double cruiseSpeed(VehicleEntity plane) {
+        try {
+            var info = plane.computed().getEngineInfo();
+            double rate = info != null && info.has("SpeedRate") ? info.get("SpeedRate").getAsDouble() : 1.0;
+            double res = info != null && info.has("Resistance") ? info.get("Resistance").getAsDouble() : 1.0;
+            return cruiseSpeed(rate, res);
+        } catch (Exception e) {
+            return PLANE_AIR_SPAWN_SPEED;
+        }
+    }
 
     /**
      * Same contract as {@link #spawnGroundWithCrew} for the faction's plane pool. RU/US planes spawn
@@ -330,18 +360,23 @@ public final class TankSpawner {
     }
 
     /**
-     * Level flight at spawn: pitch zero, gear up and forward speed along {@code yaw}, so SBW's lift
-     * is non-zero before the throttle spools. Call before the hull is added to the level — once a
-     * player is aboard, the client owns the hull's motion.
+     * Level flight at spawn, as if the hull had been flying all along: pitch zero, gear up, engine
+     * running at cruise power and the hull's own cruise airspeed along {@code yaw}. A fresh hull has
+     * power 0 and no airspeed, and SBW's lift is proportional to speed, so anything less sinks
+     * before the throttle can spool (it takes ~100+ ticks). Call before the hull is added to the
+     * level — once a player is aboard, the client owns the hull's motion.
      */
     public static void placeAirborne(VehicleEntity plane, float yaw) {
         // A fresh entity's pitch can be anything; lofted or inverted ruins the lift nudge.
         plane.setYRot(yaw);
         plane.setXRot(0.0F);
         plane.setGearUp(true);
+        plane.setPower(PLANE_CRUISE_POWER);
+        plane.setEngineStart(true);
+        plane.setEngineStartOver(true);
+        double speed = cruiseSpeed(plane);
         float yawRad = yaw * ((float) Math.PI / 180.0F);
-        plane.setDeltaMovement(new Vec3(-Math.sin(yawRad) * PLANE_AIR_SPAWN_SPEED, 0.0,
-                Math.cos(yawRad) * PLANE_AIR_SPAWN_SPEED));
+        plane.setDeltaMovement(new Vec3(-Math.sin(yawRad) * speed, 0.0, Math.cos(yawRad) * speed));
     }
 
     @Nullable

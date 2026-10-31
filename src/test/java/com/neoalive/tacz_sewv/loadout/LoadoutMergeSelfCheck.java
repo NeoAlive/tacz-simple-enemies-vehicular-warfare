@@ -33,7 +33,17 @@ public final class LoadoutMergeSelfCheck {
         sbwShareMatchesWeights(raw);
         replaceWithOnlySbwKeepsSemAndTakesEverySpawn(raw);
         unmanagedOrNoSbwIsEmptyPool(raw);
+        weaponPresetsAreWellFormed();
         System.out.println("LoadoutMergeSelfCheck OK");
+    }
+
+    private static void weaponPresetsAreWellFormed() {
+        for (WeaponPackPresets.Pack pack : WeaponPackPresets.Pack.values()) {
+            assert !WeaponPackPresets.allIds(pack).isEmpty() : pack + " is empty";
+            for (String id : WeaponPackPresets.allIds(pack)) {
+                assert id.matches("[a-z0-9_.-]+:[a-z0-9_./-]+") : pack + " bad id " + id;
+            }
+        }
     }
 
     private static Map<String, JsonElement> raw() {

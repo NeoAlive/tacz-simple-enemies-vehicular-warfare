@@ -23,11 +23,14 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.Style;
 import net.minecraft.util.FormattedCharSequence;
 
+import com.neoalive.tacz_sewv.client.editor.PoolPresetApply.Mode;
 import com.neoalive.tacz_sewv.client.editor.WeaponCatalog;
 import com.neoalive.tacz_sewv.loadout.LoadoutManager;
 import com.neoalive.tacz_sewv.loadout.LoadoutMerge;
 import com.neoalive.tacz_sewv.loadout.LoadoutRow;
 import com.neoalive.tacz_sewv.loadout.WeaponCatalogSource;
+import com.neoalive.tacz_sewv.loadout.WeaponPackPresets;
+import com.neoalive.tacz_sewv.loadout.WeaponPackPresets.Pack;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketOpenLoadoutEditor;
 import com.neoalive.tacz_sewv.network.PacketUpdateLoadouts;
@@ -48,6 +51,8 @@ import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
 public class LoadoutEditorScreen extends Screen {
 
     private static final int PANEL_W_PREF = 460;
+    private static final int RAIL_W = 140;
+    private static final int RAIL_GAP = 6;
     private static final int ROW_H = 12;
     private static final int HEAD_H = 12;
     private static final int MIN_ROWS = 4;
@@ -89,6 +94,10 @@ public class LoadoutEditorScreen extends Screen {
     private Component notice;
     private long noticeUntil;
 
+    private Mode presetMode = Mode.NONE;
+    private Button presetModeBtn;
+    private final List<Button> packButtons = new ArrayList<>();
+    private final List<Pack> packs = new ArrayList<>();
     private Button managedBtn;
     private Button modeBtn;
     private Button fireBtn;
@@ -184,10 +193,14 @@ public class LoadoutEditorScreen extends Screen {
     @Override
     protected void init() {
         this.hoverTips.clear();
-        this.panelW = GuiFit.panelW(PANEL_W_PREF, this.width);
-        this.left = (this.width - this.panelW) / 2;
+        // The preset rail sits left of the sheet; everything else reads left/panelW, so shift those.
+        int full = GuiFit.panelW(PANEL_W_PREF + RAIL_W + RAIL_GAP, this.width);
+        int railLeft = (this.width - full) / 2;
+        this.left = railLeft + RAIL_W + RAIL_GAP;
+        this.panelW = Math.max(200, full - RAIL_W - RAIL_GAP);
         int pw = this.panelW;
         int top = 22;
+        layoutPresetRail(railLeft, top);
 
         int x = this.left;
         for (TankFaction f : TankFaction.values()) {
@@ -371,16 +384,107 @@ public class LoadoutEditorScreen extends Screen {
             gun = WeaponCatalog.guns().get(0);
         }
         if (gun == null) return;
+        LoadoutRow r = newRow(gun, ours());
+        layer().managed = true;
+        ours().add(r);
+        select(inherited().size() + ours().size() - 1);
+    }
+
+    /** A fresh row for {@code gun}: full magazine, the gun's first fire mode, a name unique within {@code rows}. */
+    private static LoadoutRow newRow(String gun, List<LoadoutRow> rows) {
         LoadoutRow r = new LoadoutRow();
         r.gunId = gun;
-        r.name = uniqueName(gun.substring(gun.indexOf(':') + 1));
+        String wanted = gun.substring(gun.indexOf(':') + 1);
+        r.name = wanted;
+        for (int n = 2; hasName(rows, r.name); n++) r.name = wanted + "_" + n;
         WeaponCatalogSource.gunMeta(gun).ifPresent(m -> {
             r.ammo = Math.max(1, m.magazine());
             if (!m.fireModes().isEmpty()) r.fireMode = m.fireModes().get(0);
         });
-        layer().managed = true;
-        ours().add(r);
-        select(inherited().size() + ours().size() - 1);
+        return r;
+    }
+
+    private static boolean hasName(List<LoadoutRow> rows, String name) {
+        return rows.stream().anyMatch(r -> r.name.equals(name));
+    }
+
+    // ---------------------------------------------------------------- pack presets
+
+    /** None/Add/Replace toggle plus one button per gun pack with at least one live id (gun packs are rarely mods). */
+    private void layoutPresetRail(int x, int top) {
+        this.packButtons.clear();
+        this.packs.clear();
+        this.presetModeBtn = addRenderableWidget(Button.builder(presetModeLabel(), b -> cyclePresetMode())
+                .bounds(x, top, RAIL_W, 20).build());
+        Set<String> live = new HashSet<>(WeaponCatalogSource.taczGunIds());
+        int y = top + 24;
+        for (Pack pack : Pack.values()) {
+            if (WeaponPackPresets.allIds(pack).stream().noneMatch(live::contains)) continue;
+            String text = this.font.plainSubstrByWidth(packText(pack, live), RAIL_W - 8);
+            Button btn = addRenderableWidget(Button.builder(Component.literal(text), b -> applyPack(pack))
+                    .bounds(x, y, RAIL_W, 20).build());
+            this.packButtons.add(btn);
+            this.packs.add(pack);
+            y += 22;
+        }
+        refreshPresetTips(live);
+    }
+
+    private void cyclePresetMode() {
+        this.presetMode = this.presetMode.next();
+        this.presetModeBtn.setMessage(presetModeLabel());
+        refreshPresetTips(new HashSet<>(WeaponCatalogSource.taczGunIds()));
+    }
+
+    private void refreshPresetTips(Set<String> live) {
+        String mode = this.presetMode.name().toLowerCase(Locale.ROOT);
+        this.presetModeBtn.setTooltip(Tooltip.create(Component.translatable("gui.tacz_sewv.loadout.tip.preset.mode." + mode)));
+        for (int i = 0; i < this.packButtons.size(); i++) {
+            Pack pack = this.packs.get(i);
+            Button btn = this.packButtons.get(i);
+            btn.active = this.presetMode != Mode.NONE;
+            btn.setTooltip(Tooltip.create(Component.translatable("gui.tacz_sewv.pool.tip.preset.pack",
+                    Component.translatable(pack.langKey), Component.literal(packText(pack, live)),
+                    presetModeLabel())));
+        }
+    }
+
+    private Component presetModeLabel() {
+        return Component.translatable("gui.tacz_sewv.pool.preset.mode." + this.presetMode.name().toLowerCase(Locale.ROOT));
+    }
+
+    private static String packText(Pack pack, Set<String> live) {
+        Map<TankFaction, List<String>> t = WeaponPackPresets.tables(pack);
+        long liveCount = WeaponPackPresets.allIds(pack).stream().filter(live::contains).count();
+        return Component.translatable(pack.langKey).getString() + " | RU " + t.get(TankFaction.RU).size()
+                + " / US " + t.get(TankFaction.US).size() + " / PMC " + t.get(TankFaction.PMC).size()
+                + " | " + liveCount + " live";
+    }
+
+    /**
+     * Add appends each live id a faction's layer lacks; Replace swaps that layer's rows for the pack's and
+     * switches it to Replace so SEM's defaults drop out too. Ids TACZ does not know are skipped (Save would
+     * refuse them). Local only until Save.
+     */
+    private void applyPack(Pack pack) {
+        if (this.presetMode == Mode.NONE) return;
+        Set<String> live = new HashSet<>(WeaponCatalogSource.taczGunIds());
+        for (var e : WeaponPackPresets.tables(pack).entrySet()) {
+            List<String> ids = e.getValue().stream().filter(live::contains).toList();
+            if (ids.isEmpty()) continue;
+            LoadoutMerge.Faction f = this.layers.get(e.getKey());
+            if (this.presetMode == Mode.REPLACE) {
+                f.rows.clear();
+                f.replace = true;
+            }
+            for (String id : ids) {
+                if (f.rows.stream().noneMatch(r -> r.gunId.equals(id))) f.rows.add(newRow(id, f.rows));
+            }
+            f.managed = true;
+        }
+        this.selected = -1;
+        clampScroll();
+        refreshAll();
     }
 
     /** Copies the gun in the player's selected hotbar slot: gun, fire mode, loaded rounds and attachments. */
@@ -442,12 +546,8 @@ public class LoadoutEditorScreen extends Screen {
 
     private String uniqueName(String wanted) {
         String name = wanted;
-        for (int n = 2; hasName(name); n++) name = wanted + "_" + n;
+        for (int n = 2; hasName(ours(), name); n++) name = wanted + "_" + n;
         return name;
-    }
-
-    private boolean hasName(String name) {
-        return ours().stream().anyMatch(r -> r.name.equals(name));
     }
 
     private void select(int index) {

@@ -9,7 +9,11 @@ import javax.annotation.Nullable;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.damagesource.DamageType;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
@@ -19,6 +23,7 @@ import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.event.entity.EntityJoinLevelEvent;
@@ -45,7 +50,8 @@ import com.neoalive.tacz_sewv.util.LoadedClip;
  *       which is how it is meant to be drained;</li>
  *   <li>RU/US keep {@link #standoff()} blocks (horizontal) from any tripod;</li>
  *   <li>a tripod is the top target tier ({@link SoftEnemyTargeting.Tier#APEX});</li>
- *   <li>the shield lets the AI out but not in ({@link #passesOutward}).</li>
+ *   <li>the shield lets the AI out but not in ({@link #passesOutward});</li>
+ *   <li>the heat ray burns the hull it crosses, not the crew inside ({@link #heatRayHullHits}).</li>
  * </ul>
  *
  * <p>Nothing here links against the mod: the tripod and its shield are matched by registry id,
@@ -67,6 +73,10 @@ public final class TripodCompat {
 
     private static final ResourceLocation TRIPOD_ID = new ResourceLocation(MODID, "tripod");
     private static final ResourceLocation SHIELD_ID = new ResourceLocation(MODID, "tripod_shield");
+    private static final ResourceKey<DamageType> HEAT_RAY =
+            ResourceKey.create(Registries.DAMAGE_TYPE, new ResourceLocation(MODID, "heat_ray"));
+    /** Per hull, two beams of {last tick, streak, next hit tick}: the mod's {@code Exposure}, game-timed. */
+    private static final Map<VehicleEntity, long[]> RAY_EXPOSURE = new WeakHashMap<>();
 
     private static Boolean present;
     @Nullable
@@ -241,6 +251,41 @@ public final class TripodCompat {
             if (rider instanceof Player) return false;
         }
         return true;
+    }
+
+    /**
+     * Burns every hull the beam segment {@code start → end} crosses, called once per beam per tick
+     * from {@code MixinTripodHeatRay}. The hit test, the ramp (18 + 0.8 per consecutive tick, capped
+     * at 100; one hit every 10 - streak/6 ticks, floored at 1) and the damage type are the mod's own
+     * {@code TripodHeatRay.trace} copied verbatim, so the only thing decided here is that the target
+     * is the hull: its own {@code DamageModifiers} then price the beam ({@code heat_ray} matches only
+     * the {@code All} rows, so a T-90's flat -20 shrugs off the opening pulses and the full beam
+     * still melts it in seconds). The crew stays out of it through
+     * {@code superbwarfare:vehicle_not_absorb}, or an enclosed crew would hand the hull the same
+     * beam again once per rider.
+     */
+    public static void heatRayHullHits(Entity tripod, Vec3 start, Vec3 end, int beam) {
+        Level level = tripod.level();
+        if (level.isClientSide()) return;
+        long now = level.getGameTime();
+        DamageSource source = null;
+        for (VehicleEntity hull : level.getEntitiesOfClass(VehicleEntity.class, new AABB(start, end).inflate(0.35))) {
+            AABB box = hull.getBoundingBox().inflate(0.25);
+            if (!box.contains(start) && box.clip(start, end).isEmpty()) continue;
+            // ponytail: keyed per hull and beam, not per tripod; two tripods on one hull share a ramp.
+            long[] e = RAY_EXPOSURE.computeIfAbsent(hull, h -> new long[6]);
+            int i = (beam & 1) * 3; // {last tick, streak, next hit tick}
+            if (e[i] == now) continue;
+            e[i + 1] = now - e[i] <= 2 ? e[i + 1] + 1 : 1;
+            e[i] = now;
+            if (e[i + 1] != 1 && now < e[i + 2]) continue;
+            e[i + 2] = now + Math.max(1, 10 - e[i + 1] / 6);
+            if (source == null) {
+                source = new DamageSource(level.registryAccess().registryOrThrow(Registries.DAMAGE_TYPE)
+                        .getHolderOrThrow(HEAT_RAY), tripod);
+            }
+            hull.hurt(source, 18.0F + Math.min(82.0F, e[i + 1] * 0.8F));
+        }
     }
 
     /** Eye-to-eye block ray with shields transparent (see {@link LoadedClip}). */

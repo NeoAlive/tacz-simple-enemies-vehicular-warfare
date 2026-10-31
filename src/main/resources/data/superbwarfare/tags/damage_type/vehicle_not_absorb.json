@@ -1,0 +1,9 @@
+{
+  "replace": false,
+  "values": [
+    {
+      "id": "xx_tripod_invasion:heat_ray",
+      "required": false
+    }
+  ]
+}

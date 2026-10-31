@@ -997,7 +997,10 @@ public class DriveVehicleGoal extends Goal {
      * locked onto a missile it could not launch.
      */
     private void fireAssistIfSpecial(LivingEntity target) {
-        if (this.selectedRole != VehicleWeapons.WEAPON_SPECIAL) return;
+        if (this.selectedRole != VehicleWeapons.WEAPON_SPECIAL) {
+            VehicleWeapons.tryTripodShieldShot(this.vehicle, this.unit, target);
+            return;
+        }
         VehicleWeapons.tryAiFireAssist(this.vehicle, this.unit, target,
                 EasyMode.aiFireAssistConeDeg());
     }

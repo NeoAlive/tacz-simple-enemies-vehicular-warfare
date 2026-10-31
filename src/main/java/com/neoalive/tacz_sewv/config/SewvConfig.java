@@ -434,6 +434,7 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.BooleanValue EASY_SOFT_INFANTRY;
     public static final ForgeConfigSpec.BooleanValue EASY_PLAYER_SUSTAIN;
     public static final ForgeConfigSpec.BooleanValue EASY_PROTECT_VEHICLES;
+    public static final ForgeConfigSpec.BooleanValue EASY_SOFT_TRIPOD_HEAT_RAY;
     public static final ForgeConfigSpec.BooleanValue EASY_BUFF_PMC;
     public static final ForgeConfigSpec.BooleanValue EASY_FEWER_EVENTS;
     public static final ForgeConfigSpec.BooleanValue EASY_HIGHLIGHT_THREATS;
@@ -1767,6 +1768,9 @@ public final class SewvConfig {
         EASY_PROTECT_VEHICLES = builder.comment(
                         "Easy Mode: hulls crewed by a player or their own PMC take half damage from hostiles.")
                 .define("easyProtectVehicles", true);
+        EASY_SOFT_TRIPOD_HEAT_RAY = builder.comment(
+                        "Easy Mode: a Tripod Invasion heat ray burns vehicles at a fifth of its normal damage.")
+                .define("easySoftTripodHeatRay", true);
         EASY_BUFF_PMC = builder.comment(
                         "Easy Mode: the player's own PMC units get 50% more health and take 60% hostile damage.",
                         "They are never slowed by any Easy Mode nerf either way.")

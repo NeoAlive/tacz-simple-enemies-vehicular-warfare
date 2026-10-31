@@ -18,7 +18,7 @@ import com.neoalive.tacz_sewv.compat.TripodCompat;
 /**
  * Tripod Invasion's shield as a one-way wall for the AI: a crew caged inside a shell (the tripod
  * walked onto it, or the shield rebuilt around it) drives out on its standoff retreat instead of
- * pushing against an invisible wall forever. The rule is {@link TripodCompat#passesOutward}.
+ * pushing against an invisible wall forever. The rule is {@link TripodCompat#passesShield}; hulls pass both ways.
  *
  * <p>Targeted by name ({@code @Pseudo}: the class is not on the compile classpath), so nothing
  * links against the mod; its own optional config and {@code TripodMixinPlugin} keep it unqueued
@@ -35,7 +35,7 @@ public abstract class MixinTripodShieldBlock {
     @Inject(method = {"getCollisionShape", "m_5939_"}, at = @At("HEAD"), cancellable = true, remap = false)
     private void tacz_sewv$oneWayForAi(BlockState state, BlockGetter level, BlockPos pos, CollisionContext context,
                                        CallbackInfoReturnable<VoxelShape> cir) {
-        if (context instanceof EntityCollisionContext ec && TripodCompat.passesOutward(ec.getEntity(), pos)) {
+        if (context instanceof EntityCollisionContext ec && TripodCompat.passesShield(ec.getEntity(), pos)) {
             cir.setReturnValue(Shapes.empty());
         }
     }

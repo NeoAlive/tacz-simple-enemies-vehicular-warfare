@@ -401,6 +401,11 @@ public final class EasyMode {
         return on(SewvConfig.EASY_PROTECT_VEHICLES);
     }
 
+    /** Tripod heat ray on hulls back at the mod's own per-pulse damage instead of 5x. */
+    public static boolean softTripodHeatRay() {
+        return on(SewvConfig.EASY_SOFT_TRIPOD_HEAT_RAY);
+    }
+
     public static boolean buffPmc() {
         return on(SewvConfig.EASY_BUFF_PMC);
     }

@@ -155,6 +155,8 @@ public class DriveShipGoal extends Goal {
                     if (this.selectedRole == VehicleWeapons.WEAPON_SPECIAL) {
                         VehicleWeapons.tryAiFireAssist(this.vehicle, this.unit, target,
                                 EasyMode.aiFireAssistConeDeg());
+                    } else {
+                        VehicleWeapons.tryTripodShieldShot(this.vehicle, this.unit, target);
                     }
                     // Fall through to transit / park on dest below.
                 } else {
@@ -200,6 +202,8 @@ public class DriveShipGoal extends Goal {
         if (this.selectedRole == VehicleWeapons.WEAPON_SPECIAL) {
             VehicleWeapons.tryAiFireAssist(this.vehicle, this.unit, target,
                     EasyMode.aiFireAssistConeDeg());
+        } else {
+            VehicleWeapons.tryTripodShieldShot(this.vehicle, this.unit, target);
         }
 
         if (isLowHealth()) {

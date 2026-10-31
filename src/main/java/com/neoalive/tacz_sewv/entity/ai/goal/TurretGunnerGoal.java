@@ -123,6 +123,8 @@ public class TurretGunnerGoal extends Goal {
                 && !FcpMortarCompat.isMortarHull(this.vehicle)) {
             VehicleWeapons.tryAiFireAssist(this.vehicle, this.unit, target,
                     EasyMode.aiFireAssistConeDeg());
+        } else if (this.selectedRole != VehicleWeapons.WEAPON_SPECIAL) {
+            VehicleWeapons.tryTripodShieldShot(this.vehicle, this.unit, target);
         }
     }
 

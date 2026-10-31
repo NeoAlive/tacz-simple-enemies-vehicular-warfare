@@ -1288,6 +1288,8 @@
   "config.tacz_sewv.easyPlayerSustain.tooltip": "Explosions from hostile SBW/SEM fire hurt the player half as much again. No vanilla health, healing or knockback changes.",
   "config.tacz_sewv.easyProtectVehicles": "Protect friendly vehicles",
   "config.tacz_sewv.easyProtectVehicles.tooltip": "Vehicles crewed by you or your own PMC take half damage from hostiles.",
+  "config.tacz_sewv.easySoftTripodHeatRay": "Softer tripod heat ray",
+  "config.tacz_sewv.easySoftTripodHeatRay.tooltip": "A Tripod Invasion heat ray burns vehicles at a fifth of its normal damage.",
   "config.tacz_sewv.easyBuffPmc": "Stronger PMC army",
   "config.tacz_sewv.easyBuffPmc.tooltip": "Your own PMC units get 50% more health and take less hostile damage.",
   "config.tacz_sewv.easyHighlightThreats": "Highlight threats",

@@ -199,6 +199,9 @@ final class ConfigRegistryBootstrap {
         b.bool(ConfigScope.SERVER, cat, "easyProtectVehicles",
                 SewvConfig.EASY_PROTECT_VEHICLES, SewvConfig.EASY_PROTECT_VEHICLES::set,
                 req, null);
+        b.bool(ConfigScope.SERVER, cat, "easySoftTripodHeatRay",
+                SewvConfig.EASY_SOFT_TRIPOD_HEAT_RAY, SewvConfig.EASY_SOFT_TRIPOD_HEAT_RAY::set,
+                req, null);
         b.bool(ConfigScope.SERVER, cat, "easyBuffPmc",
                 SewvConfig.EASY_BUFF_PMC, SewvConfig.EASY_BUFF_PMC::set,
                 req, null);

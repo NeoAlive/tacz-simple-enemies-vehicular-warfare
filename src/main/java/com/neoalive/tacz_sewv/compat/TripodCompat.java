@@ -1,5 +1,6 @@
 package com.neoalive.tacz_sewv.compat;
 
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -18,7 +19,6 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
@@ -35,6 +35,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
 
+import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.util.LoadedClip;
 
@@ -50,7 +51,9 @@ import com.neoalive.tacz_sewv.util.LoadedClip;
  *       which is how it is meant to be drained;</li>
  *   <li>RU/US keep {@link #standoff()} blocks (horizontal) from any tripod;</li>
  *   <li>a tripod is the top target tier ({@link SoftEnemyTargeting.Tier#APEX});</li>
- *   <li>the shield lets the AI out but not in ({@link #passesOutward});</li>
+ *   <li>hulls pass through the shield, AI units on foot only outward ({@link #passesShield});</li>
+ *   <li>a gun that cannot reach the body still fires when its line meets a raised shield ({@link #shieldInLine});</li>
+ *   <li>SBW's homing missiles aim at the body, not under it ({@link #homingY});</li>
  *   <li>the heat ray burns the hull it crosses, not the crew inside ({@link #heatRayHullHits}).</li>
  * </ul>
  *
@@ -75,6 +78,8 @@ public final class TripodCompat {
     private static final ResourceLocation SHIELD_ID = new ResourceLocation(MODID, "tripod_shield");
     private static final ResourceKey<DamageType> HEAT_RAY =
             ResourceKey.create(Registries.DAMAGE_TYPE, new ResourceLocation(MODID, "heat_ray"));
+    /** A hull takes the beam this many times harder than a body would; Easy Mode's soft heat ray drops it to 1. */
+    private static final float HULL_HEAT_MULT = 4.0F;
     /** Per hull, two beams of {last tick, streak, next hit tick}: the mod's {@code Exposure}, game-timed. */
     private static final Map<VehicleEntity, long[]> RAY_EXPOSURE = new WeakHashMap<>();
 
@@ -84,6 +89,13 @@ public final class TripodCompat {
     @Nullable
     private static Block shieldBlock;
     private static boolean resolved;
+    // TripodShield, by reflection: the mod is not on the compile classpath.
+    @Nullable
+    private static Method shieldGetter;
+    private static Method shieldActive;
+    private static Method shieldCentre;
+    private static double shieldRx;
+    private static double shieldRy;
 
     // ponytail: linear scan; loaded tripods are capped by the mod's own loadedTripodLimit.
     // A list rather than an AABB query: the walker is ~54 blocks tall and the mod has to patch
@@ -224,18 +236,19 @@ public final class TripodCompat {
     }
 
     /**
-     * The shield is a one-way wall for the AI ({@code MixinTripodShieldBlock}): a shield block has no
-     * collision for an AI unit, or a hull an AI drives, whose centre is horizontally closer to the
-     * nearest tripod than the block is. From inside, every block ahead of the body is farther out than
-     * its centre, so a caged crew drives straight out on its own standoff retreat; from outside, every
-     * block ahead is nearer, so the shield stays solid as the mod intends. A block already overlapping
-     * the body never stops it (vanilla collision only tests cells past the leading face), so it does not
-     * matter that the wall turns solid behind a hull's centre as it crosses. Players, any hull carrying
-     * one, and projectiles are untouched. Server-side only: the tripod list is.
+     * Who the shield lets through ({@code MixinTripodShieldBlock}). Any hull, crewed by anyone or
+     * nobody, both ways and on both sides: the client moves a player-driven hull itself, so the test
+     * cannot need the server-only tripod list. An AI unit on foot gets a one-way wall: no collision
+     * from a block horizontally farther from the nearest tripod than the unit's centre. From inside,
+     * every block ahead of the body is farther out, so a caged unit walks straight out on its standoff
+     * retreat; from outside, every block ahead is nearer, so the shield stays solid as the mod intends.
+     * A block already overlapping the body never stops it (vanilla collision only tests cells past the
+     * leading face). Players on foot and projectiles are untouched.
      */
-    public static boolean passesOutward(@Nullable Entity entity, BlockPos pos) {
-        if (entity == null || !present() || entity.level().isClientSide()) return false;
-        if (!(entity instanceof AbstractUnit || isAiHull(entity))) return false;
+    public static boolean passesShield(@Nullable Entity entity, BlockPos pos) {
+        if (entity == null || !present()) return false;
+        if (entity instanceof VehicleEntity) return true;
+        if (!(entity instanceof AbstractUnit) || entity.level().isClientSide()) return false;
         Entity tripod = nearestWithin(entity.level(), Vec3.atCenterOf(pos), SHELL_REACH);
         if (tripod == null) return false;
         double bx = pos.getX() + 0.5 - tripod.getX();
@@ -245,12 +258,50 @@ public final class TripodCompat {
         return ex * ex + ez * ez < bx * bx + bz * bz;
     }
 
-    private static boolean isAiHull(Entity entity) {
-        if (!(entity instanceof VehicleEntity hull) || !(hull.getFirstPassenger() instanceof AbstractUnit)) return false;
-        for (Entity rider : hull.getPassengers()) {
-            if (rider instanceof Player) return false;
+    /**
+     * A shot along the barrel line {@code muzzle → dir} lands on {@code target}'s shield. A tripod
+     * whose shield is up takes damage wherever the shell is struck, so this is a hit even when the
+     * gun cannot elevate (or depress) onto the body. False for anything else, or a shield that is down.
+     */
+    public static boolean shieldInLine(LivingEntity target, Vec3 muzzle, Vec3 dir) {
+        if (!isTripod(target)) return false;
+        Vec3 c = activeShieldCentre(target);
+        return c != null && ShieldRay.hits(muzzle.x, muzzle.y, muzzle.z, dir.x, dir.y, dir.z,
+                c.x, c.y, c.z, shieldRx, shieldRy);
+    }
+
+    /** The shield's centre while it is up, else null; also fills {@link #shieldRx}/{@link #shieldRy}. */
+    @Nullable
+    private static Vec3 activeShieldCentre(Entity tripod) {
+        try {
+            if (shieldGetter == null) {
+                shieldGetter = tripod.getClass().getMethod("getShield");
+                Class<?> shield = shieldGetter.getReturnType();
+                shieldActive = shield.getMethod("active");
+                shieldCentre = shield.getMethod("center");
+                shieldRx = shield.getField("RX").getDouble(null);
+                shieldRy = shield.getField("RY").getDouble(null);
+            }
+            Object shield = shieldGetter.invoke(tripod);
+            if (shield == null || !(Boolean) shieldActive.invoke(shield)) return null;
+            return (Vec3) shieldCentre.invoke(shield);
+        } catch (Throwable renamed) {
+            // A renamed shield API reads as "down": no shield shots, everything else unchanged.
+            return null;
         }
-        return true;
+    }
+
+    /**
+     * The y SBW's anti-ground missiles should read as a target's feet ({@code MixinMissileTripodHoming}).
+     * They home on {@code getY()} (the AGM-65 and Kh-39) or on {@code getY() + half the height} (the
+     * Javelin and 9M missiles), but a tripod's hit box is its body alone, from 32 blocks over its feet
+     * to its full 53.8: the first flew into the ground under it and the second under its belly. The
+     * answer is chosen so the missile's own formula lands on the body's centre.
+     */
+    public static double homingY(Entity target, boolean addsHalfHeight) {
+        if (!isTripod(target)) return target.getY();
+        double centre = target.getBoundingBox().getCenter().y;
+        return addsHalfHeight ? centre - 0.5 * target.getBbHeight() : centre;
     }
 
     /**
@@ -284,7 +335,8 @@ public final class TripodCompat {
                 source = new DamageSource(level.registryAccess().registryOrThrow(Registries.DAMAGE_TYPE)
                         .getHolderOrThrow(HEAT_RAY), tripod);
             }
-            hull.hurt(source, 18.0F + Math.min(82.0F, e[i + 1] * 0.8F));
+            float pulse = 18.0F + Math.min(82.0F, e[i + 1] * 0.8F);
+            hull.hurt(source, EasyMode.softTripodHeatRay() ? pulse : pulse * HULL_HEAT_MULT);
         }
     }
 

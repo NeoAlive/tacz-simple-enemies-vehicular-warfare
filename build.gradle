@@ -327,6 +327,15 @@ tasks.register('selfCheckArtillery', JavaExec) {
     jvmArgs '-ea'
 }
 
+tasks.register('selfCheckShieldRay', JavaExec) {
+    group = 'verification'
+    description = 'Runs the tripod shield ray self-check (barrel line against the shield ellipsoid).'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
+    mainClass = 'com.neoalive.tacz_sewv.compat.ShieldRaySelfCheck'
+    jvmArgs '-ea'
+}
+
 tasks.register('selfCheckReducedCharge', JavaExec) {
     group = 'verification'
     description = 'Runs the artillery reduced-charge solver self-check (reaches target under SBW integration, clamp, apex, purity).'
@@ -684,7 +693,7 @@ tasks.register('selfCheckMinimap', JavaExec) {
 tasks.register('selfCheck') {
     group = 'verification'
     description = 'Runs all headless AI self-checks.'
-    dependsOn 'selfCheckArmor', 'selfCheckArtillery', 'selfCheckReducedCharge', 'selfCheckCamo', 'selfCheckLoadout', 'selfCheckVehiclePacks', 'selfCheckMiscPacks', 'selfCheckUtility', 'selfCheckEasyMode', 'selfCheckRadial', 'selfCheckWeapons', 'selfCheckGrouping', 'selfCheckElection', 'selfCheckInfluence', 'selfCheckPlay', 'selfCheckFormation', 'selfCheckPlayerFormation', 'selfCheckInfantryFormation', 'selfCheckMarch', 'selfCheckSeam', 'selfCheckHeli', 'selfCheckHeliArmament', 'selfCheckPlane', 'selfCheckContactBoard', 'selfCheckWideScan', 'selfCheckPathBudget', 'selfCheckLofCache', 'selfCheckChunkTickets', 'selfCheckUnitLod', 'selfCheckTaskedDestination', 'selfCheckDismount', 'selfCheckTactics', 'selfCheckCues', 'selfCheckSuppression', 'selfCheckAcquisition', 'selfCheckEngineGates', 'selfCheckSounds', 'selfCheckCrewSkins', 'selfCheckAirport', 'selfCheckGround', 'selfCheckOrca', 'selfCheckCover', 'selfCheckBattlePosition', 'selfCheckBallistics', 'selfCheckIdle', 'selfCheckInvasion', 'selfCheckConfig', 'selfCheckPathway', 'selfCheckStructures', 'selfCheckTerritory', 'selfCheckDiplomacy', 'selfCheckVehicleAccess', 'selfCheckLv', 'selfCheckMinimap'
+    dependsOn 'selfCheckArmor', 'selfCheckArtillery', 'selfCheckReducedCharge', 'selfCheckShieldRay', 'selfCheckCamo', 'selfCheckLoadout', 'selfCheckVehiclePacks', 'selfCheckMiscPacks', 'selfCheckUtility', 'selfCheckEasyMode', 'selfCheckRadial', 'selfCheckWeapons', 'selfCheckGrouping', 'selfCheckElection', 'selfCheckInfluence', 'selfCheckPlay', 'selfCheckFormation', 'selfCheckPlayerFormation', 'selfCheckInfantryFormation', 'selfCheckMarch', 'selfCheckSeam', 'selfCheckHeli', 'selfCheckHeliArmament', 'selfCheckPlane', 'selfCheckContactBoard', 'selfCheckWideScan', 'selfCheckPathBudget', 'selfCheckLofCache', 'selfCheckChunkTickets', 'selfCheckUnitLod', 'selfCheckTaskedDestination', 'selfCheckDismount', 'selfCheckTactics', 'selfCheckCues', 'selfCheckSuppression', 'selfCheckAcquisition', 'selfCheckEngineGates', 'selfCheckSounds', 'selfCheckCrewSkins', 'selfCheckAirport', 'selfCheckGround', 'selfCheckOrca', 'selfCheckCover', 'selfCheckBattlePosition', 'selfCheckBallistics', 'selfCheckIdle', 'selfCheckInvasion', 'selfCheckConfig', 'selfCheckPathway', 'selfCheckStructures', 'selfCheckTerritory', 'selfCheckDiplomacy', 'selfCheckVehicleAccess', 'selfCheckLv', 'selfCheckMinimap'
 }
 
 mixin {

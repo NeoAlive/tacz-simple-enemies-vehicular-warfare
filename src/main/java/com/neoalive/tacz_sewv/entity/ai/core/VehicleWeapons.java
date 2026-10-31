@@ -763,6 +763,33 @@ public final class VehicleWeapons {
         return tryAiFireAssistResult(vehicle, unit, target, coneDeg) == FireGate.FIRED;
     }
 
+    /**
+     * A tripod whose shield is up is damaged wherever the shell is struck, so a gun pinned at its
+     * elevation (or depression) stop still has a shot: fire when the barrel's own line meets the
+     * shield ({@link com.neoalive.tacz_sewv.compat.TripodCompat#shieldInLine}). SBW's native 4° gate
+     * measures to the body and never opens there, which is what left a close MBT silent. Same RPM
+     * instants and {@code canShoot} verdict as the fire assist; with the shield down this never fires.
+     *
+     * @return true if a shot was fired
+     */
+    public static boolean tryTripodShieldShot(VehicleEntity vehicle, AbstractUnit unit, LivingEntity target) {
+        if (!com.neoalive.tacz_sewv.compat.TripodCompat.isTripod(target)) return false;
+        try {
+            int rpm = Math.max(1, vehicle.vehicleWeaponRpm(unit));
+            if (vehicle.tickCount % Math.max(1, (int) Math.ceil(1200.0F / rpm)) != 0) return false;
+            // ponytail: a straight line, no drop; a shell lobbed past ~150 blocks may land short of the shell.
+            if (!com.neoalive.tacz_sewv.compat.TripodCompat.shieldInLine(target,
+                    vehicle.getShootPos(unit, 1.0F), vehicle.getShootDirectionForHud(unit, 1.0F))) {
+                return false;
+            }
+            if (!vehicle.canShoot(unit)) return false;
+            vehicle.vehicleShoot(unit, target.getUUID(), null);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     /** Why {@link #tryAiFireAssist} did or did not shoot — for heli combat debug. */
     public enum FireGate {
         FIRED, RPM_WAIT, CANNOT_SHOOT, BAD_VECTOR, CONE, ERROR

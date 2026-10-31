@@ -75,14 +75,19 @@ public final class QuickCommandRegistry {
 
     /** Handheld-radio fire missions. Signal orange; every aircraft order shares the airplane glyph. */
     public static final int SUPPORT_ACCENT = 0xF08A24;
+    /**
+     * Language-key prefix for every wedge label ({@code gui.tacz_sewv.wheel.<id>}). The queue
+     * packet stores the key itself ({@code readUtf(64)}), so a key must stay within 64 characters.
+     */
+    public static final String LABEL_PREFIX = "gui.tacz_sewv.wheel.";
     private static final String AIR_GLYPH = "\u2708";
-    public static final WedgeEntry.CategoryEntry SUPPORT_CATEGORY = new WedgeEntry.CategoryEntry(
-            "Support", "\u260E", SUPPORT_ACCENT, List.of(
-                    new WedgeEntry.PipelineEntry("Carpet Bomb", AIR_GLYPH, ID_SUPPORT_CARPET_BOMB, SUPPORT_ACCENT),
-                    new WedgeEntry.PipelineEntry("Anti Ground Missile", AIR_GLYPH, ID_SUPPORT_AGM, SUPPORT_ACCENT),
-                    new WedgeEntry.PipelineEntry("Cannon", AIR_GLYPH, ID_SUPPORT_CANNON, SUPPORT_ACCENT),
-                    new WedgeEntry.PipelineEntry("Artillery Fire", "\u2739", ID_SUPPORT_ARTILLERY, SUPPORT_ACCENT),
-                    new WedgeEntry.PipelineEntry("Mortar Shelling", "\u2604", ID_SUPPORT_MORTAR, SUPPORT_ACCENT)));
+    public static final WedgeEntry.CategoryEntry SUPPORT_CATEGORY = category(
+            "support", "\u260E", SUPPORT_ACCENT, List.of(
+                    leaf(ID_SUPPORT_CARPET_BOMB, AIR_GLYPH, SUPPORT_ACCENT),
+                    leaf(ID_SUPPORT_AGM, AIR_GLYPH, SUPPORT_ACCENT),
+                    leaf(ID_SUPPORT_CANNON, AIR_GLYPH, SUPPORT_ACCENT),
+                    leaf(ID_SUPPORT_ARTILLERY, "\u2739", SUPPORT_ACCENT),
+                    leaf(ID_SUPPORT_MORTAR, "\u2604", SUPPORT_ACCENT)));
 
     private static final Map<String, QuickCommandPipeline> BY_ID = new HashMap<>();
     private static List<WedgeEntry> ROOT = List.of();
@@ -109,62 +114,71 @@ public final class QuickCommandRegistry {
         // Formation leaves are client-committed via PacketVehicleFormation (not PacketQuickCommand).
 
         List<WedgeEntry> general = new ArrayList<>();
-        general.add(leaf("Follow", "\u21AA", ID_QUICK_FOLLOW, 0xE8B84A));
-        general.add(leaf("Hold", "\u25A1", ID_QUICK_HOLD, 0xE8B84A));
-        general.add(leaf("Move To", "\u27A4", ID_QUICK_MOVE, 0xE8B84A));
-        general.add(leaf("Attack That", "\u2694", ID_QUICK_ATTACK, 0xE8B84A));
-        general.add(leaf("Suppress There", "\u2738", ID_QUICK_SUPPRESS, 0xE8B84A));
-        general.add(leaf("Cease Fire", "\u2298", ID_QUICK_CEASE_FIRE, 0xE8B84A));
-        general.add(leaf("Free Fire", "\u26A1", ID_QUICK_FREE_FIRE, 0xE8B84A));
-        general.add(leaf("Escort", "\u25C6", ID_ESCORT, 0xE8B84A));
-        general.add(leaf("Set Guard", "\u2691", ID_SET_GUARD, 0xE8B84A));
-        general.add(leaf("Reach Guard", "\u2192", ID_REACH_GUARD, 0xE8B84A));
+        general.add(leaf(ID_QUICK_FOLLOW, "\u21AA", 0xE8B84A));
+        general.add(leaf(ID_QUICK_HOLD, "\u25A1", 0xE8B84A));
+        general.add(leaf(ID_QUICK_MOVE, "\u27A4", 0xE8B84A));
+        general.add(leaf(ID_QUICK_ATTACK, "\u2694", 0xE8B84A));
+        general.add(leaf(ID_QUICK_SUPPRESS, "\u2738", 0xE8B84A));
+        general.add(leaf(ID_QUICK_CEASE_FIRE, "\u2298", 0xE8B84A));
+        general.add(leaf(ID_QUICK_FREE_FIRE, "\u26A1", 0xE8B84A));
+        general.add(leaf(ID_ESCORT, "\u25C6", 0xE8B84A));
+        general.add(leaf(ID_SET_GUARD, "\u2691", 0xE8B84A));
+        general.add(leaf(ID_REACH_GUARD, "\u2192", 0xE8B84A));
         if (PlayerReviveCompat.isLoaded()) {
-            general.add(leaf("Revive Call", "\u271A", ID_REVIVE_CALL, 0xE8B84A));
+            general.add(leaf(ID_REVIVE_CALL, "\u271A", 0xE8B84A));
         }
 
         ROOT = List.of(
-                new WedgeEntry.CategoryEntry("General", "\u2605", 0xE8B84A, List.copyOf(general)),
-                new WedgeEntry.CategoryEntry("Crew", "\u2399", 0xD98A4A, List.of(
-                        leaf("Board", "\u2399", ID_QUICK_BOARD, 0xD98A4A),
-                        leaf("Board as Passenger", "\u25AD", ID_BOARD_PASSENGER, 0xD98A4A),
-                        leaf("Board Queued", "\u21A7", ID_BOARD_QUEUED, 0xD98A4A),
-                        leaf("Dismount", "\u2193", ID_QUICK_DISMOUNT, 0xD98A4A),
-                        leaf("Bail Out", "\u2602", ID_BAIL_OUT, 0xD98A4A),
-                        leaf("Tow", "\u26D3", ID_TOW, 0xD98A4A))),
-                new WedgeEntry.CategoryEntry("Land", "\u26F0", 0x6BA84A, List.of(
-                        leaf("Entrench", "\u26F0", ID_QUICK_ENTRENCH, 0x6BA84A),
-                        leaf("Refill", "\u21BB", ID_QUICK_REFILL, 0x6BA84A),
-                        leaf("Route to FOB", "\u2302", ID_QUICK_ROUTE_FOB, 0x6BA84A))),
-                new WedgeEntry.CategoryEntry("Air", "\u2708", 0x4AB8E8, List.of(
-                        leaf("Takeoff / Retrim", "\u2191", ID_QUICK_TAKEOFF, 0x4AB8E8),
-                        leaf("Landing", "\u2193", ID_QUICK_LANDING, 0x4AB8E8),
-                        leaf("Land at Helipad", "\u25A3", ID_QUICK_LAND_HELIPAD, 0x4AB8E8),
-                        leaf("Emergency Land", "\u26A0", ID_QUICK_EMERGENCY_LAND, 0x4AB8E8),
-                        leaf("Rappel Crew", "\u21CA", ID_RAPPEL_CREW, 0x4AB8E8),
-                        leaf("Rappel Self", "\u21F3", ID_RAPPEL_SELF, 0x4AB8E8),
-                        leaf("Paratroop", "\u2602", ID_PARATROOP, 0x4AB8E8))),
-                new WedgeEntry.CategoryEntry("Procedures", "\u2699", 0x5AB8A0, List.of(
-                        leaf("Evacuation", "\u21E7", ID_QUICK_EVAC, 0x5AB8A0),
-                        leaf("Search & Destroy", "\u25CE", ID_QUICK_SEARCH, 0x5AB8A0),
-                        leaf("Patrol", "\u27F3", ID_QUICK_PATROL, 0x5AB8A0),
-                        leaf("Dismiss", "\u2715", ID_DISMISS, 0x5AB8A0))),
-                new WedgeEntry.CategoryEntry("Formation", "\u25C8", 0xA06BD4, List.of(
-                        leaf("Wedge", "\u25B2", ID_FORM_WEDGE, 0xA06BD4),
-                        leaf("Column", "\u25B3", ID_FORM_COLUMN, 0xA06BD4),
-                        leaf("Line", "\u2501", ID_FORM_LINE, 0xA06BD4),
-                        leaf("Echelon L", "\u25E2", ID_FORM_ECHELON_LEFT, 0xA06BD4),
-                        leaf("Echelon R", "\u25E3", ID_FORM_ECHELON_RIGHT, 0xA06BD4))),
-                new WedgeEntry.CategoryEntry("Platoon", "\u2691", 0xE07AA6, List.of(
-                        leaf("Join Platoon", "\u2295", ID_PLATOON_JOIN, 0xE07AA6),
-                        leaf("Exit Platoon", "\u2296", ID_PLATOON_EXIT, 0xE07AA6),
-                        leaf("Toggle Orders", "\u21C4", ID_PLATOON_AUTO_ORDERS, 0xE07AA6))),
+                category("general", "\u2605", 0xE8B84A, List.copyOf(general)),
+                category("crew", "\u2399", 0xD98A4A, List.of(
+                        leaf(ID_QUICK_BOARD, "\u2399", 0xD98A4A),
+                        leaf(ID_BOARD_PASSENGER, "\u25AD", 0xD98A4A),
+                        leaf(ID_BOARD_QUEUED, "\u21A7", 0xD98A4A),
+                        leaf(ID_QUICK_DISMOUNT, "\u2193", 0xD98A4A),
+                        leaf(ID_BAIL_OUT, "\u2602", 0xD98A4A),
+                        leaf(ID_TOW, "\u26D3", 0xD98A4A))),
+                category("land", "\u26F0", 0x6BA84A, List.of(
+                        leaf(ID_QUICK_ENTRENCH, "\u26F0", 0x6BA84A),
+                        leaf(ID_QUICK_REFILL, "\u21BB", 0x6BA84A),
+                        leaf(ID_QUICK_ROUTE_FOB, "\u2302", 0x6BA84A))),
+                category("air", "\u2708", 0x4AB8E8, List.of(
+                        leaf(ID_QUICK_TAKEOFF, "\u2191", 0x4AB8E8),
+                        leaf(ID_QUICK_LANDING, "\u2193", 0x4AB8E8),
+                        leaf(ID_QUICK_LAND_HELIPAD, "\u25A3", 0x4AB8E8),
+                        leaf(ID_QUICK_EMERGENCY_LAND, "\u26A0", 0x4AB8E8),
+                        leaf(ID_RAPPEL_CREW, "\u21CA", 0x4AB8E8),
+                        leaf(ID_RAPPEL_SELF, "\u21F3", 0x4AB8E8),
+                        leaf(ID_PARATROOP, "\u2602", 0x4AB8E8))),
+                category("procedures", "\u2699", 0x5AB8A0, List.of(
+                        leaf(ID_QUICK_EVAC, "\u21E7", 0x5AB8A0),
+                        leaf(ID_QUICK_SEARCH, "\u25CE", 0x5AB8A0),
+                        leaf(ID_QUICK_PATROL, "\u27F3", 0x5AB8A0),
+                        leaf(ID_DISMISS, "\u2715", 0x5AB8A0))),
+                category("formation", "\u25C8", 0xA06BD4, List.of(
+                        leaf(ID_FORM_WEDGE, "\u25B2", 0xA06BD4),
+                        leaf(ID_FORM_COLUMN, "\u25B3", 0xA06BD4),
+                        leaf(ID_FORM_LINE, "\u2501", 0xA06BD4),
+                        leaf(ID_FORM_ECHELON_LEFT, "\u25E2", 0xA06BD4),
+                        leaf(ID_FORM_ECHELON_RIGHT, "\u25E3", 0xA06BD4))),
+                category("platoon", "\u2691", 0xE07AA6, List.of(
+                        leaf(ID_PLATOON_JOIN, "\u2295", 0xE07AA6),
+                        leaf(ID_PLATOON_EXIT, "\u2296", 0xE07AA6),
+                        leaf(ID_PLATOON_AUTO_ORDERS, "\u21C4", 0xE07AA6))),
                 SUPPORT_CATEGORY,
-                leaf("Cancel", "\u2715", ID_QUICK_CANCEL, 0xE85A4A));
+                leaf(ID_QUICK_CANCEL, "\u2715", 0xE85A4A));
     }
 
-    private static WedgeEntry.PipelineEntry leaf(String label, String icon, String id, int accent) {
-        return new WedgeEntry.PipelineEntry(label, icon, id, accent);
+    /** {@code gui.tacz_sewv.wheel.<id>} — the English string is the lang file, not this class. */
+    public static String labelKey(String id) {
+        return LABEL_PREFIX + id;
+    }
+
+    private static WedgeEntry.PipelineEntry leaf(String id, String icon, int accent) {
+        return new WedgeEntry.PipelineEntry(labelKey(id), icon, id, accent);
+    }
+
+    private static WedgeEntry.CategoryEntry category(String id, String icon, int accent, List<WedgeEntry> children) {
+        return new WedgeEntry.CategoryEntry(labelKey("cat." + id), icon, accent, children);
     }
 
     private static void register(String id, QuickCommandPipeline pipeline) {

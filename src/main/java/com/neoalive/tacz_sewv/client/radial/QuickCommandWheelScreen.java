@@ -677,7 +677,7 @@ public final class QuickCommandWheelScreen extends Screen {
     private String hotLeafLabel() {
         int hot = this.input.hotIndex();
         List<WedgeEntry> wedges = this.input.currentWedges();
-        return hot >= 0 && hot < wedges.size() ? wedges.get(hot).label() : "";
+        return hot >= 0 && hot < wedges.size() ? wedges.get(hot).labelKey() : "";
     }
 
     private boolean inFormationSubmenu() {

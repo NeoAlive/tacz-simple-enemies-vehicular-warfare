@@ -25,8 +25,13 @@ final class FormationPreviewDraw {
     /** Past wedge labels that stick out past the ring. */
     static final int RIGHT_OF_RING_GAP = 58;
 
-    private static final String[] MODE_LABELS = {"INFY.", "GRND.", "SHIP."};
-    private static final String[] SUBJECT_LABELS = {"PLYR.", "UNIT."};
+    private static final String[] MODE_KEYS = {
+            "gui.tacz_sewv.formation.kind.infantry",
+            "gui.tacz_sewv.formation.kind.ground",
+            "gui.tacz_sewv.formation.kind.ship"};
+    private static final String[] SUBJECT_KEYS = {
+            "gui.tacz_sewv.formation.subject.player",
+            "gui.tacz_sewv.formation.subject.unit"};
 
     private FormationPreviewDraw() {}
 
@@ -55,8 +60,8 @@ final class FormationPreviewDraw {
         int hiFill = scaleAlpha(0x66A06BD4, a);
 
         // --- Subject ribbon (detached) + kind filter strip ---
-        drawStrip(g, font, left, subjectTop, SUBJECT_LABELS, subjectIndex, subjectLerp, fill, hiFill, ink, muted);
-        drawStrip(g, font, left, filterTop, MODE_LABELS, filterKind.ordinal(), filterLerp, fill, hiFill, ink, muted);
+        drawStrip(g, font, left, subjectTop, SUBJECT_KEYS, subjectIndex, subjectLerp, fill, hiFill, ink, muted);
+        drawStrip(g, font, left, filterTop, MODE_KEYS, filterKind.ordinal(), filterLerp, fill, hiFill, ink, muted);
         boolean led = subjectIndex == 1;
 
         // --- Slot preview ---
@@ -115,7 +120,7 @@ final class FormationPreviewDraw {
             }
         }
 
-        String caption = String.format("W %.1f  L %.1f", widthStretch, lengthStretch);
+        String caption = I18n.get("gui.tacz_sewv.formation.size", widthStretch, lengthStretch);
         g.drawCenteredString(font, caption, left + PANEL_W / 2, panelTop + PANEL_H - 10, ink);
 
         // --- Hint (no background) ---
@@ -135,7 +140,7 @@ final class FormationPreviewDraw {
         int hiX = left + Math.round(Mth.clamp(lerp, 0.0f, labels.length - 1.0f) * cellW);
         g.fill(hiX, top + 1, hiX + cellW, top + FILTER_H - 1, hiFill);
         for (int i = 0; i < labels.length; i++) {
-            g.drawCenteredString(font, labels[i], left + i * cellW + cellW / 2, top + (FILTER_H - 8) / 2,
+            g.drawCenteredString(font, I18n.get(labels[i]), left + i * cellW + cellW / 2, top + (FILTER_H - 8) / 2,
                     i == selected ? ink : muted);
         }
     }

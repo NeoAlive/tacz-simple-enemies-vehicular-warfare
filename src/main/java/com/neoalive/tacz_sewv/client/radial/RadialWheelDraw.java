@@ -12,6 +12,7 @@ import com.mojang.blaze3d.vertex.VertexFormat;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.renderer.GameRenderer;
+import net.minecraft.client.resources.language.I18n;
 import net.minecraft.util.Mth;
 import org.joml.Matrix4f;
 
@@ -229,7 +230,8 @@ final class RadialWheelDraw {
     }
 
     private static String labelText(WedgeEntry entry, boolean checked) {
-        return checked ? "[x] " + entry.label() : entry.label();
+        String text = I18n.get(entry.labelKey(), entry.labelArgs());
+        return checked ? I18n.get("gui.tacz_sewv.wheel.checked", text) : text;
     }
 
     private static boolean isChecked(boolean[] checked, int i) {

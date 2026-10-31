@@ -2,6 +2,7 @@ package com.neoalive.tacz_sewv.client.radial;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import javax.annotation.Nullable;
@@ -28,19 +29,24 @@ final class SelectLeaves {
             List<TdtSelection.Entry> units = e.getValue();
             if (units.isEmpty()) continue;
             boolean commander = units.stream().anyMatch(TdtSelection.Entry::isCommander);
-            leaves.add(new WedgeEntry.PipelineEntry("Platoon x" + TdtSelection.distinctCount(units),
+            leaves.add(new WedgeEntry.PipelineEntry(
+                    QuickCommandRegistry.labelKey("select.platoon"),
                     commander ? "★" : "⚑",
-                    QuickCommandRegistry.SELECT_PLATOON_PREFIX + e.getKey(), e.getKey() & 0xFFFFFF));
+                    QuickCommandRegistry.SELECT_PLATOON_PREFIX + e.getKey(), e.getKey() & 0xFFFFFF,
+                    new Object[]{ TdtSelection.distinctCount(units) }));
         }
         for (Map.Entry<VehicleMarker.Kind, List<TdtSelection.Entry>> e : TdtSelection.byKind().entrySet()) {
             List<TdtSelection.Entry> units = e.getValue();
             if (units.isEmpty()) continue;
-            leaves.add(new WedgeEntry.PipelineEntry(kindLabel(e.getKey()) + " x" + TdtSelection.distinctCount(units),
+            leaves.add(new WedgeEntry.PipelineEntry(
+                    QuickCommandRegistry.labelKey("kind." + e.getKey().name().toLowerCase(Locale.ROOT)),
                     kindGlyph(e.getKey()), QuickCommandRegistry.SELECT_KIND_PREFIX + e.getKey().name(),
-                    QuickCommandRegistry.SELECT_ACCENT));
+                    QuickCommandRegistry.SELECT_ACCENT,
+                    new Object[]{ TdtSelection.distinctCount(units) }));
         }
         if (leaves.isEmpty()) return null;
-        return new WedgeEntry.CategoryEntry("Select", "◉", QuickCommandRegistry.SELECT_ACCENT, leaves);
+        return new WedgeEntry.CategoryEntry(
+                QuickCommandRegistry.labelKey("cat.select"), "◉", QuickCommandRegistry.SELECT_ACCENT, leaves);
     }
 
     /** Toggle the group a Select leaf stands for. */
@@ -69,27 +75,6 @@ final class SelectLeaves {
             // Not a Select id — nothing to toggle.
         }
         return List.of();
-    }
-
-    private static String kindLabel(VehicleMarker.Kind kind) {
-        return switch (kind) {
-            case ARMOR -> "Armor";
-            case MECHANIZED -> "Mechanized";
-            case EMPLACEMENT -> "Emplacement";
-            case ROTARY_WING -> "Helicopter";
-            case FIXED_WING -> "Aircraft";
-            case SURFACE_COMBATANT -> "Boat";
-            case MISSILE_SYSTEM -> "Missile";
-            case ANTI_AIR -> "Anti-Air";
-            case ARTILLERY -> "Artillery";
-            case DRONE -> "Drone";
-            case INFANTRY -> "Infantry";
-            case INFANTRY_MEDIC -> "Medic";
-            case INFANTRY_ENGINEER -> "Engineer";
-            case INFANTRY_COMBAT_ENGINEER -> "Combat Eng.";
-            case INFANTRY_COMMANDER -> "Commander";
-            default -> "Other";
-        };
     }
 
     private static String kindGlyph(VehicleMarker.Kind kind) {

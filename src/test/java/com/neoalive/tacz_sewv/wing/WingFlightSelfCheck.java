@@ -26,7 +26,10 @@ import com.neoalive.tacz_sewv.wing.physics.WingTrim;
  * <li><b>D3</b>: key order inside the data file cannot change a row.</li>
  * <li><b>D5</b>: the pure packages import nothing from Minecraft and call no non-strict
  *     transcendental.</li>
+ * <li><b>D2</b>: the closed loop (controller + physics) is bit-identical too.</li>
  * <li><b>W1-W10</b>: the airframe model ({@link WingPhysicsChecks}).</li>
+ * <li><b>C1-C8</b>: the controller cascade ({@link WingControlChecks}).</li>
+ * <li><b>G1-G6</b>: guidance and the terrain guard ({@link WingGuidanceChecks}).</li>
  * </ul>
  * Ends with the informational SBW envelope comparison ({@link SbwEnvelope}).
  */
@@ -45,8 +48,10 @@ public final class WingFlightSelfCheck {
         layering();
         determinism();
         WingPhysicsChecks.run();
+        WingControlChecks.run();
+        WingGuidanceChecks.run();
         SbwEnvelope.print();
-        System.out.println("wing flight self-check: OK (D1, D3, D5, W1-W10)");
+        System.out.println("wing flight self-check: OK (D1-D3, D5, W1-W10, C1-C8, G1-G6)");
     }
 
     // --- D1, D3 ---------------------------------------------------------------------------------
@@ -61,6 +66,18 @@ public final class WingFlightSelfCheck {
             assert bits(a).equals(bits(b)) : "D1: runs diverged at tick " + i;
         }
         assert a.finite() : "D1: the scenario must stay finite";
+
+        CtlSim ca = new CtlSim("attack_jet"), cb = new CtlSim("attack_jet");
+        for (CtlSim c : new CtlSim[] {ca, cb}) {
+            c.start(c.af.cruiseSpeed, 120.0, 600.0, 0.0);
+            c.wind.set(3.0, 0.0, -2.0);
+        }
+        var circle = CtlSim.circle(0.0, 600.0, 0.0, 120.0, ca.af.cruiseSpeed);
+        for (int i = 0; i < 20 * 60; i++) {
+            ca.tick(circle);
+            cb.tick(circle);
+            assert ctlBits(ca).equals(ctlBits(cb)) : "D2: closed-loop runs diverged at tick " + i;
+        }
 
         JsonObject root = JsonParser.parseString(Files.readString(WingSim.SHIPPED)).getAsJsonObject();
         var plain = WingAirframeData.parse(List.of(Map.entry("a", root)));
@@ -91,6 +108,15 @@ public final class WingFlightSelfCheck {
     private static String bits(WingSim s) {
         double[] v = {s.s.p.x, s.s.p.y, s.s.p.z, s.s.v.x, s.s.v.y, s.s.v.z, s.s.q.x, s.s.q.y, s.s.q.z, s.s.q.w,
                 s.s.w.x, s.s.w.y, s.s.w.z, s.s.throttle};
+        StringBuilder b = new StringBuilder();
+        for (double d : v) b.append(Long.toHexString(Double.doubleToRawLongBits(d))).append(',');
+        return b.toString();
+    }
+
+    private static String ctlBits(CtlSim c) {
+        var s = c.core.s;
+        double[] v = {s.p.x, s.p.y, s.p.z, s.v.x, s.v.y, s.v.z, s.q.x, s.q.y, s.q.z, s.q.w, s.w.x, s.w.y, s.w.z,
+                s.throttle, c.core.u.elevator, c.core.u.aileron, c.core.u.rudder};
         StringBuilder b = new StringBuilder();
         for (double d : v) b.append(Long.toHexString(Double.doubleToRawLongBits(d))).append(',');
         return b.toString();

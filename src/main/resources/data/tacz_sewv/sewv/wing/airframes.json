@@ -4,7 +4,8 @@
     "Minecraft scale: gravity is 400 x the hull's SBW Gravity (24 m/s^2 by default), 1 block = 1 m, speeds",
     "compressed to ~15-80 m/s, top speeds inside SBW's own normal-to-sprint band for the same hull. Rows are realistic in shape (lift curve with stall, parabolic polar, textbook",
     "derivative signs) and sized for that world, so masses are small and cd0 is high: only ratios matter.",
-    "inertia = [pitch, yaw, roll] (kg m^2). Angles in degrees, speeds m/s, times s, rates deg/s [pitch, yaw, roll].",
+    "inertia = [pitch, yaw, roll] (kg m^2). Angles in degrees, speeds m/s, times s, rates deg/s [pitch, yaw, roll];",
+    "turnRateMaxDeg caps the coordinated turn rate (the controller limits bank to atan(turnRate V / g)).",
     "A file naming a class replaces that whole row. Every row is checked at load: signs, trim from 1.3 x stall",
     "to vMax, top speed, and integrator margins; a failing row is skipped with a warning naming why."
   ],
@@ -50,10 +51,11 @@
         "bankMaxDeg": 75,
         "alphaMaxDeg": 13,
         "rateMax": [
-          30,
-          15,
+          90,
+          72,
           200
-        ]
+        ],
+        "turnRateMaxDeg": 60
       },
       "procedures": {
         "vRotate": 30,
@@ -115,10 +117,11 @@
         "bankMaxDeg": 65,
         "alphaMaxDeg": 12,
         "rateMax": [
-          22,
-          12,
+          70,
+          55,
           120
-        ]
+        ],
+        "turnRateMaxDeg": 45
       },
       "procedures": {
         "vRotate": 23,
@@ -181,10 +184,11 @@
         "bankMaxDeg": 65,
         "alphaMaxDeg": 12,
         "rateMax": [
-          25,
-          12,
+          75,
+          60,
           110
-        ]
+        ],
+        "turnRateMaxDeg": 50
       },
       "procedures": {
         "vRotate": 21,
@@ -247,10 +251,11 @@
         "bankMaxDeg": 60,
         "alphaMaxDeg": 13,
         "rateMax": [
-          30,
-          15,
+          80,
+          66,
           120
-        ]
+        ],
+        "turnRateMaxDeg": 55
       },
       "procedures": {
         "vRotate": 16,
@@ -313,10 +318,11 @@
         "bankMaxDeg": 45,
         "alphaMaxDeg": 11,
         "rateMax": [
-          8,
-          6,
+          25,
+          20,
           30
-        ]
+        ],
+        "turnRateMaxDeg": 15
       },
       "procedures": {
         "vRotate": 26,

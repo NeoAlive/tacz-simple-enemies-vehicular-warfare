@@ -37,4 +37,9 @@ public interface IFlightDynamics {
     float sewv$clientRoll();
 
     void sewv$setClientRoll(float roll);
+
+    /** Client: game time the last roll packet arrived, {@code Long.MIN_VALUE} after a release (NaN roll). */
+    long sewv$clientRollTime();
+
+    void sewv$setClientRollTime(long gameTime);
 }

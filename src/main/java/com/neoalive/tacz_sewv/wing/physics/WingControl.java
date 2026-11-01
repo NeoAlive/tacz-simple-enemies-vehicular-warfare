@@ -1,8 +1,8 @@
 package com.neoalive.tacz_sewv.wing.physics;
 
 /**
- * Pilot inputs for one sub-step. The stick and throttle are written only by the controller; the
- * configuration inputs (engine, gear, flaps, airbrake) belong to guidance.
+ * Pilot inputs for one sub-step. The stick, throttle and applied {@code brake} are written only by
+ * the controller; the configuration inputs (engine, gear, flaps, {@code brakeCmd}) belong to guidance.
  *
  * <p>Signs are the pilot's, not the aerodynamicist's: positive elevator is a pull (nose up),
  * positive aileron rolls right (starboard wing down), positive rudder yaws the nose right.
@@ -19,8 +19,10 @@ public final class WingControl {
     public double rudder;
     /** Commanded flap deflection, [0, 1]. */
     public double flap;
-    /** Commanded airbrake, [0, 1]. */
+    /** Airbrake actually applied, [0, 1]: {@code max(brakeCmd, the controller's overspeed brake)}. */
     public double brake;
+    /** Airbrake guidance asks for, [0, 1]. The controller never writes it. */
+    public double brakeCmd;
     public boolean gearDown;
     public boolean engineOn = true;
 

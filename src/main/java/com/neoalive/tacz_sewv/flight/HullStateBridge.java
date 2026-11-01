@@ -87,6 +87,15 @@ public final class HullStateBridge {
 
     /** Write our integrated position (as this tick's displacement) and attitude to the entity. */
     public void publishPose(VehicleEntity hull, Vector3d p, Quaterniond q) {
+        publishPose(hull, p, q, false);
+    }
+
+    /**
+     * As above; {@code heartbeat} resends the roll even when unchanged. A fixed-wing client only
+     * cancels SBW's client engine while roll packets keep arriving (it cannot otherwise tell whether
+     * the server is flying the hull), so the plane runtime asks for one every second.
+     */
+    public void publishPose(VehicleEntity hull, Vector3d p, Quaterniond q, boolean heartbeat) {
         // From the entity, not from p0: p0 may carry a residual vanilla dropped last tick.
         pubFrom.set(hull.getX(), hull.getY(), hull.getZ());
         Vector3d dm = new Vector3d(p).sub(pubFrom);
@@ -107,11 +116,17 @@ public final class HullStateBridge {
             hull.setZRot((float) e.rollDeg());
             pubRoll = hull.getRoll();
         }
-        if (Float.isNaN(sentRoll) || Math.abs(McPose.wrapDeg(pubRoll - sentRoll)) >= ANGLE_DEADBAND) {
+        if (heartbeat || Float.isNaN(sentRoll) || Math.abs(McPose.wrapDeg(pubRoll - sentRoll)) >= ANGLE_DEADBAND) {
             sentRoll = pubRoll;
             NetworkHandler.CHANNEL.send(PacketDistributor.TRACKING_ENTITY.with(() -> hull),
                     new PacketHeliRoll(hull.getId(), pubRoll));
         }
+    }
+
+    /** Tell tracking clients the integrator let go: a NaN roll, which clears their ownership mark. */
+    public static void sendRelease(VehicleEntity hull) {
+        NetworkHandler.CHANNEL.send(PacketDistributor.TRACKING_ENTITY.with(() -> hull),
+                new PacketHeliRoll(hull.getId(), Float.NaN));
     }
 
     /** The owner is not integrating this tick (SBW holds the hull): forget the last displacement. */

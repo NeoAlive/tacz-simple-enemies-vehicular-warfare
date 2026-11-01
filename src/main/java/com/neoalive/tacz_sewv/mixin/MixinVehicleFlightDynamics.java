@@ -33,6 +33,8 @@ public abstract class MixinVehicleFlightDynamics implements IFlightDynamics {
     private int tacz_sewv$flightMode;
     @Unique
     private float tacz_sewv$clientRoll = Float.NaN;
+    @Unique
+    private long tacz_sewv$clientRollTime = Long.MIN_VALUE;
 
     @Override
     public HeliRuntime sewv$heliRuntime() {
@@ -72,6 +74,16 @@ public abstract class MixinVehicleFlightDynamics implements IFlightDynamics {
     @Override
     public void sewv$setClientRoll(float roll) {
         this.tacz_sewv$clientRoll = roll;
+    }
+
+    @Override
+    public long sewv$clientRollTime() {
+        return this.tacz_sewv$clientRollTime;
+    }
+
+    @Override
+    public void sewv$setClientRollTime(long gameTime) {
+        this.tacz_sewv$clientRollTime = gameTime;
     }
 
     @Redirect(

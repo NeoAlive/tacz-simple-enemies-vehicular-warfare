@@ -59,6 +59,10 @@ import com.neoalive.tacz_sewv.notify.HudNotify;
 import com.neoalive.tacz_sewv.order.OrderFailure;
 import com.neoalive.tacz_sewv.order.OrderReport;
 import com.neoalive.tacz_sewv.util.ChunkTicket;
+import com.neoalive.tacz_sewv.wing.WingFlight;
+import com.neoalive.tacz_sewv.wing.WingRuntime;
+import com.neoalive.tacz_sewv.wing.guidance.WingModeSelector;
+import com.neoalive.tacz_sewv.wing.guidance.WingSituation;
 
 /**
  * Autopilot for SuperbWarfare fixed-wing aircraft (A-10, Ju-87, KV-16 — {@code EngineType.AIRCRAFT}).
@@ -431,6 +435,8 @@ public class DrivePlaneGoal extends Goal {
     private PlaneWeapons weapons;
 
     private PlaneMode mode = PlaneMode.GROUNDED;
+    /** The leash verdict chooseMode reached this tick (the fixed-wing snapshot reads it). */
+    private PlaneLeash.State leashState = PlaneLeash.State.FREE;
 
     // Takeoff roll heading, NaN until the roll begins.
     private double takeoffDirX = Double.NaN;
@@ -547,6 +553,7 @@ public class DrivePlaneGoal extends Goal {
     @Override
     public void stop() {
         if (this.vehicle != null) {
+            WingFlight.detach(this.vehicle);
             AirframeSupport.releaseInputs(this.vehicle);
             AirframeSupport.clearDecoy(this.vehicle);
             this.chunkTicket.release(this.vehicle);
@@ -616,6 +623,7 @@ public class DrivePlaneGoal extends Goal {
         float max = this.vehicle.getMaxHealth();
         if ((max > 0.0F && this.vehicle.getHealth() < max * CRASH_HEALTH_FRACTION)
                 || this.vehicle.getEnergy() <= 0) {
+            WingFlight.detach(this.vehicle); // SBW's own crash sequence runs inside its engine
             this.control.release();
             return;
         }
@@ -647,6 +655,10 @@ public class DrivePlaneGoal extends Goal {
                     target == null ? "none" : target.getName().getString(),
                     this.farLod);
         }
+
+        // The fixed-wing flight model flies this tick (free navigation, airborne); SBW's inputs are
+        // released because its engine is not running for this hull.
+        if (wingTick(now)) return;
 
         // Every branch below issues a complete set of inputs. There is no "do nothing" case: the
         // sticks decay, so a silent tick is a control release at flying speed.
@@ -683,6 +695,97 @@ public class DrivePlaneGoal extends Goal {
         // After the switch, because it reads the inputs the branch just issued. A no-op on every
         // airframe but the one whose engine answers the throttle for players only.
         NpcVehicleOverrides.mirrorThrottle(this.vehicle);
+    }
+
+    // --- Fixed-wing flight model ------------------------------------------------------------------
+
+    /**
+     * Modes the fixed-wing flight model flies (Phase 3: free navigation). Every other mode keeps the
+     * legacy SBW-driven path until the model takes it over; the runtime detaches whenever the mode
+     * leaves this set, and SBW resumes from the state the runtime leaves it in.
+     */
+    private static boolean isWingMode(PlaneMode mode) {
+        return mode == PlaneMode.CRUISE || mode == PlaneMode.HOLD || mode == PlaneMode.RTB;
+    }
+
+    /** Hand this tick to the runtime when it owns the mode; false means the legacy path flies it. */
+    private boolean wingTick(long now) {
+        if (!WingFlight.enabled() || !isWingMode(this.mode) || this.vehicle.onGround()) {
+            WingFlight.detach(this.vehicle);
+            return false;
+        }
+        WingRuntime runtime = WingFlight.attach(this.vehicle, this.unit);
+        if (runtime == null) return false;
+        AirframeSupport.releaseInputs(this.vehicle);
+        WingSituation sit = buildSituation(runtime, now);
+        runtime.setGuidance(sit, WingModeSelector.select(sit));
+        return true;
+    }
+
+
+    /**
+     * The fixed-wing snapshot: everything the pure guidance needs from the world. Altitude follows
+     * the legacy cruise rules (terrain-relative, MIN_OVER_DEST over the point, capped by the ceiling)
+     * so the two paths fly at the same heights.
+     */
+    private WingSituation buildSituation(WingRuntime runtime, long now) {
+        WingSituation sit = new WingSituation();
+        sit.time = now / 20.0;
+        sit.active = runtime.activeId();
+        sit.underOrders = flightPinnedByOrder();
+        sit.autonomous = !(this.unit instanceof PmcUnitEntity);
+        sit.pilotId = this.unit.getId();
+        sit.clockwise = orbitClockwise();
+        sit.orbitRadius = runtime.orbitRadius();
+        sit.healthFrac = this.vehicle.getMaxHealth() > 0.0F ? this.vehicle.getHealth() / this.vehicle.getMaxHealth() : 1.0;
+
+        double x = this.vehicle.getX(), z = this.vehicle.getZ();
+        BlockPos dest = destination();
+        if (dest != null) {
+            sit.hasDestination = true;
+            sit.destX = dest.getX() + 0.5;
+            sit.destY = dest.getY();
+            sit.destZ = dest.getZ() + 0.5;
+            sit.destDistance = Math.hypot(sit.destX - x, sit.destZ - z);
+        }
+        Vec3 anchor = this.leash.anchor();
+        if (anchor != null) {
+            sit.hasAnchor = true;
+            sit.anchorX = anchor.x;
+            sit.anchorY = anchor.y;
+            sit.anchorZ = anchor.z;
+            sit.anchorDistance = Math.hypot(anchor.x - x, anchor.z - z);
+            this.holdCentre = anchor;
+        } else if (this.holdCentre == null) {
+            this.holdCentre = this.vehicle.position();
+        }
+        sit.holdX = this.holdCentre.x;
+        sit.holdZ = this.holdCentre.z;
+        sit.leash = switch (this.leashState) {
+            case RECALL -> WingSituation.Leash.RECALL;
+            case RETURN -> WingSituation.Leash.RETURN;
+            default -> WingSituation.Leash.FREE;
+        };
+
+        boolean home = sit.leash == WingSituation.Leash.RETURN && anchor != null;
+        double over = dest != null ? dest.getY() + MIN_OVER_DEST : home ? anchor.y + MIN_OVER_DEST : Double.NEGATIVE_INFINITY;
+        double alt = dest != null ? cruiseAltitudeToward(sit.destX, sit.destZ)
+                : home ? cruiseAltitudeToward(anchor.x, anchor.z) : cruiseAltitudeHere();
+        sit.cruiseY = capAltitude(Math.max(alt, over));
+        sit.ceilingY = ceilingY();
+
+        Vec3 dm = this.vehicle.getDeltaMovement();
+        double vh = Math.hypot(dm.x, dm.z);
+        Vec3 dir = vh > 1.0E-3 ? new Vec3(dm.x / vh, 0.0, dm.z / vh) : this.kinematics.forwardFlat();
+        double step = Math.max(8.0, vh * 20.0 * WingSituation.FLOOR_SECONDS_PER_SAMPLE);
+        sit.floorStep = step;
+        sit.floor = new double[WingSituation.FLOOR_SAMPLES];
+        for (int i = 0; i < WingSituation.FLOOR_SAMPLES; i++) {
+            double d = (i + 1) * step;
+            int h = AirframeSupport.surfaceAtLoaded(this.unit.level(), Mth.floor(x + dir.x * d), Mth.floor(z + dir.z * d));
+            sit.floor[i] = h == Integer.MIN_VALUE ? Double.NEGATIVE_INFINITY : h;
+        }
+        return sit;
     }
 
     /** Modes allowed to cheapen when no player is nearby. Combat / land / takeoff stay full. */
@@ -757,6 +860,7 @@ public class DrivePlaneGoal extends Goal {
 
         PlaneLeash.State tether = this.leash.update(anchor(), this.vehicle.position(),
                 SewvConfig.PLANE_COMMAND_RADIUS.get());
+        this.leashState = tether;
         if (tether == PlaneLeash.State.RETURN) return PlaneMode.RTB;
 
         if (target != null) {

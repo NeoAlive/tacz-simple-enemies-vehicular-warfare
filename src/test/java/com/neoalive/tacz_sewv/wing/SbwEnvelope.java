@@ -56,13 +56,13 @@ final class SbwEnvelope {
     }
 
     /**
-     * Instantaneous turn rate at cruise, bounded by the lift available, by nMax, and by the body
-     * pitch-rate limit the controller enforces (in a steep bank the turn rate is the pitch rate).
+     * Turn rate at cruise, bounded by the lift available, by nMax, and by the turn-rate limit the
+     * controller enforces through its bank cap.
      */
     private static double ourTurn(WingAirframe af, double vs) {
         double v = af.cruiseSpeed;
         double n = Math.min(af.nMax, (v / vs) * (v / vs));
         double aero = WingSim.G * StrictMath.sqrt(Math.max(0.0, n * n - 1.0)) / v;
-        return StrictMath.toDegrees(Math.min(aero, af.ratePitch));
+        return StrictMath.toDegrees(Math.min(aero, af.turnRateMax));
     }
 }

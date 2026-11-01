@@ -12,6 +12,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
+import com.neoalive.tacz_sewv.wing.control.WingController;
 import com.neoalive.tacz_sewv.wing.physics.AeroModel;
 import com.neoalive.tacz_sewv.wing.physics.WingAirframe;
 import com.neoalive.tacz_sewv.wing.physics.WingPhysics;
@@ -154,6 +155,11 @@ public final class WingAirframeData {
         double bankDeg = StrictMath.toDegrees(af.bankMax);
         if (bankDeg < 15.0 || bankDeg > 85.0) p.add("limits.bankMaxDeg must be in [15, 85]");
         if (!(af.coneLo < af.coneHi)) p.add("aim.coneDeg must be [lo, hi] with lo < hi");
+        if (!(af.turnRateMax > 0.0)) p.add("limits.turnRateMaxDeg must be positive");
+        // A coordinated turn needs q = psiDot sin(phi) and r = psiDot cos(phi): the body-rate limits
+        // must leave room for the turn-rate limit or the hull slips instead of turning.
+        if (af.ratePitch < 1.3 * af.turnRateMax) p.add("limits.rateMax pitch must be >= 1.3 x limits.turnRateMaxDeg");
+        if (af.rateYaw < 1.1 * af.turnRateMax) p.add("limits.rateMax yaw must be >= 1.1 x limits.turnRateMaxDeg");
         if (!p.isEmpty()) return p;
 
         double vs = AeroModel.stallSpeed(af, g, rho, 0.0);
@@ -172,6 +178,14 @@ public final class WingAirframeData {
         if (!(af.bestGlide >= 1.1 * vs)) p.add("procedures.bestGlide must be >= 1.1 x stall speed " + fmt(vs));
         if (!(af.cruiseSpeed >= 1.3 * vs && af.cruiseSpeed <= af.vMax)) p.add("procedures.cruiseSpeed must be in [1.3 vs, vMax]");
         if (!(af.runSpeed <= af.vMax)) p.add("procedures.runSpeed must be <= vMax");
+
+        // Controller bandwidths: each loop at least ~3x slower than the one inside it, and the rate
+        // loop well inside the sub-step (it is a discrete first-order loop at 120 Hz).
+        double tol = 1.0 - 1.0E-9;
+        if (af.bwRate < 3.0 * WingController.ROLL_ATT * af.bwAtt * tol) p.add("control.rate must be >= 3.6 x control.att");
+        if (af.bwAtt < 3.0 * af.bwTecs * tol) p.add("control.att must be >= 3 x control.tecs");
+        if (af.bwRate * WingPhysics.H > 0.2) p.add("control.rate x sub-step must be <= 0.2");
+        if (!(af.l1Period > 0.0 && af.l1Zeta >= 0.5 && af.l1Zeta <= 1.2)) p.add("control needs l1Period > 0 and l1Zeta in [0.5, 1.2]");
 
         // Integrator margins at vMax, the stiffest point of the envelope.
         double qs = 0.5 * rho * af.vMax * af.vMax * af.area;

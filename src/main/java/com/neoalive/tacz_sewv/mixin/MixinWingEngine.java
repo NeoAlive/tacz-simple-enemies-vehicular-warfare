@@ -26,7 +26,7 @@ public abstract class MixinWingEngine {
 
     @Inject(method = "aircraftEngine", at = @At("HEAD"), cancellable = true, remap = false)
     private static void tacz_sewv$flyOurs(VehicleEntity vehicle, EngineInfo.Aircraft engine, CallbackInfo ci) {
-        int mode = vehicle.level().isClientSide ? WingFlight.clientTick(vehicle) : WingFlight.serverTick(vehicle);
+        int mode = vehicle.level().isClientSide ? WingFlight.clientTick(vehicle, engine) : WingFlight.serverTick(vehicle);
         ((IFlightDynamics) vehicle).sewv$setFlightMode(mode);
         if (mode != IFlightDynamics.NONE) {
             ci.cancel();

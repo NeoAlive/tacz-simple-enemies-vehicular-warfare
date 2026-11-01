@@ -13,7 +13,8 @@ import com.neoalive.tacz_sewv.client.HeliRollClient;
  * S->C: roll of an AI-flown helicopter. SBW does not sync roll (it is a plain field the client
  * re-derives by running its own engine on synced stick inputs), and our hulls no longer use those
  * inputs. Sent only when roll moves by more than the publish deadband, so a steady hover sends
- * nothing.
+ * nothing; the fixed-wing runtime also sends one every second as a heartbeat, and a NaN roll when
+ * it lets go (see {@code WingFlight.clientTick}). Used for helicopters and planes alike.
  */
 public final class PacketHeliRoll {
 

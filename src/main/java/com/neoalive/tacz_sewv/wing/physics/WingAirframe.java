@@ -38,7 +38,7 @@ public final class WingAirframe {
             "propulsion.spool",
             "actuators.gearTime", "actuators.flapTime", "actuators.brakeTime",
             "limits.vMax", "limits.nMax", "limits.nMin", "limits.bankMaxDeg", "limits.alphaMaxDeg",
-            "limits.rateMax.0", "limits.rateMax.1", "limits.rateMax.2", "limits.ceiling",
+            "limits.rateMax.0", "limits.rateMax.1", "limits.rateMax.2", "limits.turnRateMaxDeg", "limits.ceiling",
             "control.tecs", "control.tecsZeta", "control.l1Period", "control.l1Zeta",
             "control.att", "control.rate", "control.rateZeta", "control.yawDamper",
             "procedures.vRotate", "procedures.approachSpeed", "procedures.cruiseSpeed", "procedures.runSpeed",
@@ -80,6 +80,12 @@ public final class WingAirframe {
     public final double vMax, nMax, nMin, bankMax, alphaMax, ceiling;
     /** Body-rate limits, rad/s: pitch, yaw, roll. */
     public final double ratePitch, rateYaw, rateRoll;
+    /**
+     * Coordinated turn-rate limit, rad/s. The controller caps bank to {@code atan(turnRateMax V / g)},
+     * which is what keeps turn rate in the gameplay range at Minecraft gravity (24 m/s^2 at 15-80 m/s
+     * would otherwise turn at well over 100 deg/s at the g limit).
+     */
+    public final double turnRateMax;
     public final double bwTecs, tecsZeta, l1Period, l1Zeta, bwAtt, bwRate, rateZeta, yawDamper;
     public final double vRotate, approachSpeed, cruiseSpeed, runSpeed, bestGlide, flareHeight, glideslope,
             patternRadius, breakG, tRecover;
@@ -158,6 +164,7 @@ public final class WingAirframe {
         ratePitch = StrictMath.toRadians(v.get("limits.rateMax.0"));
         rateYaw = StrictMath.toRadians(v.get("limits.rateMax.1"));
         rateRoll = StrictMath.toRadians(v.get("limits.rateMax.2"));
+        turnRateMax = StrictMath.toRadians(v.get("limits.turnRateMaxDeg"));
         ceiling = v.get("limits.ceiling");
         bwTecs = v.get("control.tecs");
         tecsZeta = v.get("control.tecsZeta");

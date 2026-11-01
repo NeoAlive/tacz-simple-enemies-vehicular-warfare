@@ -4,12 +4,15 @@ import net.minecraft.client.gui.screens.MenuScreens;
 import net.minecraft.client.model.EntityModel;
 import net.minecraft.client.renderer.entity.LivingEntityRenderer;
 import net.minecraft.client.renderer.entity.NoopRenderer;
+import net.minecraft.server.packs.PackType;
+import net.minecraft.server.packs.repository.Pack;
 import net.minecraft.server.packs.resources.ResourceManagerReloadListener;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.EntityRenderersEvent;
 import net.minecraftforge.client.event.RegisterClientReloadListenersEvent;
+import net.minecraftforge.event.AddPackFindersEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.ModList;
 import net.minecraftforge.fml.common.Mod;
@@ -21,6 +24,7 @@ import com.neoalive.tacz_sewv.client.gui.StockpileScreen;
 import com.neoalive.tacz_sewv.client.skin.CrewSkinRegistry;
 import com.neoalive.tacz_sewv.client.skin.HelmetLogoTextures;
 import com.neoalive.tacz_sewv.client.skin.LogoPoolRegistry;
+import com.neoalive.tacz_sewv.client.skin.SkinResourcePack;
 import com.neoalive.tacz_sewv.client.skin.VehicleSkinRegistry;
 import com.neoalive.tacz_sewv.client.xaero.XaeroMapCompat;
 import com.neoalive.tacz_sewv.compat.ColtanArmorBridge;
@@ -88,6 +92,20 @@ public class ClientModEvents {
             CrewSkinRegistry.reload(resources);
             LogoPoolRegistry.reload(resources);
             HelmetLogoTextures.clear();
+        });
+    }
+
+    /** Config crew skins as resources, for Coltan's GemRender armor variants ({@link SkinResourcePack}). */
+    @SubscribeEvent
+    public static void onAddPackFinders(AddPackFindersEvent event) {
+        if (event.getPackType() != PackType.CLIENT_RESOURCES) {
+            return;
+        }
+        event.addRepositorySource(consumer -> {
+            Pack pack = SkinResourcePack.create();
+            if (pack != null) {
+                consumer.accept(pack);
+            }
         });
     }
 

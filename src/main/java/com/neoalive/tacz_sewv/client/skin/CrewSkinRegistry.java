@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
 
 import javax.annotation.Nullable;
@@ -94,6 +95,17 @@ public final class CrewSkinRegistry {
     private static final Map<String, ResourceLocation> ROLE_OVERLAYS = new HashMap<>();
     private static final List<ResourceLocation> REGISTERED = new ArrayList<>();
 
+    /**
+     * Resource-path prefix under which {@link SkinResourcePack} serves the same config PNGs as
+     * resources: {@code tacz_sewv:textures/sewv_skins/<dynamic path>}. Coltan's GemRender importer
+     * reads textures through the ResourceManager, which cannot see a {@link DynamicTexture}.
+     */
+    public static final String RESOURCE_PREFIX = "textures/sewv_skins/";
+    /** Dynamic texture path -> the config file it was read from. Read by {@link SkinResourcePack}. */
+    private static final Map<String, Path> SOURCES = new ConcurrentHashMap<>();
+    /** Armor kind -> every skin for it, as resource ids. Same instance until the next reload. */
+    private static final Map<String, List<ResourceLocation>> ARMOR_CATALOG = new ConcurrentHashMap<>();
+
     private static final Set<String> ROLE_FOLDERS = Set.of(
             "ru_medic", "us_medic", "pmc_medic",
             "ru_engineer", "us_engineer", "pmc_engineer",
@@ -123,6 +135,8 @@ public final class CrewSkinRegistry {
             textures.release(id);
         }
         REGISTERED.clear();
+        SOURCES.clear();
+        ARMOR_CATALOG.clear();
         ENTRIES.clear();
         VARIANT_SKINS.clear();
         ROLE_DEFAULTS.clear();
@@ -278,6 +292,7 @@ public final class CrewSkinRegistry {
                 NativeImage image = NativeImage.read(in);
                 Minecraft.getInstance().getTextureManager().register(id, new DynamicTexture(image));
                 REGISTERED.add(id);
+                SOURCES.put(id.getPath(), file);
                 return id;
             }
         } catch (Exception e) {
@@ -358,6 +373,53 @@ public final class CrewSkinRegistry {
             CamoClient.warnMissing(faction + " armor set camo " + tagged);
         }
         return pick(intersection, wearer);
+    }
+
+    /**
+     * The resource twin of a skin this registry registered as a dynamic texture (served by
+     * {@link SkinResourcePack}); any other id comes back unchanged.
+     */
+    public static ResourceLocation asResource(ResourceLocation id) {
+        if (id != null && TaczSewv.MODID.equals(id.getNamespace()) && SOURCES.containsKey(id.getPath())) {
+            return new ResourceLocation(TaczSewv.MODID, RESOURCE_PREFIX + id.getPath());
+        }
+        return id;
+    }
+
+    /** Config file behind a {@link #RESOURCE_PREFIX} resource path, or null. */
+    @Nullable
+    static Path sourceForResource(String resourcePath) {
+        if (!resourcePath.startsWith(RESOURCE_PREFIX)) return null;
+        return SOURCES.get(resourcePath.substring(RESOURCE_PREFIX.length()));
+    }
+
+    /** Every dynamic path currently backed by a file (for {@link SkinResourcePack#listResources}). */
+    static Set<String> sourcePaths() {
+        return SOURCES.keySet();
+    }
+
+    /**
+     * Every skin any faction can wear on this armor item, as resource ids (plain and all camo/rng
+     * pools). Handed to Coltan so it draws all of a piece's skins from one GemRender variant model:
+     * one draw per piece instead of one per skin. Cached: the same list instance until the next
+     * {@link #reload}, which Coltan checks by identity every frame.
+     */
+    public static List<ResourceLocation> armorCatalog(ResourceLocation itemId) {
+        if (itemId == null) return List.of();
+        return ARMOR_CATALOG.computeIfAbsent(armorKind(itemId.getPath()), kind -> {
+            List<ResourceLocation> out = new ArrayList<>();
+            for (CrewFacts.Faction faction : CrewFacts.Faction.values()) {
+                Entry entry = ENTRIES.get(key(faction, kind));
+                if (entry == null) continue;
+                if (entry.plain != null) out.add(asResource(entry.plain));
+                for (TreeMap<Integer, ResourceLocation> pool : entry.pools.values()) {
+                    for (ResourceLocation id : pool.values()) {
+                        out.add(asResource(id));
+                    }
+                }
+            }
+            return List.copyOf(out);
+        });
     }
 
     @Nullable

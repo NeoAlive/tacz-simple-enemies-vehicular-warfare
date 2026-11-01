@@ -286,6 +286,7 @@ public final class SewvConfig {
     // heliCombatDebug/heliFlightDebug → ClientConfig (Config UI Client → Debug).
     public static final ForgeConfigSpec.BooleanValue HELI_CHUNK_LOADING;
     public static final ForgeConfigSpec.BooleanValue PLANE_CHUNK_LOADING;
+    public static final ForgeConfigSpec.BooleanValue WING_FLIGHT_MODEL;
     public static final ForgeConfigSpec.DoubleValue PLANE_FAR_LOD_BLOCKS;
     public static final ForgeConfigSpec.DoubleValue HELI_FAR_LOD_BLOCKS;
     public static final ForgeConfigSpec.DoubleValue PLANE_COMMAND_RADIUS;
@@ -1194,6 +1195,12 @@ public final class SewvConfig {
                         "Default true (matches mortarChunkLoading). Existing installs keep whatever",
                         "value is already in serverconfig/tacz_sewv-server.toml until that file is deleted.")
                 .define("planeChunkLoading", true);
+        WING_FLIGHT_MODEL = builder.comment(
+                        "Fly AI-crewed planes with this mod's own fixed-wing flight model (aerodynamics,",
+                        "TECS/attitude controller, procedures) instead of SBW's engine, from liftoff to",
+                        "touchdown; SBW keeps the ground roll and taxi. Experimental while it is built out:",
+                        "default false. Player-flown planes are never affected.")
+                .define("wingFlightModel", false);
         PLANE_FAR_LOD_BLOCKS = builder.comment(
                         "Past this distance (blocks) from every player, a ticketed plane in cruise/hold/",
                         "RTB/ingress uses cheaper terrain and ally scans. Combat, takeoff and landing",

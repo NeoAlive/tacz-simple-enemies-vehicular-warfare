@@ -49,6 +49,8 @@
     "MixinVehicleFactionEnergy",
     "MixinVehicleInertiaRotate",
     "MixinHeliEngine",
+    "MixinWingEngine",
+    "MixinAircraftLoiterGuard",
     "MixinVehicleHeliGravity",
     "MixinVehicleFlightDynamics",
     "MixinVehicleInteractLock",

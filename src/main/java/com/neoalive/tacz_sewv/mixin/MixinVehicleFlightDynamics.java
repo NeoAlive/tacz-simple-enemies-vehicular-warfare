@@ -28,6 +28,8 @@ public abstract class MixinVehicleFlightDynamics implements IFlightDynamics {
     @Unique
     private HeliRuntime tacz_sewv$heliRuntime;
     @Unique
+    private com.neoalive.tacz_sewv.wing.WingRuntime tacz_sewv$wingRuntime;
+    @Unique
     private int tacz_sewv$flightMode;
     @Unique
     private float tacz_sewv$clientRoll = Float.NaN;
@@ -40,6 +42,16 @@ public abstract class MixinVehicleFlightDynamics implements IFlightDynamics {
     @Override
     public void sewv$setHeliRuntime(HeliRuntime runtime) {
         this.tacz_sewv$heliRuntime = runtime;
+    }
+
+    @Override
+    public com.neoalive.tacz_sewv.wing.WingRuntime sewv$wingRuntime() {
+        return this.tacz_sewv$wingRuntime;
+    }
+
+    @Override
+    public void sewv$setWingRuntime(com.neoalive.tacz_sewv.wing.WingRuntime runtime) {
+        this.tacz_sewv$wingRuntime = runtime;
     }
 
     @Override

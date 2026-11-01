@@ -2,8 +2,8 @@ package com.neoalive.tacz_sewv.heli;
 
 /**
  * Mixed onto SBW's {@code VehicleEntity} by {@code MixinVehicleFlightDynamics}. A hull "carries
- * flight dynamics" while it holds a {@link HeliRuntime} (server) or while the engine mixin is
- * cancelling SBW's engine for an AI-crewed helicopter (client).
+ * flight dynamics" while it holds a {@link HeliRuntime} or a {@code WingRuntime} (server) or while
+ * an engine mixin is cancelling SBW's engine for an AI-crewed aircraft (client).
  *
  * <p>The flight mode is written by the engine mixin on every {@code helicopterEngine} call, i.e.
  * every tick, inside {@code travel()} and therefore before the gravity and terrain-compat reads
@@ -23,6 +23,11 @@ public interface IFlightDynamics {
     HeliRuntime sewv$heliRuntime();
 
     void sewv$setHeliRuntime(HeliRuntime runtime);
+
+    /** Fixed-wing counterpart of {@link #sewv$heliRuntime}; the flight mode below is shared. */
+    com.neoalive.tacz_sewv.wing.WingRuntime sewv$wingRuntime();
+
+    void sewv$setWingRuntime(com.neoalive.tacz_sewv.wing.WingRuntime runtime);
 
     int sewv$flightMode();
 

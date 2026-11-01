@@ -3,11 +3,11 @@ package com.neoalive.tacz_sewv.heli;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.mojang.logging.LogUtils;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.network.PacketDistributor;
 import org.joml.Vector3d;
 import org.slf4j.Logger;
 
 import com.neoalive.tacz_sewv.debug.SewvDiag;
+import com.neoalive.tacz_sewv.flight.HullStateBridge;
 import com.neoalive.tacz_sewv.heli.avoid.AvoidForce;
 import com.neoalive.tacz_sewv.heli.avoid.ObstacleSet;
 import com.neoalive.tacz_sewv.heli.avoid.PathProbe;
@@ -26,8 +26,6 @@ import com.neoalive.tacz_sewv.heli.physics.HeliEnv;
 import com.neoalive.tacz_sewv.heli.physics.HeliState;
 import com.neoalive.tacz_sewv.heli.physics.McPose;
 import com.neoalive.tacz_sewv.heli.physics.RotorModel;
-import com.neoalive.tacz_sewv.network.NetworkHandler;
-import com.neoalive.tacz_sewv.network.PacketHeliRoll;
 
 /**
  * Everything one AI-flown helicopter needs (server side): airframe, physics, controller,
@@ -43,21 +41,11 @@ import com.neoalive.tacz_sewv.network.PacketHeliRoll;
  * collided axis loses its velocity (inelastic contact). Any jump we did not cause, or an attitude
  * we did not set, means someone else wrote the hull (helipad snap, spawners, carrier ops, ...)
  * and we re-seat from the entity rather than fight it. That covers every outside writer without
- * editing one.
+ * editing one. The bookkeeping for that lives in {@link HullStateBridge}, shared with fixed wings.
  */
 public final class HeliRuntime {
 
     private static final Logger LOGGER = LogUtils.getLogger();
-    /** Publish deadband: an angle change smaller than this is not written (Komodo's ROT_EPS). */
-    private static final double ANGLE_DEADBAND = 0.05;
-    /**
-     * Vanilla {@code Entity.move} drops any displacement with lengthSqr <= 1e-7 (|d| <= 3.16e-4 m,
-     * javap-verified): the hull simply does not move. Below that we keep our own integrated
-     * position and publish the accumulated residual next tick, so slow motion is never lost.
-     */
-    private static final double VANILLA_MIN_MOVE_SQR = 1.0E-7;
-    /** An outside write: position off our prediction by this much without a collision, or angles by this. */
-    private static final double RESEAT_DISTANCE = 0.5, RESEAT_ANGLE = 0.5;
     /** SBW's own synchedPropellerRot ceiling, used to scale the synced rotor speed. */
     private static final float SBW_ROTOR_MAX = 0.12F;
 
@@ -75,11 +63,7 @@ public final class HeliRuntime {
     Situation sit;
     ModeSelector.Choice requested;
     private boolean seated, restLatched, failed, warnedNaN;
-    private Vector3d lastDm;
-    /** Our intended position after the last publish, and the entity position we published from. */
-    final Vector3d predicted = new Vector3d();
-    private final Vector3d pubFrom = new Vector3d();
-    private float pubYaw, pubPitch, pubRoll, sentRoll = Float.NaN;
+    private final HullStateBridge bridge = new HullStateBridge();
     private double energyDebt;
 
     HeliRuntime(Airframe resolved, int pilotId, VehicleEntity hull) {
@@ -239,69 +223,16 @@ public final class HeliRuntime {
 
     /** Adopt the entity's pose (position, velocity, attitude); body rates zero. */
     private void reseatPose(VehicleEntity hull) {
-        Vec3 dm = hull.getDeltaMovement();
-        s.p.set(hull.getX(), hull.getY(), hull.getZ());
-        s.v.set(dm.x * 20.0, dm.y * 20.0, dm.z * 20.0);
-        s.q.set(McPose.toQuat(hull.getYRot(), hull.getXRot(), hull.getRoll()));
-        s.w.zero();
+        bridge.reseat(hull, s.p, s.v, s.q, s.w);
         core.ctl.reset();
-        pubYaw = hull.getYRot();
-        pubPitch = hull.getXRot();
-        pubRoll = hull.getRoll();
-        predicted.set(s.p);
-        lastDm = null;
     }
 
     private void reconcile(VehicleEntity hull) {
-        if (lastDm != null && lastDm.lengthSquared() <= VANILLA_MIN_MOVE_SQR
-                && pubFrom.equals(hull.getX(), hull.getY(), hull.getZ())) {
-            s.p.set(predicted); // vanilla dropped a sub-threshold move: keep the residual
-            return;
-        }
-        Vec3 dmNow = hull.getDeltaMovement();
-        if (lastDm != null) {
-            if (lastDm.x != 0.0 && dmNow.x == 0.0) s.v.x = 0.0;
-            if (lastDm.z != 0.0 && dmNow.z == 0.0) s.v.z = 0.0;
-            if (hull.verticalCollision && lastDm.y != 0.0 && dmNow.y == 0.0) s.v.y = 0.0;
-        }
-        boolean collided = hull.horizontalCollision || hull.verticalCollision;
-        double jump = predicted.distance(hull.getX(), hull.getY(), hull.getZ());
-        boolean attitudeWritten = Math.abs(McPose.wrapDeg(hull.getYRot() - pubYaw)) > RESEAT_ANGLE
-                || Math.abs(hull.getXRot() - pubPitch) > RESEAT_ANGLE
-                || Math.abs(McPose.wrapDeg(hull.getRoll() - pubRoll)) > RESEAT_ANGLE;
-        if ((jump > RESEAT_DISTANCE && !collided) || attitudeWritten) {
-            reseatPose(hull);
-        } else {
-            s.p.set(hull.getX(), hull.getY(), hull.getZ());
-        }
+        if (bridge.reconcile(hull, s.p, s.v)) reseatPose(hull);
     }
 
     private void publish(VehicleEntity hull, double fuel0) {
-        // From the entity, not from p0: p0 may carry a residual vanilla dropped last tick.
-        pubFrom.set(hull.getX(), hull.getY(), hull.getZ());
-        Vector3d dm = new Vector3d(s.p).sub(pubFrom);
-        hull.setDeltaMovement(dm.x, dm.y, dm.z);
-        lastDm = dm;
-        predicted.set(s.p);
-
-        McPose.Euler e = McPose.toEuler(s.q, new McPose.Euler(pubYaw, pubPitch, pubRoll));
-        if (Math.abs(McPose.wrapDeg(e.yawDeg() - pubYaw)) >= ANGLE_DEADBAND) {
-            hull.setYRot((float) e.yawDeg());
-            pubYaw = hull.getYRot();
-        }
-        if (Math.abs(e.pitchDeg() - pubPitch) >= ANGLE_DEADBAND) {
-            hull.setXRot((float) e.pitchDeg());
-            pubPitch = hull.getXRot();
-        }
-        if (Math.abs(McPose.wrapDeg(e.rollDeg() - pubRoll)) >= ANGLE_DEADBAND) {
-            hull.setZRot((float) e.rollDeg());
-            pubRoll = hull.getRoll();
-        }
-        if (Float.isNaN(sentRoll) || Math.abs(McPose.wrapDeg(pubRoll - sentRoll)) >= ANGLE_DEADBAND) {
-            sentRoll = pubRoll;
-            NetworkHandler.CHANNEL.send(PacketDistributor.TRACKING_ENTITY.with(() -> hull),
-                    new PacketHeliRoll(hull.getId(), pubRoll));
-        }
+        bridge.publishPose(hull, s.p, s.q);
 
         boolean powered = s.engine == HeliState.Engine.START || s.engine == HeliState.Engine.RUN;
         hull.setPower((float) (SBW_ROTOR_MAX * s.theta0));
@@ -330,8 +261,7 @@ public final class HeliRuntime {
         hull.setEngineStart(false);
         hull.setEngineStartOver(false);
         hull.setHoverMode(false);
-        lastDm = null;
-        predicted.set(hull.getX(), hull.getY(), hull.getZ());
+        bridge.parked(hull);
     }
 
     /**

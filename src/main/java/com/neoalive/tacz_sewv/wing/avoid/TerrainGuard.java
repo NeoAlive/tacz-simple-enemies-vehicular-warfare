@@ -31,11 +31,15 @@ import com.neoalive.tacz_sewv.wing.physics.WingState;
 public final class TerrainGuard {
 
     /** Height kept above the highest ground on the look-ahead, m. */
-    public static final double CLEARANCE = 14.0;
+    public static final double CLEARANCE = 20.0;
     /** Recovery margin above the ground at the bottom of the predicted pull-up, m. */
-    private static final double MARGIN = 5.0;
-    /** Pilot reaction before the pull starts, s. */
-    private static final double REACTION = 0.5;
+    private static final double MARGIN = 6.0;
+    /**
+     * Reaction before the pull is effective, s, and the fraction of the sustainable load factor the
+     * prediction assumes. Honest rather than heroic: the controller builds load through the short
+     * period inside its rate limits, so an instant full-g pull is not what happens.
+     */
+    private static final double REACTION = 1.0, PULL_FRACTION = 0.6;
     /** Recovery climb angle, rad. */
     private static final double RECOVERY_GAMMA = StrictMath.toRadians(20.0);
 
@@ -60,6 +64,20 @@ public final class TerrainGuard {
         return recovering;
     }
 
+    /**
+     * Height lost pulling out of the current descent: the sink over the reaction time plus the
+     * circular-arc loss at a sustainable recovery load factor. Shared with the attack runs, whose
+     * exit test adds it to their clearance floor, so a run always ends on its own before the guard
+     * has to take over.
+     */
+    public static double pullOutDrop(WingAirframe af, double g, double speed, double vy) {
+        double v = Math.max(speed, 1.0);
+        double gamma = StrictMath.asin(Math.max(-1.0, Math.min(1.0, vy / v)));
+        double n = Math.max(1.5, PULL_FRACTION * Math.min(af.nMax, 4.0));
+        double arc = v * v / (g * (n - 1.0));
+        return Math.max(0.0, -vy) * REACTION + (gamma < 0.0 ? arc * (1.0 - StrictMath.cos(gamma)) : 0.0);
+    }
+
     /** Highest ground within {@code range} metres ahead, or -infinity if no sample covers it. */
     static double floorWithin(WingSituation sit, double range) {
         double best = Double.NEGATIVE_INFINITY;
@@ -80,25 +98,29 @@ public final class TerrainGuard {
         double vh = Math.max(StrictMath.sqrt(s.v.x * s.v.x + s.v.z * s.v.z), 1.0);
         double gamma = StrictMath.asin(Math.max(-1.0, Math.min(1.0, s.v.y / v)));
 
-        // Pull-up model: a circular arc at a sustainable recovery load factor.
-        double n = Math.max(1.5, 0.8 * Math.min(af.nMax, 3.0));
+        // One prediction for both failure modes: pull out after the reaction time along a circular
+        // arc at a sustainable recovery load factor, then fly level (or keep climbing, if climbing).
+        // Danger is ground ahead coming within MARGIN of that path. A straight-line projection of a
+        // dive is wrong: every ordinary gun dive is "on a collision course" four seconds out, and the
+        // guard yanked the nose up the moment the boresight closed on the target.
+        double n = Math.max(1.5, PULL_FRACTION * Math.min(af.nMax, 4.0));
         double arc = v * v / (g * (n - 1.0));
-        double drop = Math.max(0.0, -s.v.y) * REACTION + (gamma < 0.0 ? arc * (1.0 - StrictMath.cos(gamma)) : 0.0);
+        double drop = pullOutDrop(af, g, v, s.v.y);
         double pullRange = vh * REACTION + (gamma < 0.0 ? arc * StrictMath.sin(-gamma) : 0.0);
-        boolean diveDanger = s.p.y - drop < floorWithin(sit, pullRange) + MARGIN;
-        boolean wallDanger = false;
-        double look = vh * af.tRecover;
+        double look = Math.max(pullRange, vh * af.tRecover);
+        boolean danger = false;
         for (int i = 0; i < sit.floor.length; i++) {
             double d = (i + 1) * sit.floorStep;
-            if (d > look) break;
-            double yAt = s.p.y + s.v.y * (d / vh);
+            if (d > look + sit.floorStep) break;
+            double yAt = s.p.y - drop + Math.max(0.0, s.v.y) * (d / vh);
             if (yAt < sit.floor[i] + MARGIN) {
-                wallDanger = true;
+                danger = true;
                 break;
             }
         }
+        if (!danger && !Double.isInfinite(sit.groundBelow) && s.p.y - drop < sit.groundBelow + MARGIN) danger = true;
         double clearAhead = floorWithin(sit, look) + CLEARANCE;
-        if (diveDanger || wallDanger) {
+        if (danger) {
             recovering = true;
         } else if (recovering && gamma >= 0.0 && s.p.y > clearAhead) {
             recovering = false;

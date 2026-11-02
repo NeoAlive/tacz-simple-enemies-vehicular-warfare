@@ -59,7 +59,7 @@ public final class WingAirframe {
             Map.entry("actuators.brakeTime", 0.8),
             Map.entry("limits.ceiling", 320.0),
             Map.entry("control.tecs", 0.5), Map.entry("control.tecsZeta", 0.9),
-            Map.entry("control.l1Period", 18.0), Map.entry("control.l1Zeta", 0.75),
+            Map.entry("control.l1Period", 10.0), Map.entry("control.l1Zeta", 0.75),
             Map.entry("control.att", 2.5), Map.entry("control.rate", 10.0), Map.entry("control.rateZeta", 0.7),
             Map.entry("control.yawDamper", 1.0),
             Map.entry("procedures.flareHeight", 4.0), Map.entry("procedures.glideslopeDeg", 4.0),

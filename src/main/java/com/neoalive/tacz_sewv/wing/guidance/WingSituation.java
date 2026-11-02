@@ -47,4 +47,40 @@ public final class WingSituation {
     public double orbitRadius = 80.0;
 
     public double healthFrac = 1.0;
+    /** Ground height under the hull (unloaded: -infinity). */
+    public double groundBelow = Double.NEGATIVE_INFINITY;
+
+    // --- Combat (filled only while there is a target or a radio grid mark) ------------------------
+
+    /** A live target, or a radio grid mark ({@link #isMark}), to work. */
+    public boolean targetValid;
+    public boolean isMark;
+    public double targetX, targetY, targetZ, targetVx, targetVy, targetVz, targetDistance;
+    /** The selected store is dropped from level flight (a bomb) rather than aimed by the nose. */
+    public boolean levelDelivery;
+    /** The bomb stick for this run has all gone. */
+    public boolean stickComplete;
+    /** Nose already within the run alignment of the bearing to the target. */
+    public boolean established;
+    /** A run from here clears the terrain all the way in (the goal's dive-safety probe). */
+    public boolean runSafe = true;
+    /** How far out the run begins (engage bubble, or the bomb release range plus margin). */
+    public double engageRange = 192.0;
+    /** Altitude the run is flown at (briefed by the goal from the delivery geometry). */
+    public double runY = Double.NaN;
+    /** Longest run before breaking off, m. */
+    public double runLength = 200.0;
+    /** Deepest dive the selected store is delivered at, rad. */
+    public double maxDive = StrictMath.toRadians(55.0);
+    /**
+     * World direction the hull NOSE must point so the weapon's own line passes through the aim
+     * point (lead included): the goal measures the gun line against the nose and folds the offset
+     * in, so the pure controller can track it without knowing anything about the gun.
+     */
+    public boolean hasAimDir;
+    public double aimDirX, aimDirY, aimDirZ;
+    /** Ground point the bomb track has to pass over (led): what a level run steers along. */
+    public double bombAimX, bombAimZ;
+    /** Run-exit thresholds from the goal's tuning: clearance floor, sink lead (s), overfly margin, break height. */
+    public double minAttackClearance = 24.0, pullupLead = 0.7, overflyMargin = 16.0, entryAgl = 80.0;
 }

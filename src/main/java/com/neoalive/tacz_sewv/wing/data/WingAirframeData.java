@@ -173,6 +173,15 @@ public final class WingAirframeData {
                         v, StrictMath.toDegrees(t.alpha()), t.elevator(), t.throttle()));
             }
         }
+        // Elevator authority: holding alphaMax at the turn-rate limit, at cruise, must leave margin.
+        // Pitch damping grows with pitch rate, and a row whose elevator cannot beat it at a working
+        // turn rate pins the stick and hunts in every steep orbit.
+        double qHat = af.turnRateMax * af.chord / (2.0 * af.cruiseSpeed);
+        double deTurn = -(af.cm0 + af.cmAlpha * af.alphaMax + af.cmq * qHat) / af.cmDe;
+        if (deTurn > 0.9) {
+            p.add(String.format(java.util.Locale.ROOT,
+                    "stability.cmDe too weak: alphaMax at the turn-rate limit needs elevator %.2f > 0.9", deTurn));
+        }
         if (!(af.vRotate > vs)) p.add("procedures.vRotate must exceed the stall speed " + fmt(vs));
         if (!(af.approachSpeed >= 1.15 * vs)) p.add("procedures.approachSpeed must be >= 1.15 x stall speed " + fmt(vs));
         if (!(af.bestGlide >= 1.1 * vs)) p.add("procedures.bestGlide must be >= 1.1 x stall speed " + fmt(vs));

@@ -10,6 +10,7 @@ import net.minecraft.world.entity.player.Player;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
+import com.neoalive.tacz_sewv.client.MapMarkers;
 import com.neoalive.tacz_sewv.client.PlayerRappelClient;
 import com.neoalive.tacz_sewv.command.quick.QuickCommandRegistry;
 import com.neoalive.tacz_sewv.config.SewvConfig;
@@ -160,6 +161,12 @@ public final class QuickAirClient {
             if (!plane && !HullFacts.isHelicopterHull(hull)) continue;
             if (planes != null && planes != plane) continue;
             out.add(pilot.getId());
+        }
+        // Aircrews beyond the client's tracking range, from the server's owned-vehicle sync. With an
+        // explicit selection the wheel orders exactly that selection, so they are not added then.
+        if (!WheelScope.explicit()) {
+            out.addAll(MapMarkers.ownAircraftDrivers(mc.level.dimension(), player.getX(), player.getZ(),
+                    WheelScope.aircraftRadius(), planes));
         }
         return new ArrayList<>(out);
     }

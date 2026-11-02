@@ -1,5 +1,6 @@
 package com.neoalive.tacz_sewv.client;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -7,6 +8,8 @@ import java.util.Set;
 import javax.annotation.Nullable;
 
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.world.level.Level;
 
 import com.neoalive.tacz_sewv.map.BattleFieldMarker;
 import com.neoalive.tacz_sewv.map.FobMarker;
@@ -177,6 +180,30 @@ public final class MapMarkers {
             if (count > 1) return -1;
         }
         return count == 1 ? id : -1;
+    }
+
+    /**
+     * Drivers of the player's own aircraft within {@code radius} (horizontal) of (x, z) in this
+     * dimension, from the server's owned-vehicle sync. The wheel orders aircrews through this
+     * because a pilot a few chunks out is not tracked by the client at all (a rider is tracked at its
+     * own entity range, not its hull's), so a client-side entity scan cannot find it.
+     *
+     * @param planes true: fixed wing only; false: rotary wing only; null: both
+     */
+    public static List<Integer> ownAircraftDrivers(ResourceKey<Level> dimension, double x, double z, double radius,
+                                                   @Nullable Boolean planes) {
+        List<Integer> out = new ArrayList<>();
+        for (VehicleMarker m : markers) {
+            if (m.allegiance() != VehicleMarker.Allegiance.OWN || m.driverId() == NO_DRIVER) continue;
+            if (!m.dimension().equals(dimension)) continue;
+            boolean plane = m.kind() == VehicleMarker.Kind.FIXED_WING;
+            boolean heli = m.kind() == VehicleMarker.Kind.ROTARY_WING;
+            if (!plane && !heli) continue;
+            if (planes != null && planes != plane) continue;
+            double dx = m.x() - x, dz = m.z() - z;
+            if (dx * dx + dz * dz <= radius * radius) out.add(m.driverId());
+        }
+        return out;
     }
 
     public static void clearSelection() {

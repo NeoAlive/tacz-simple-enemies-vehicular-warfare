@@ -30,6 +30,7 @@ import com.neoalive.tacz_sewv.wing.physics.WingTrim;
  * <li><b>W1-W10</b>: the airframe model ({@link WingPhysicsChecks}).</li>
  * <li><b>C1-C8</b>: the controller cascade ({@link WingControlChecks}).</li>
  * <li><b>G1-G6</b>: guidance and the terrain guard ({@link WingGuidanceChecks}).</li>
+ * <li><b>K1-K6</b>: combat guidance ({@link WingCombatChecks}).</li>
  * </ul>
  * Ends with the informational SBW envelope comparison ({@link SbwEnvelope}).
  */
@@ -50,8 +51,9 @@ public final class WingFlightSelfCheck {
         WingPhysicsChecks.run();
         WingControlChecks.run();
         WingGuidanceChecks.run();
+        WingCombatChecks.run();
         SbwEnvelope.print();
-        System.out.println("wing flight self-check: OK (D1-D3, D5, W1-W10, C1-C8, G1-G6)");
+        System.out.println("wing flight self-check: OK (D1-D3, D5, W1-W10, C1-C8, G1-G6, K1-K6)");
     }
 
     // --- D1, D3 ---------------------------------------------------------------------------------

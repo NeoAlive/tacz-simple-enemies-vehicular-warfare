@@ -26,6 +26,19 @@ public interface WingProcedure {
 
     boolean isComplete(WingState s, WingSituation sit, double t);
 
+    /**
+     * True for a procedure that runs to completion once begun unless something of a higher class
+     * pre-empts it (an attack run, the break that follows it). The others follow the selector at once.
+     */
+    default boolean sticky() {
+        return false;
+    }
+
+    /** True when the geometry allows firing. Non-attack procedures do not restrict it. */
+    default boolean fireWindow(WingState s, WingSituation sit) {
+        return true;
+    }
+
     /** Configuration this procedure wants: gear, flaps [0, 1], airbrake [0, 1]. */
     default boolean gearDown() {
         return false;

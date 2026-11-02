@@ -88,6 +88,11 @@ public final class WingRuntime {
         return core.guard.recovering();
     }
 
+    /** True when the active procedure's geometry allows firing (an attack run's window). */
+    public boolean fireWindow() {
+        return sit == null || core.stack.fireWindow(s, sit);
+    }
+
     /** The goal's guidance for the next tick: the snapshot and the selector's choice. */
     public void setGuidance(WingSituation situation, WingModeSelector.Choice choice) {
         this.sit = situation;

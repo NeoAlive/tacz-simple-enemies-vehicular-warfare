@@ -10,7 +10,7 @@ import com.neoalive.tacz_sewv.wing.physics.WingState;
  *
  * <p><b>Transition rule</b> (20 Hz, {@link #request}): the selector's choice replaces the active
  * procedure when it differs and either outranks it, the active one has completed, or the active one
- * is not an attack procedure. A procedure that cannot begin falls back to {@link WingProcedureId#ORBIT},
+ * is not {@linkplain WingProcedure#sticky sticky} (attack runs and the break are). A procedure that cannot begin falls back to {@link WingProcedureId#ORBIT},
  * which always can.
  *
  * <p><b>No blending, on purpose.</b> The helicopter blends because its controller tracks position
@@ -61,10 +61,10 @@ public final class WingProcedureStack {
             return;
         }
         boolean done = complete(s, sit, t, tick);
-        boolean attack = activeClass == Precedence.ATTACK;
+        boolean sticky = active.sticky();
         boolean differs = choice.id() != active.id();
         boolean outranks = choice.precedence().ordinal() > activeClass.ordinal();
-        if (differs && (outranks || done || !attack)) {
+        if (differs && (outranks || done || !sticky)) {
             install(resolve(choice.id(), s, sit), choice.precedence(), s, sit, t, tick);
         } else if (!differs) {
             activeClass = choice.precedence();
@@ -100,6 +100,10 @@ public final class WingProcedureStack {
 
     public static boolean stale(WingSituation sit, double t) {
         return sit == null || t - sit.time > STALE_SECONDS;
+    }
+
+    public boolean fireWindow(WingState s, WingSituation sit) {
+        return active == null || active.fireWindow(s, sit);
     }
 
     public boolean gearDown() {

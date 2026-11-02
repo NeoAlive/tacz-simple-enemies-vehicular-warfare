@@ -290,6 +290,7 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue PLANE_FAR_LOD_BLOCKS;
     public static final ForgeConfigSpec.DoubleValue HELI_FAR_LOD_BLOCKS;
     public static final ForgeConfigSpec.DoubleValue PLANE_COMMAND_RADIUS;
+    public static final ForgeConfigSpec.DoubleValue PLANE_MAX_RANGE;
     public static final ForgeConfigSpec.DoubleValue PLANE_GUN_CONE_DEG;
     public static final ForgeConfigSpec.DoubleValue PLANE_MISSILE_CONE_DEG;
     public static final ForgeConfigSpec.IntValue PLANE_MISSILE_LOCK_TICKS;
@@ -1216,7 +1217,14 @@ public final class SewvConfig {
                         "Must stay comfortably larger than planeEngageRadius: a plane repositions by flying",
                         "outbound until it is clear of its own engage bubble before turning back in, so a",
                         "leash near the bubble size recalls it in the middle of every run-in.")
-                .defineInRange("planeCommandRadius", 1024.0, 32.0, 4096.0);
+                .defineInRange("planeCommandRadius", 512.0, 32.0, 4096.0);
+        PLANE_MAX_RANGE = builder.comment(
+                        "Hard limit (blocks) on how far ANY AI plane may get from the nearest player. Past it",
+                        "the plane turns back toward that player, whatever it was doing, and is released again",
+                        "inside 80% of it. Bounds force-loaded chunks and stops planes wandering off forever.",
+                        "Keep it well above planeEngageRadius, or bombing run-ins are cut short.",
+                        "No player in the dimension: no limit (nothing to measure from).")
+                .defineInRange("planeMaxRange", 384.0, 192.0, 2048.0);
         PLANE_GUN_CONE_DEG = builder.comment(
                         "Widest angle (degrees) off the gun line at which a plane will fire guns, rockets",
                         "and bombs. This is a ceiling, not the gate itself: the plane works out the angle",
@@ -1294,12 +1302,12 @@ public final class SewvConfig {
                         "a degree per tick, so a short bubble is a short line, and a short line is a pass",
                         "flown with the gun still swinging through the aim point.",
                         "Lowering this makes planes commit sooner and hit less.")
-                .defineInRange("planeEngageRadius", 384.0, 32.0, 1024.0);
+                .defineInRange("planeEngageRadius", 192.0, 32.0, 1024.0);
         PLANE_ATTACK_RUN_LENGTH = builder.comment(
                         "Length (blocks) of one straight attack run before the plane breaks off and turns back.",
                         "A floor, not a cap: the run is never cut shorter than the engage bubble it started",
                         "from, or it would end before the weapon's own release point.")
-                .defineInRange("planeAttackRunLength", 400.0, 40.0, 1024.0);
+                .defineInRange("planeAttackRunLength", 200.0, 40.0, 1024.0);
         PLANE_MAX_ALTITUDE = builder.comment(
                         "Absolute world Y a plane will never fly above. This is a ceiling, not a cruise",
                         "height: the cruise band is measured above the ground under the aircraft, so over",

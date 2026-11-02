@@ -224,17 +224,26 @@ public final class WingController {
             if (antiWindup) gamI = clamp(gamI + H * (gSat - gUnsat) / tt, -GAMMA_I_MAX, GAMMA_I_MAX);
             gammaCmd = gSat;
 
-            // Alpha for the load factor this attitude implies (inverted attached lift curve).
-            double n = StrictMath.cos(gammaCmd) / Math.max(StrictMath.cos(phi), 0.2);
-            double clNeed = n * weight / (qbarE * af.area);
-            double alphaFf = (clNeed - af.cl0 - af.flapCl * s.flap) / af.clAlpha;
-            alphaLimited = alphaFf > af.alphaMax;
-            alphaFf = Math.min(alphaFf, af.alphaMax);
-            thetaCmd = gammaCmd + alphaFf;
+            // Flight path through load factor, not through Euler pitch: in a bank, pitch attitude
+            // moves only through q cos(phi) and stops being the thing that controls height (a 56
+            // degree orbit hunted +-7 m commanding 28 degrees of pitch it could not get). Instead:
+            // gammaDot = (g / V)(n cos(phi) - cos(gamma)), solved for the n that closes gamma.
+            double cosPhi = Math.max(StrictMath.cos(phi), 0.2);
+            double gammaDot = af.bwAtt * (gammaCmd - gamma);
+            double nCmd = (StrictMath.cos(gamma) + vAir * gammaDot / g) / cosPhi;
+            nCmd = clamp(nCmd, af.nMin, Math.max(1.0, nAvail));
+            // Alpha for that load factor (inverted attached lift curve).
+            double clNeed = nCmd * weight / (qbarE * af.area);
+            double alphaCmd = (clNeed - af.cl0 - af.flapCl * s.flap) / af.clAlpha;
+            alphaLimited = alphaCmd > af.alphaMax;
+            alphaCmd = clamp(alphaCmd, -0.6 * af.alphaMax, af.alphaMax);
+            thetaCmd = gammaCmd + alphaCmd;
 
             double psiDot = g * StrictMath.tan(phi) / vAir;
             pCmd = af.bwAtt * ROLL_ATT * (phiCmd - phi);
-            qCmd = af.bwAtt * (thetaCmd - theta) * StrictMath.cos(phi) + psiDot * StrictMath.sin(phi) * StrictMath.cos(theta);
+            // The pitch rate that load factor needs in coordinated flight, plus closing alpha onto it
+            // (the short-period loop).
+            qCmd = g / vAir * (nCmd - StrictMath.cos(gamma) * StrictMath.cos(phi)) + 2.0 * af.bwAtt * (alphaCmd - alpha);
             rCmd = psiDot * StrictMath.cos(phi) * StrictMath.cos(theta);
         }
 
@@ -253,8 +262,11 @@ public final class WingController {
         if (antiWindup) thrI = clamp(thrI + H * (thr - thrUnsat) / tt, -THROTTLE_I_MAX, THROTTLE_I_MAX);
         throttleSaturated = thr != thrUnsat;
         u.throttle = thr;
-        // Overspeed: the airbrake, once the throttle is already closed and still too fast.
-        double over = Math.max(vAir - af.vMax, thr <= 0.0 ? vAir - speedCmd - 2.0 : 0.0);
+        // Overspeed: the airbrake, once the throttle is already closed and still too fast; in a
+        // nose-aimed dive as soon as it runs over the run speed (dive brakes: gravity, not the
+        // engine, is what accelerates a dive, so waiting for the throttle to close is too late).
+        boolean dive = r.mode() == WingReference.Mode.NOSE_AIM;
+        double over = Math.max(vAir - af.vMax, thr <= 0.0 || dive ? vAir - speedCmd - (dive ? 1.0 : 2.0) : 0.0);
         u.brake = Math.max(u.brakeCmd, clamp(over / 6.0, 0.0, 1.0));
 
         // --- Protections on the rate commands -----------------------------------------------------

@@ -12,6 +12,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.goal.Goal;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.AABB;
@@ -62,7 +63,9 @@ import com.neoalive.tacz_sewv.util.ChunkTicket;
 import com.neoalive.tacz_sewv.wing.WingFlight;
 import com.neoalive.tacz_sewv.wing.WingRuntime;
 import com.neoalive.tacz_sewv.wing.guidance.WingModeSelector;
+import com.neoalive.tacz_sewv.wing.guidance.WingProcedureId;
 import com.neoalive.tacz_sewv.wing.guidance.WingSituation;
+import com.neoalive.tacz_sewv.wing.physics.WingAirframe;
 
 /**
  * Autopilot for SuperbWarfare fixed-wing aircraft (A-10, Ju-87, KV-16 — {@code EngineType.AIRCRAFT}).
@@ -248,13 +251,13 @@ public class DrivePlaneGoal extends Goal {
     private static final double TAKEOFF_RUNWAY_RADIUS = 64.0;
     private static final double ROTATE_SPEED = 0.35;
     private static final float TAKEOFF_PITCH_DEG = 15.0F;
-    private static final double CLIMBOUT_ABOVE_GROUND = 160.0;
+    private static final double CLIMBOUT_ABOVE_GROUND = 80.0;
     private static final double[] RUNWAY_FAN_DEG = {0.0, 20.0, -20.0, 40.0, -40.0, 65.0, -65.0};
     private static final int RUNWAY_MAX_STEP = 2;
 
     // --- Combat --------------------------------------------------------------------------------
-    private static final double OVERFLY_MARGIN = 32.0;
-    private static final double MIN_ATTACK_CLEARANCE = 40.0;
+    private static final double OVERFLY_MARGIN = 16.0;
+    private static final double MIN_ATTACK_CLEARANCE = 24.0;
     /**
      * Height above the ground at the target that the aircraft rolls in from, and the height the
      * break-off climbs back to before the next pass.
@@ -266,7 +269,7 @@ public class DrivePlaneGoal extends Goal {
      * bubble flattens the run until there is nothing to dive; cutting the bubble without cutting
      * the height is the near-vertical plunge this constant exists to prevent.
      */
-    private static final double ATTACK_ENTRY_AGL = 160.0;
+    private static final double ATTACK_ENTRY_AGL = 80.0;
     /** Air kept over the highest ground between here and the target while closing on it. */
     private static final double MIN_INGRESS_CLEARANCE = 80.0;
     /**
@@ -293,7 +296,7 @@ public class DrivePlaneGoal extends Goal {
     private static final double GUIDED_RUN_PITCH_DEG = 25.0;
     private static final double BOMB_RUN_PITCH_DEG = 8.0;
     /** No delivery is flown lower than this over the target's own ground. */
-    private static final double MIN_RUN_AGL = 80.0;
+    private static final double MIN_RUN_AGL = 40.0;
     /** Yaw rate scale in the reversal — gentle, so a heavy hull's momentum can follow the nose. */
     private static final double TURN_YAW_SCALE = 0.3;
     private static final double TURN_ALIGN_DEG = 35.0;
@@ -362,7 +365,7 @@ public class DrivePlaneGoal extends Goal {
      * every tangent at a steep angle to the target, which is the geometry {@link #RUN_ALIGN_DEG}
      * then has to reject.
      */
-    private static final double HOLD_RADIUS_MIN = 192.0;
+    private static final double HOLD_RADIUS_MIN = 96.0;
 
     // --- Landing -------------------------------------------------------------------------------
     /**
@@ -437,6 +440,22 @@ public class DrivePlaneGoal extends Goal {
     private PlaneMode mode = PlaneMode.GROUNDED;
     /** The leash verdict chooseMode reached this tick (the fixed-wing snapshot reads it). */
     private PlaneLeash.State leashState = PlaneLeash.State.FREE;
+    /**
+     * Hard range limit ({@code planeMaxRange}): true while the aircraft is past it from the nearest
+     * player, until back inside 80 % of it; {@link #rangeAnchor} is that player's position.
+     */
+    private boolean rangeLimited;
+    @Nullable
+    private Vec3 rangeAnchor;
+    /** Game time and position the current takeoff left the ground (Long.MIN_VALUE: still rolling). */
+    private long liftoffTick = Long.MIN_VALUE;
+    private double liftoffX, liftoffZ;
+    /** A climb-out is over after this long airborne, or this far from the liftoff point. */
+    private static final long CLIMBOUT_MAX_TICKS = 400;
+    private static final double CLIMBOUT_MAX_DISTANCE = 256.0;
+    /** The procedure the fixed-wing runtime was running on the previous tick (run begin/end edges). */
+    @Nullable
+    private WingProcedureId lastWingActive;
 
     // Takeoff roll heading, NaN until the roll begins.
     private double takeoffDirX = Double.NaN;
@@ -582,6 +601,10 @@ public class DrivePlaneGoal extends Goal {
         this.cachedAllyHull = null;
         this.cachedAllyUnit = null;
         this.farLod = false;
+        this.lastWingActive = null;
+        this.liftoffTick = Long.MIN_VALUE;
+        this.rangeLimited = false;
+        this.rangeAnchor = null;
         this.mode = PlaneMode.GROUNDED;
     }
 
@@ -636,10 +659,18 @@ public class DrivePlaneGoal extends Goal {
 
         LivingEntity target = resolveCombatTarget();
         Vec3 mark = target == null ? resolveStrikeMark() : null;
+        updateRangeLimit();
         PlaneMode next = chooseMode(pilot, target, mark, now);
-        if (next != this.mode) {
-            onModeChange(this.mode, next, target);
-            this.mode = next;
+        // Airborne navigation and combat belong to the fixed-wing flight model when it is on: its
+        // selector decides INGRESS / runs / BREAK, so the legacy mode change (and its run snap) is
+        // skipped and this.mode only mirrors what the runtime is doing.
+        boolean wing = wingApplies(next);
+        if (!wing) {
+            WingFlight.detach(this.vehicle);
+            if (next != this.mode) {
+                onModeChange(this.mode, next, target);
+                this.mode = next;
+            }
         }
 
         this.farLod = AirLod.farTransit(this.vehicle,
@@ -656,9 +687,15 @@ public class DrivePlaneGoal extends Goal {
                     this.farLod);
         }
 
-        // The fixed-wing flight model flies this tick (free navigation, airborne); SBW's inputs are
-        // released because its engine is not running for this hull.
-        if (wingTick(now)) return;
+        // The fixed-wing flight model flies this tick; SBW's inputs are released because its
+        // engine is not running for this hull.
+        if (wing) {
+            if (wingTick(target, mark, now)) return;
+            if (next != this.mode) { // no runtime after all: the legacy path takes the mode change
+                onModeChange(this.mode, next, target);
+                this.mode = next;
+            }
+        }
 
         // Every branch below issues a complete set of inputs. There is no "do nothing" case: the
         // sticks decay, so a silent tick is a control release at flying speed.
@@ -700,28 +737,185 @@ public class DrivePlaneGoal extends Goal {
     // --- Fixed-wing flight model ------------------------------------------------------------------
 
     /**
-     * Modes the fixed-wing flight model flies (Phase 3: free navigation). Every other mode keeps the
-     * legacy SBW-driven path until the model takes it over; the runtime detaches whenever the mode
-     * leaves this set, and SBW resumes from the state the runtime leaves it in.
+     * The hard range limit: any AI plane further than {@code planeMaxRange} from the nearest player
+     * turns back toward that player, released inside 80 % of it. Bounds force-loaded chunks and
+     * endless wandering; large enough by default (twice the engage bubble) for a full bombing
+     * run-in. With no player in the dimension there is nothing to measure from and no limit.
      */
-    private static boolean isWingMode(PlaneMode mode) {
-        return mode == PlaneMode.CRUISE || mode == PlaneMode.HOLD || mode == PlaneMode.RTB;
+    private void updateRangeLimit() {
+        double max = SewvConfig.PLANE_MAX_RANGE.get();
+        Player near = this.unit.level().getNearestPlayer(this.vehicle.getX(), this.vehicle.getY(),
+                this.vehicle.getZ(), -1.0, e -> !e.isSpectator());
+        if (near == null) {
+            this.rangeLimited = false;
+            this.rangeAnchor = null;
+            return;
+        }
+        double d = Math.hypot(near.getX() - this.vehicle.getX(), near.getZ() - this.vehicle.getZ());
+        if (d > max) this.rangeLimited = true;
+        else if (d < 0.8 * max) this.rangeLimited = false;
+        this.rangeAnchor = this.rangeLimited ? near.position() : null;
     }
 
-    /** Hand this tick to the runtime when it owns the mode; false means the legacy path flies it. */
-    private boolean wingTick(long now) {
-        if (!WingFlight.enabled() || !isWingMode(this.mode) || this.vehicle.onGround()) {
-            WingFlight.detach(this.vehicle);
-            return false;
-        }
+    /**
+     * Modes the fixed-wing flight model flies: airborne navigation and combat. Takeoff, climb-out
+     * and landing keep the legacy SBW-driven path (the landing phase moves over next); the runtime
+     * detaches whenever the mode leaves this set, and SBW resumes from the state it leaves.
+     */
+    private boolean wingApplies(PlaneMode next) {
+        if (!WingFlight.enabled() || this.vehicle.onGround()) return false;
+        return next == PlaneMode.CRUISE || next == PlaneMode.HOLD || next == PlaneMode.RTB
+                || next == PlaneMode.INGRESS || next == PlaneMode.ATTACK || next == PlaneMode.BREAK;
+    }
+
+    /** The plane mode that mirrors a runtime procedure (telemetry, LOD, chunk loading). */
+    private static PlaneMode planeModeOf(WingProcedureId id, PlaneMode fallback) {
+        if (id == null) return fallback;
+        return switch (id) {
+            case TRANSIT -> PlaneMode.CRUISE;
+            case RTB -> PlaneMode.RTB;
+            case INGRESS -> PlaneMode.INGRESS;
+            case ATTACK_DIVE, ATTACK_LEVEL, ATTACK_MARK -> PlaneMode.ATTACK;
+            case BREAK -> PlaneMode.BREAK;
+            default -> PlaneMode.HOLD;
+        };
+    }
+
+    /** Hand this tick to the runtime; false means no runtime and the legacy path flies it. */
+    private boolean wingTick(@Nullable LivingEntity target, @Nullable Vec3 mark, long now) {
         WingRuntime runtime = WingFlight.attach(this.vehicle, this.unit);
         if (runtime == null) return false;
         AirframeSupport.releaseInputs(this.vehicle);
+        WingProcedureId active = runtime.activeId();
+        boolean inRun = WingModeSelector.isRun(active);
+        if (inRun && !WingModeSelector.isRun(this.lastWingActive)) beginWingRun(target, mark);
+        if (!inRun && WingModeSelector.isRun(this.lastWingActive)) resetRun();
         WingSituation sit = buildSituation(runtime, now);
+        fillCombat(sit, runtime, target, mark);
         runtime.setGuidance(sit, WingModeSelector.select(sit));
+        this.mode = planeModeOf(active, this.mode);
+        wingWeapons(runtime, active, target, mark);
+        this.lastWingActive = active;
         return true;
     }
 
+    /** A run began in the runtime: brief it (store, run height) exactly as the legacy startRun, minus the snap. */
+    private void beginWingRun(@Nullable LivingEntity target, @Nullable Vec3 mark) {
+        if (target != null) {
+            double range = Math.hypot(target.getX() - this.vehicle.getX(), target.getZ() - this.vehicle.getZ());
+            this.runY = runAltitude(target);
+            this.weapons.beginRun(target, range);
+        } else if (mark != null) {
+            double range = Math.hypot(mark.x - this.vehicle.getX(), mark.z - this.vehicle.getZ());
+            this.runY = runAltitude(mark);
+            this.weapons.beginRunMark(range);
+        }
+    }
+
+    /**
+     * The goal still pulls the triggers (the helicopter split): guns on the way in when a shot lines
+     * up, guns on the run inside the runtime's fire window, bombs at the release solution.
+     */
+    private void wingWeapons(WingRuntime runtime, @Nullable WingProcedureId active,
+                             @Nullable LivingEntity target, @Nullable Vec3 mark) {
+        if (active == null) return;
+        switch (active) {
+            case INGRESS -> {
+                this.weapons.arm();
+                if (target != null && !this.weapons.hasBombSelected()) {
+                    this.weapons.fire(target, this.weapons.aimPoint(target));
+                }
+            }
+            case ATTACK_DIVE -> {
+                this.weapons.arm();
+                if (target != null && runtime.fireWindow()) this.weapons.fire(target, this.weapons.aimPoint(target));
+            }
+            case ATTACK_LEVEL -> {
+                this.weapons.arm();
+                if (target != null && this.weapons.hasBombSelected()) {
+                    this.weapons.releaseBombIfOnTarget(target, this.kinematics.forwardFlat(), runAltitude(target));
+                }
+            }
+            case ATTACK_MARK -> {
+                this.weapons.arm();
+                if (mark != null && this.weapons.hasBombSelected()) {
+                    this.weapons.releaseBombIfOnTarget(this.weapons.bombGroundAim(mark), this.kinematics.forwardFlat(),
+                            runAltitude(mark));
+                }
+            }
+            default -> {
+            }
+        }
+    }
+
+    /** The combat half of the snapshot: target, delivery geometry, and the boresight-corrected aim. */
+    private void fillCombat(WingSituation sit, WingRuntime runtime, @Nullable LivingEntity target, @Nullable Vec3 mark) {
+        sit.minAttackClearance = MIN_ATTACK_CLEARANCE;
+        sit.pullupLead = PULLUP_LEAD_TICKS / 20.0;
+        sit.overflyMargin = OVERFLY_MARGIN;
+        sit.entryAgl = ATTACK_ENTRY_AGL;
+        if (target == null && mark == null) return;
+        double tx = target != null ? target.getX() : mark.x;
+        double ty = target != null ? target.getY() : mark.y;
+        double tz = target != null ? target.getZ() : mark.z;
+        double dist = Math.hypot(tx - this.vehicle.getX(), tz - this.vehicle.getZ());
+        if (target != null) this.weapons.ensureSelected(target, dist);
+        else this.weapons.ensureSelectedMark(dist);
+
+        sit.targetValid = true;
+        sit.isMark = target == null;
+        sit.targetX = tx;
+        sit.targetY = ty;
+        sit.targetZ = tz;
+        if (target != null) {
+            Vec3 tv = target.getDeltaMovement();
+            sit.targetVx = tv.x * 20.0;
+            sit.targetVy = tv.y * 20.0;
+            sit.targetVz = tv.z * 20.0;
+        }
+        sit.targetDistance = dist;
+        sit.engageRange = target != null ? engageRange(target) : engageRange(mark);
+        sit.runY = capAltitude(target != null ? runAltitude(target) : runAltitude(mark));
+        sit.runLength = target != null ? runLengthLimit(target) : runLengthLimit(mark);
+        sit.levelDelivery = this.weapons.hasBombSelected();
+        sit.stickComplete = this.weapons.stickComplete();
+        if (!sit.levelDelivery && Double.isNaN(this.runY)) {
+            // Aimed delivery: the bubble and entry height scale with the airframe's run speed (a
+            // fast jet needs a longer line), briefed fresh until a run latches its own height.
+            WingAirframe af = runtime.airframe();
+            sit.engageRange = com.neoalive.tacz_sewv.wing.guidance.WingProcedures.runEngageRange(af, sit.engageRange);
+            double ground = groundAt(tx, tz);
+            sit.runY = capAltitude(Math.max(sit.runY,
+                    ground + com.neoalive.tacz_sewv.wing.guidance.WingProcedures.diveEntryAgl(sit.engageRange)));
+            sit.runLength = Math.max(sit.runLength, sit.engageRange + OVERFLY_MARGIN);
+        }
+        sit.maxDive = Math.toRadians(deliveryPitchLimit());
+        Vec3 dir = dist > 1.0E-4 ? new Vec3((tx - this.vehicle.getX()) / dist, 0.0, (tz - this.vehicle.getZ()) / dist)
+                : this.kinematics.forwardFlat();
+        sit.established = PlaneNav.headingErrorDeg(this.kinematics.forwardFlat(), dir) <= RUN_ALIGN_DEG;
+        sit.runSafe = target != null ? runWouldBeSafe(target, dir) : runWouldBeSafe(mark, dir);
+        if (sit.levelDelivery) {
+            Vec3 ga = target != null ? this.weapons.bombGroundAim(target) : this.weapons.bombGroundAim(mark);
+            sit.bombAimX = ga.x;
+            sit.bombAimZ = ga.z;
+        } else if (target != null) {
+            // The nose direction that puts the weapon's own line on the led aim point: rotate the
+            // muzzle-to-aim vector by the measured gun-line-to-nose offset.
+            Vec3 toAim = this.weapons.toAim(this.weapons.aimPoint(target));
+            Vec3 gun = this.weapons.gunLine();
+            Vec3 nose = this.vehicle.getViewVector(1.0F);
+            if (toAim.lengthSqr() > 1.0E-8 && gun.lengthSqr() > 1.0E-8 && nose.lengthSqr() > 1.0E-8) {
+                org.joml.Vector3d g = new org.joml.Vector3d(gun.x, gun.y, gun.z).normalize();
+                org.joml.Vector3d n = new org.joml.Vector3d(nose.x, nose.y, nose.z).normalize();
+                org.joml.Vector3d a = new org.joml.Vector3d(toAim.x, toAim.y, toAim.z).normalize();
+                new org.joml.Quaterniond().rotationTo(g, n).transform(a);
+                sit.hasAimDir = true;
+                sit.aimDirX = a.x;
+                sit.aimDirY = a.y;
+                sit.aimDirZ = a.z;
+            }
+        }
+    }
 
     /**
      * The fixed-wing snapshot: everything the pure guidance needs from the world. Altitude follows
@@ -766,6 +960,16 @@ public class DrivePlaneGoal extends Goal {
             case RETURN -> WingSituation.Leash.RETURN;
             default -> WingSituation.Leash.FREE;
         };
+        if (this.rangeLimited && this.rangeAnchor != null) { // the hard range limit is a RETURN to the player
+            anchor = this.rangeAnchor;
+            sit.leash = WingSituation.Leash.RETURN;
+            sit.hasAnchor = true;
+            sit.anchorX = anchor.x;
+            sit.anchorY = anchor.y;
+            sit.anchorZ = anchor.z;
+            sit.anchorDistance = Math.hypot(anchor.x - x, anchor.z - z);
+        }
+        sit.groundBelow = AirframeSupport.surfaceBelow(this.vehicle);
 
         boolean home = sit.leash == WingSituation.Leash.RETURN && anchor != null;
         double over = dest != null ? dest.getY() + MIN_OVER_DEST : home ? anchor.y + MIN_OVER_DEST : Double.NEGATIVE_INFINITY;
@@ -838,6 +1042,7 @@ public class DrivePlaneGoal extends Goal {
         }
 
         if (command == IHelicopterPilot.HELI_CMD_LANDED) return PlaneMode.LANDED;
+        // A capped climb-out is handed over by doTakeoff itself (it clears this command there).
         if (command == IHelicopterPilot.HELI_CMD_TAKEOFF) return PlaneMode.TAKEOFF;
 
         // Hostile crews take no player flight orders and never sit parked: any grounded NONE state
@@ -854,13 +1059,16 @@ public class DrivePlaneGoal extends Goal {
         // Still below the flight band right after a roll: climb before anything else asks for a
         // manoeuvre, or the first turn is flown at treetop height.
         if (this.mode == PlaneMode.CLIMBOUT && this.kinematics.agl() < CLIMBOUT_ABOVE_GROUND
-                && !atCeiling()) {
+                && !atCeiling() && !climbOutCapped()) {
             return PlaneMode.CLIMBOUT;
         }
+        // Past the climb-out: forget the liftoff, so the next takeoff measures from its own.
+        if (!this.vehicle.onGround() && this.mode != PlaneMode.TAKEOFF) this.liftoffTick = Long.MIN_VALUE;
 
         PlaneLeash.State tether = this.leash.update(anchor(), this.vehicle.position(),
                 SewvConfig.PLANE_COMMAND_RADIUS.get());
         this.leashState = tether;
+        if (this.rangeLimited) return PlaneMode.RTB; // hard range limit outranks the fight
         if (tether == PlaneLeash.State.RETURN) return PlaneMode.RTB;
 
         if (target != null) {
@@ -1185,8 +1393,14 @@ public class DrivePlaneGoal extends Goal {
             this.takeoffDirZ = clear.z;
         }
 
-        // Airborne and clear of the terrain: gear up, hand over to the climbout.
-        if (!this.vehicle.onGround() && this.kinematics.agl() >= CLIMBOUT_ABOVE_GROUND) {
+        if (!this.vehicle.onGround() && this.liftoffTick == Long.MIN_VALUE) {
+            this.liftoffTick = this.unit.level().getGameTime();
+            this.liftoffX = this.vehicle.getX();
+            this.liftoffZ = this.vehicle.getZ();
+        }
+        // Airborne and clear of the terrain, or climbed out by time / distance / range: gear up,
+        // hand over to the climbout.
+        if (!this.vehicle.onGround() && (this.kinematics.agl() >= CLIMBOUT_ABOVE_GROUND || climbOutCapped())) {
             this.control.gear(true);
             if (pilot != null) pilot.sewv$setHeliCommand(IHelicopterPilot.HELI_CMD_NONE);
             this.takeoffDirX = Double.NaN;
@@ -1201,6 +1415,21 @@ public class DrivePlaneGoal extends Goal {
         this.control.steerYaw(new Vec3(this.takeoffDirX, 0, this.takeoffDirZ));
         boolean rotate = this.kinematics.speed() >= ROTATE_SPEED;
         this.control.commandPitch(rotate ? -TAKEOFF_PITCH_DEG : 0.0F);
+    }
+
+    /**
+     * A climb-out ends on time, distance from the liftoff point or the hard range limit as well as
+     * on height. Height above ground alone is measured over the terrain under the aircraft, so over
+     * rising ground (and with SBW's modest climb) it may never arrive: the plane then flew a
+     * straight takeoff leg tens of chunks long, and since takeoff outranks the leash and the range
+     * limit in chooseMode, nothing could turn it back until it did.
+     */
+    private boolean climbOutCapped() {
+        if (this.rangeLimited) return true;
+        if (this.liftoffTick == Long.MIN_VALUE) return false;
+        return this.unit.level().getGameTime() - this.liftoffTick > CLIMBOUT_MAX_TICKS
+                || Math.hypot(this.vehicle.getX() - this.liftoffX, this.vehicle.getZ() - this.liftoffZ)
+                > CLIMBOUT_MAX_DISTANCE;
     }
 
     /** Straight ahead and up until the flight band is reached. No turns down here. */
@@ -1299,7 +1528,7 @@ public class DrivePlaneGoal extends Goal {
 
     /** Ordered or leashed home: fly at the anchor until back inside, then normal duty resumes. */
     private void returnToAnchor() {
-        Vec3 home = this.leash.anchor();
+        Vec3 home = this.rangeLimited && this.rangeAnchor != null ? this.rangeAnchor : this.leash.anchor();
         if (home == null) {
             hold();
             return;

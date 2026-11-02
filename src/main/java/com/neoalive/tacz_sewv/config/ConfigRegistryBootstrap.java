@@ -767,6 +767,8 @@ final class ConfigRegistryBootstrap {
                 SewvConfig.HELI_FAR_LOD_BLOCKS, SewvConfig.HELI_FAR_LOD_BLOCKS::set);
         b.doubleRange(ConfigScope.SERVER, "flight", "planeCommandRadius", 32.0, 4096.0,
                 SewvConfig.PLANE_COMMAND_RADIUS, SewvConfig.PLANE_COMMAND_RADIUS::set);
+        b.doubleRange(ConfigScope.SERVER, "flight", "planeMaxRange", 192.0, 2048.0,
+                SewvConfig.PLANE_MAX_RANGE, SewvConfig.PLANE_MAX_RANGE::set);
         b.doubleRange(ConfigScope.SERVER, "flight", "planeGunConeDeg", 1.0, 45.0,
                 SewvConfig.PLANE_GUN_CONE_DEG, SewvConfig.PLANE_GUN_CONE_DEG::set);
         b.doubleRange(ConfigScope.SERVER, "flight", "planeMissileConeDeg", 1.0, 45.0,

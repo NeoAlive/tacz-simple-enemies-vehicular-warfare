@@ -12,6 +12,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.AABB;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
+import com.neoalive.tacz_sewv.client.MapMarkers;
 import com.neoalive.tacz_sewv.client.TdtSelection;
 import com.neoalive.tacz_sewv.client.territory.TerritoryClient;
 import com.neoalive.tacz_sewv.command.quick.QuickCommandRegistry;
@@ -74,6 +75,19 @@ public final class WheelScope {
                 u -> !TerritoryClient.inTerritory(u.getId()) && accepts(player, u, onFootOnly, filter))) {
             out.add(pmc.getId());
         }
+        if (!onFootOnly) {
+            // Aircrews are "nearby" out to the aircraft command radius, not the on-foot one, and are
+            // found from the server's owned-vehicle sync because the client usually does not track
+            // a pilot that far out. Untracked ones skip the filter; the server re-checks ownership.
+            for (int id : MapMarkers.ownAircraftDrivers(mc.level.dimension(), player.getX(), player.getZ(),
+                    aircraftRadius(), null)) {
+                if (out.contains(id) || TerritoryClient.inTerritory(id)) continue;
+                Entity e = mc.level.getEntity(id);
+                if (e instanceof PmcUnitEntity pmc && !accepts(player, pmc, false, filter)) continue;
+                if (e == null && filter != null) continue;
+                out.add(id);
+            }
+        }
         return out;
     }
 
@@ -90,6 +104,11 @@ public final class WheelScope {
         return QuickCommandRegistry.ID_QUICK_EVAC.equals(pipelineId)
                 ? SewvConfig.QUICK_EVAC_BOARD_RADIUS.get()
                 : SewvConfig.QUICK_LAND_RADIUS.get();
+    }
+
+    /** How far an order reaches an owned aircrew: the server's own plane command radius. */
+    public static double aircraftRadius() {
+        return SewvConfig.PLANE_COMMAND_RADIUS.get();
     }
 
     /** The radius for orders that are not wheel pipelines (escort, bail out, ...). */

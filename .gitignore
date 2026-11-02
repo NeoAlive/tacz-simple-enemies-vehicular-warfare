@@ -7,6 +7,7 @@ CLAUDE.md
 .claude
 scripts/
 tools/
+.mcp.json
 
 # IDE
 .idea/

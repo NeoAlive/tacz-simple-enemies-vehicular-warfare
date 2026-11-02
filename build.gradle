@@ -897,6 +897,14 @@ dependencies {
         runtimeOnly fg.deobf("blank:coltan:1.0")
         runtimeOnly fg.deobf("blank:gemrender:1.0")
     }
+    // Dev-only live inspection: DebugBridge (Groovy REPL on a local websocket) and Minecraft MCP
+    // (HTTP control on 9876). Drives the mcdev and minecraft-mod MCP servers against runClient.
+    // Skip with ./gradlew runClient -PnoDevBridge.
+    if (!project.hasProperty('noDevBridge') && file('libs/debugbridge.jar').exists()
+            && file('libs/minecraft_mcp.jar').exists()) {
+        runtimeOnly fg.deobf("blank:debugbridge:1.0")
+        runtimeOnly fg.deobf("blank:minecraft_mcp:1.0")
+    }
     // Soft: compile against MineColonies. libs/minecolonies.jar is the official Forge 1.20.1
     // release jar (ldtteam.jfrog.io/artifactory/modding, com.ldtteam:minecolonies:1.20.1-1.1.1276),
     // same flatDir pattern as the other libs/*.jar deps. It is a shadow jar carrying its own

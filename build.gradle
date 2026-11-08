@@ -699,10 +699,28 @@ tasks.register('selfCheckMinimap', JavaExec) {
     jvmArgs '-ea'
 }
 
+tasks.register('selfCheckVehicleClientLod', JavaExec) {
+    group = 'verification'
+    description = 'Runs the client vehicle simulation thinning self-check.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
+    mainClass = 'com.neoalive.tacz_sewv.client.perf.VehicleClientLodSelfCheck'
+    jvmArgs '-ea'
+}
+
+tasks.register('selfCheckTaczCube', JavaExec) {
+    group = 'verification'
+    description = 'Pins the fast TaCZ cube emitter to TaCZ cube compile output.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
+    mainClass = 'com.neoalive.tacz_sewv.client.perf.TaczCubeEmitterSelfCheck'
+    jvmArgs '-ea'
+}
+
 tasks.register('selfCheck') {
     group = 'verification'
     description = 'Runs all headless AI self-checks.'
-    dependsOn 'selfCheckArmor', 'selfCheckArtillery', 'selfCheckReducedCharge', 'selfCheckShieldRay', 'selfCheckCamo', 'selfCheckLoadout', 'selfCheckVehiclePacks', 'selfCheckMiscPacks', 'selfCheckUtility', 'selfCheckEasyMode', 'selfCheckRadial', 'selfCheckWeapons', 'selfCheckGrouping', 'selfCheckElection', 'selfCheckInfluence', 'selfCheckPlay', 'selfCheckFormation', 'selfCheckPlayerFormation', 'selfCheckInfantryFormation', 'selfCheckMarch', 'selfCheckSeam', 'selfCheckHeli', 'selfCheckHeliArmament', 'selfCheckPlane', 'selfCheckContactBoard', 'selfCheckWideScan', 'selfCheckPathBudget', 'selfCheckLofCache', 'selfCheckChunkTickets', 'selfCheckUnitLod', 'selfCheckTaskedDestination', 'selfCheckDismount', 'selfCheckTactics', 'selfCheckCues', 'selfCheckSuppression', 'selfCheckAcquisition', 'selfCheckEngineGates', 'selfCheckSounds', 'selfCheckCrewSkins', 'selfCheckAirport', 'selfCheckGround', 'selfCheckOrca', 'selfCheckCover', 'selfCheckBattlePosition', 'selfCheckBallistics', 'selfCheckIdle', 'selfCheckInvasion', 'selfCheckConfig', 'selfCheckPathway', 'selfCheckStructures', 'selfCheckTerritory', 'selfCheckDiplomacy', 'selfCheckVehicleAccess', 'selfCheckLv', 'selfCheckMinimap'
+    dependsOn 'selfCheckArmor', 'selfCheckArtillery', 'selfCheckReducedCharge', 'selfCheckShieldRay', 'selfCheckCamo', 'selfCheckLoadout', 'selfCheckVehiclePacks', 'selfCheckMiscPacks', 'selfCheckUtility', 'selfCheckEasyMode', 'selfCheckRadial', 'selfCheckWeapons', 'selfCheckGrouping', 'selfCheckElection', 'selfCheckInfluence', 'selfCheckPlay', 'selfCheckFormation', 'selfCheckPlayerFormation', 'selfCheckInfantryFormation', 'selfCheckMarch', 'selfCheckSeam', 'selfCheckHeli', 'selfCheckHeliArmament', 'selfCheckPlane', 'selfCheckContactBoard', 'selfCheckWideScan', 'selfCheckPathBudget', 'selfCheckLofCache', 'selfCheckChunkTickets', 'selfCheckUnitLod', 'selfCheckTaskedDestination', 'selfCheckDismount', 'selfCheckTactics', 'selfCheckCues', 'selfCheckSuppression', 'selfCheckAcquisition', 'selfCheckEngineGates', 'selfCheckSounds', 'selfCheckCrewSkins', 'selfCheckAirport', 'selfCheckGround', 'selfCheckOrca', 'selfCheckCover', 'selfCheckBattlePosition', 'selfCheckBallistics', 'selfCheckIdle', 'selfCheckInvasion', 'selfCheckConfig', 'selfCheckPathway', 'selfCheckStructures', 'selfCheckTerritory', 'selfCheckDiplomacy', 'selfCheckVehicleAccess', 'selfCheckLv', 'selfCheckMinimap', 'selfCheckVehicleClientLod', 'selfCheckTaczCube'
 }
 
 mixin {
@@ -729,6 +747,10 @@ mixin {
     // Separate config + TripodMixinPlugin gate — Tripod Invasion is optional and targeted by class
     // name (no compile-time dependency); the shield block's one-way wall for the AI.
     config "tacz_sewv.tripod.mixins.json"
+    // Client perf hooks on SBW, defaultRequire 0 so a signature change only disables a hook.
+    config "tacz_sewv.perf.mixins.json"
+    // Separate config + GemRenderMixinPlugin gate: GemRender is optional and compileOnly.
+    config "tacz_sewv.gemrender.mixins.json"
 }
 
 repositories {
@@ -883,6 +905,9 @@ dependencies {
     }
     if (file('libs/gemrender.jar').exists()) {
         compileOnly fg.deobf("blank:gemrender:1.0")
+    } else {
+        // mixin/gemrender names GemRender types directly; without the jar it is left out.
+        sourceSets.main.java.exclude 'com/neoalive/tacz_sewv/mixin/gemrender/**'
     }
     // Soft: Neo Arms aircraft carrier. Reflection facade (NeoArmsCarrierAccess) so a checkout
     // without libs/neoarms.jar still compiles; jar is compileOnly for IDE/nav when present.

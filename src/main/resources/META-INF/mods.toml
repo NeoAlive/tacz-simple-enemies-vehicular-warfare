@@ -60,6 +60,17 @@ config="tacz_sewv.minecolonies.mixins.json"
 [[mixins]]
 config="tacz_sewv.tripod.mixins.json"
 
+# Client perf hooks on SBW (dog tag texture cache, light update dedupe, client vehicle simulation
+# thinning). Own config ("required": false, defaultRequire 0) so an SBW signature change only
+# disables a hook instead of failing the start.
+[[mixins]]
+config="tacz_sewv.perf.mixins.json"
+
+# GemRender compat: lifts the 256 bone cap for rigid-parts imports only. Separate config
+# ("required": false) + GemRenderMixinPlugin (LoadingModList gate on mod id gemrender).
+[[mixins]]
+config="tacz_sewv.gemrender.mixins.json"
+
 [[dependencies.tacz_sewv]] #optional
     modId="forge" #mandatory
     mandatory=true #mandatory

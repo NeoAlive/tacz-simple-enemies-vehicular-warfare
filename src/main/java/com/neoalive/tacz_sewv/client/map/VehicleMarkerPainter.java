@@ -145,27 +145,32 @@ public final class VehicleMarkerPainter {
         // OWN for orders; HOSTILE for Attack-this-unit designate. FRIENDLY stays hover-only.
         boolean selectable = marker.allegiance() == VehicleMarker.Allegiance.OWN
                 || marker.allegiance() == VehicleMarker.Allegiance.HOSTILE;
-        if (hovered || (selectable && MapMarkers.isSelected(marker))) {
-            guiGraphics.fill(-HIT_BOX, -HIT_BOX, HIT_BOX, HIT_BOX,
-                    MapMarkers.isSelected(marker) ? SELECTION_COLOR : SELECTION_SHADE);
-            guiGraphics.fill(-HIT_BOX + 1, -HIT_BOX + 1, HIT_BOX - 1, HIT_BOX - 1, SELECTION_SHADE);
-        }
-
         int color = markerColor(marker);
         int headingColor = marker.kind() == VehicleMarker.Kind.UNKNOWN ? unknownGrey() : color;
-        drawHeading(guiGraphics, yaw + 180.0F + bearingOffsetDeg, headingColor);
+        // Every fill flushes on its own outside a managed block, one draw call per scanline.
+        guiGraphics.drawManaged(() -> {
+            if (hovered || (selectable && MapMarkers.isSelected(marker))) {
+                guiGraphics.fill(-HIT_BOX, -HIT_BOX, HIT_BOX, HIT_BOX,
+                        MapMarkers.isSelected(marker) ? SELECTION_COLOR : SELECTION_SHADE);
+                guiGraphics.fill(-HIT_BOX + 1, -HIT_BOX + 1, HIT_BOX - 1, HIT_BOX - 1, SELECTION_SHADE);
+            }
+            drawHeading(guiGraphics, yaw + 180.0F + bearingOffsetDeg, headingColor);
+        });
+        // setColor flushes a managed batch, so the tinted symbol stays outside one.
         if (ClientConfig.MAP_SHOW_ICONS.get()) {
             drawSymbol(guiGraphics, marker, color);
         }
-        if (style.labels()) {
-            drawCommandDebug(guiGraphics, marker);
-            drawPlayRoleTag(guiGraphics, marker);
-        }
-        if (style.vitals()) {
-            drawPmcVitals(guiGraphics, marker);
-        }
-        drawPlatoonBar(guiGraphics, marker);
-        drawCommanderBadge(guiGraphics, marker);
+        guiGraphics.drawManaged(() -> {
+            if (style.labels()) {
+                drawCommandDebug(guiGraphics, marker);
+                drawPlayRoleTag(guiGraphics, marker);
+            }
+            if (style.vitals()) {
+                drawPmcVitals(guiGraphics, marker);
+            }
+            drawPlatoonBar(guiGraphics, marker);
+            drawCommanderBadge(guiGraphics, marker);
+        });
 
         pose.popPose();
     }
@@ -183,8 +188,10 @@ public final class VehicleMarkerPainter {
         // Tip "up" locally (−y), so rotate the up vector onto (dx, dy).
         pose.mulPose(Axis.ZP.rotationDegrees((float) Math.toDegrees(Math.atan2(dx, -dy))));
         int fill = 0xFF000000 | (markerColor(marker) & 0x00FFFFFF);
-        fillHeadingTriangle(guiGraphics, PIP_TIP + 1, -PIP_BACK - 1, PIP_HALF_BASE + 1, HEADING_OUTLINE_COLOR);
-        fillHeadingTriangle(guiGraphics, PIP_TIP, -PIP_BACK, PIP_HALF_BASE, fill);
+        guiGraphics.drawManaged(() -> {
+            fillHeadingTriangle(guiGraphics, PIP_TIP + 1, -PIP_BACK - 1, PIP_HALF_BASE + 1, HEADING_OUTLINE_COLOR);
+            fillHeadingTriangle(guiGraphics, PIP_TIP, -PIP_BACK, PIP_HALF_BASE, fill);
+        });
         pose.popPose();
     }
 

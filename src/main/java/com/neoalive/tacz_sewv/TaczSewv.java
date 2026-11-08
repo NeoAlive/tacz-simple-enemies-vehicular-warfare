@@ -165,6 +165,7 @@ public class TaczSewv {
     @SubscribeEvent
     public void onRegisterCommands(RegisterCommandsEvent event) {
         SewvCommand.register(event.getDispatcher());
+        com.neoalive.tacz_sewv.command.RelightCommand.register(event.getDispatcher());
     }
 
     /**

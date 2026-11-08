@@ -21,6 +21,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import com.neoalive.tacz_sewv.client.skin.CrewSkinRegistry;
+import com.neoalive.tacz_sewv.config.PerfFlags;
 import com.neoalive.tacz_sewv.entity.client.pmc_commander.PmcCommanderRenderer;
 
 /**
@@ -64,6 +65,21 @@ public abstract class MixinUnitRenderer {
             if (seat >= 0 && seat < hidden.length && hidden[seat]) {
                 cir.setReturnValue(false); // enclosed seat, skip rendering entirely
             }
+        }
+    }
+
+    /**
+     * SEM returns true for every unit inside its render distance without the frustum test vanilla
+     * runs, so units behind the camera still draw their whole layer stack. Only decides whether
+     * the unit draws; nothing about how.
+     */
+    @Inject(method = "shouldRender", at = @At("RETURN"), cancellable = true, remap = false, require = 0)
+    private void tacz_sewv$frustumCull(
+            @Coerce AbstractUnit entity, Frustum frustum, double camX, double camY, double camZ,
+            CallbackInfoReturnable<Boolean> cir) {
+        if (!cir.getReturnValueZ() || entity.noCulling || !PerfFlags.semUnitFrustumCull()) return;
+        if (!frustum.isVisible(entity.getBoundingBoxForCulling().inflate(0.5))) {
+            cir.setReturnValue(false);
         }
     }
 

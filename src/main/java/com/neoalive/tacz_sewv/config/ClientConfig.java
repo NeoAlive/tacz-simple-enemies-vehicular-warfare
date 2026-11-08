@@ -56,6 +56,19 @@ public final class ClientConfig {
     public static final ForgeConfigSpec.BooleanValue INDIVIDUAL_AI_DEBUG;
     public static final ForgeConfigSpec.BooleanValue FOB_DEBUG;
 
+    public static final ForgeConfigSpec.BooleanValue GEMRENDER_PARTS_PALETTE_LIFT;
+    public static final ForgeConfigSpec.BooleanValue DOG_TAG_ICON_CACHE;
+    public static final ForgeConfigSpec.BooleanValue VEHICLE_REST_SKIP;
+    public static final ForgeConfigSpec.IntValue VEHICLE_FAR_SIM_DISTANCE;
+    public static final ForgeConfigSpec.IntValue VEHICLE_TURN_SOUND_DISTANCE;
+    public static final ForgeConfigSpec.BooleanValue SEM_UNIT_FRUSTUM_CULL;
+    public static final ForgeConfigSpec.BooleanValue TACZ_THIRD_PERSON_FLUSH_SKIP;
+    public static final ForgeConfigSpec.BooleanValue TACZ_FAST_CUBE_EMIT;
+    public static final ForgeConfigSpec.BooleanValue SEM_ATTACHMENT_LOD;
+    public static final ForgeConfigSpec.IntValue SEM_ATTACHMENT_LOD_DISTANCE;
+    public static final ForgeConfigSpec.BooleanValue SEM_ARMOR_LOD;
+    public static final ForgeConfigSpec.IntValue SEM_ARMOR_LOD_DISTANCE;
+
     /** Temporary on/off from the map-markers keybind; null = follow the setting below. */
     @Nullable
     private static volatile Boolean MAP_MARKERS_SESSION_OVERRIDE;
@@ -141,6 +154,54 @@ public final class ClientConfig {
         MINIMAP_HIDE_RADAR_FOR_MARKED = builder
                 .comment("Hide Xaero's own radar icon for units that already have a marker (and their crews).")
                 .define("minimapHideRadarForMarked", true);
+        builder.pop();
+
+        builder.push("compat");
+        GEMRENDER_PARTS_PALETTE_LIFT = builder
+                .comment("Coltan + GemRender only. Let rigid-parts models import with more than 256 bones.",
+                        "GemRender rejects them although the parts path never stores a palette index, so tracked",
+                        "hulls (T-90A, Bradley, M1A2, BMP-2 and others) fall back to SBW's slower renderer.",
+                        "Read when a model loads; reload resources after changing it.")
+                .define("gemrenderPartsPaletteLift", true);
+        DOG_TAG_ICON_CACHE = builder
+                .comment("Reuse each vehicle's dog tag icon texture until its pattern changes, instead of",
+                        "rebuilding and uploading it every frame.")
+                .define("dogTagIconCache", true);
+        VEHICLE_REST_SKIP = builder
+                .comment("Skip client-side collision for vehicles you are not riding while they are parked.",
+                        "The server stays authoritative; position still follows its updates.")
+                .define("vehicleRestSkip", true);
+        VEHICLE_FAR_SIM_DISTANCE = builder
+                .comment("Beyond this many blocks, vehicles you are not riding skip client-side collision,",
+                        "follow server updates more tightly and refresh their slope tilt less often. 0 = off.")
+                .defineInRange("vehicleFarSimDistance", 48, 0, 1024);
+        VEHICLE_TURN_SOUND_DISTANCE = builder
+                .comment("Do not start turret traverse sounds for vehicles farther than this many blocks. 0 = off.")
+                .defineInRange("vehicleTurnSoundDistance", 48, 0, 1024);
+        SEM_UNIT_FRUSTUM_CULL = builder
+                .comment("Skip drawing SEM units that are outside the view. SEM draws every unit inside its",
+                        "render distance, including the ones behind the camera.")
+                .define("semUnitFrustumCull", true);
+        TACZ_THIRD_PERSON_FLUSH_SKIP = builder
+                .comment("Without a shader pack, let third-person TaCZ guns without a scope join the normal",
+                        "entity batch instead of forcing a flush per gun and per attachment.")
+                .define("taczThirdPersonFlushSkip", true);
+        TACZ_FAST_CUBE_EMIT = builder
+                .comment("Write TaCZ gun and attachment cubes without per-vertex allocations. Same vertices.")
+                .define("taczFastCubeEmit", true);
+        SEM_ATTACHMENT_LOD = builder
+                .comment("Skip attachment models (scopes, grips, muzzles) on third-person guns beyond",
+                        "semAttachmentLodDistance. The gun itself is always drawn.")
+                .define("semAttachmentLod", true);
+        SEM_ATTACHMENT_LOD_DISTANCE = builder
+                .comment("Distance in blocks for semAttachmentLod. 0 = off.")
+                .defineInRange("semAttachmentLodDistance", 48, 0, 1024);
+        SEM_ARMOR_LOD = builder
+                .comment("Skip Bedrock armor models on units beyond semArmorLodDistance.")
+                .define("semArmorLod", false);
+        SEM_ARMOR_LOD_DISTANCE = builder
+                .comment("Distance in blocks for semArmorLod. 0 = off.")
+                .defineInRange("semArmorLodDistance", 64, 0, 1024);
         builder.pop();
 
         builder.push("debug");

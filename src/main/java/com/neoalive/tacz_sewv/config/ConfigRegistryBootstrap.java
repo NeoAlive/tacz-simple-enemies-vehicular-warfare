@@ -102,6 +102,31 @@ final class ConfigRegistryBootstrap {
         b.bool(ConfigScope.CLIENT, "map", "minimapHideRadarForMarked",
                 ClientConfig.MINIMAP_HIDE_RADAR_FOR_MARKED, ClientConfig.MINIMAP_HIDE_RADAR_FOR_MARKED::set);
 
+        b.bool(ConfigScope.CLIENT, "compat", "gemrenderPartsPaletteLift",
+                ClientConfig.GEMRENDER_PARTS_PALETTE_LIFT, ClientConfig.GEMRENDER_PARTS_PALETTE_LIFT::set);
+        b.bool(ConfigScope.CLIENT, "compat", "dogTagIconCache",
+                ClientConfig.DOG_TAG_ICON_CACHE, ClientConfig.DOG_TAG_ICON_CACHE::set);
+        b.bool(ConfigScope.CLIENT, "compat", "vehicleRestSkip",
+                ClientConfig.VEHICLE_REST_SKIP, ClientConfig.VEHICLE_REST_SKIP::set);
+        b.intRange(ConfigScope.CLIENT, "compat", "vehicleFarSimDistance", 0, 1024,
+                ClientConfig.VEHICLE_FAR_SIM_DISTANCE, ClientConfig.VEHICLE_FAR_SIM_DISTANCE::set);
+        b.intRange(ConfigScope.CLIENT, "compat", "vehicleTurnSoundDistance", 0, 1024,
+                ClientConfig.VEHICLE_TURN_SOUND_DISTANCE, ClientConfig.VEHICLE_TURN_SOUND_DISTANCE::set);
+        b.bool(ConfigScope.CLIENT, "compat", "semUnitFrustumCull",
+                ClientConfig.SEM_UNIT_FRUSTUM_CULL, ClientConfig.SEM_UNIT_FRUSTUM_CULL::set);
+        b.bool(ConfigScope.CLIENT, "compat", "taczThirdPersonFlushSkip",
+                ClientConfig.TACZ_THIRD_PERSON_FLUSH_SKIP, ClientConfig.TACZ_THIRD_PERSON_FLUSH_SKIP::set);
+        b.bool(ConfigScope.CLIENT, "compat", "taczFastCubeEmit",
+                ClientConfig.TACZ_FAST_CUBE_EMIT, ClientConfig.TACZ_FAST_CUBE_EMIT::set);
+        b.bool(ConfigScope.CLIENT, "compat", "semAttachmentLod",
+                ClientConfig.SEM_ATTACHMENT_LOD, ClientConfig.SEM_ATTACHMENT_LOD::set);
+        b.intRange(ConfigScope.CLIENT, "compat", "semAttachmentLodDistance", 0, 1024,
+                ClientConfig.SEM_ATTACHMENT_LOD_DISTANCE, ClientConfig.SEM_ATTACHMENT_LOD_DISTANCE::set);
+        b.bool(ConfigScope.CLIENT, "compat", "semArmorLod",
+                ClientConfig.SEM_ARMOR_LOD, ClientConfig.SEM_ARMOR_LOD::set);
+        b.intRange(ConfigScope.CLIENT, "compat", "semArmorLodDistance", 0, 1024,
+                ClientConfig.SEM_ARMOR_LOD_DISTANCE, ClientConfig.SEM_ARMOR_LOD_DISTANCE::set);
+
         b.bool(ConfigScope.CLIENT, "debug", "groundPathingDebug",
                 ClientConfig.GROUND_PATHING_DEBUG, ClientConfig.GROUND_PATHING_DEBUG::set);
         b.bool(ConfigScope.CLIENT, "debug", "shipPathingDebug",

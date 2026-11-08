@@ -21,6 +21,9 @@ import net.minecraftforge.client.ForgeHooksClient;
 import net.nekoyuni.SimpleEnemyMod.compat.geckolib.GeckoCompat;
 import net.nekoyuni.SimpleEnemyMod.compat.geckolib.GeckoCompatClient;
 
+import com.neoalive.tacz_sewv.client.perf.CameraDistance;
+import com.neoalive.tacz_sewv.config.PerfFlags;
+
 /**
  * Renders armor that supplies its own model (SuperbWarfare's helmets and vests, which are
  * simplebedrockmodel geometry) on a SimpleEnemyMod unit.
@@ -74,6 +77,10 @@ public class BedrockArmorLayer<T extends LivingEntity, M extends EntityModel<T>>
                        float limbSwing, float limbSwingAmount, float partialTicks, float ageInTicks,
                        float netHeadYaw, float headPitch) {
 
+        if (CameraDistance.beyond(entity.getX(), entity.getY(), entity.getZ(), PerfFlags.semArmorLodDistance())) {
+            return;
+        }
+
         boolean hasCustomArmor = false;
         for (EquipmentSlot slot : ARMOR_SLOTS) {
             ItemStack stack = entity.getItemBySlot(slot);
@@ -119,6 +126,7 @@ public class BedrockArmorLayer<T extends LivingEntity, M extends EntityModel<T>>
             // the unit body skin if we built it from getTextureLocation. ICustomArmorRenderer
             // builds its own buffer from the armor texture (and MixinGeoArmorRenderer can swap
             // that for a faction PNG).
+            // Coltan swaps the per-cube mesh for a baked one inside renderArmorToBuffer.
             if (armor instanceof ICustomArmorRenderer custom) {
                 custom.renderArmorToBuffer(poseStack, buffer, packedLight, OverlayTexture.NO_OVERLAY,
                         1.0F, 1.0F, 1.0F, 1.0F);

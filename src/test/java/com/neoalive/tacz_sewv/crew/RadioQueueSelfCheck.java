@@ -33,6 +33,7 @@ public final class RadioQueueSelfCheck {
         expiryPerTier();
         gapPerTier();
         softWaitsForAirtime();
+        domainGating();
         System.out.println("radio queue self-check: OK");
     }
 
@@ -129,6 +130,31 @@ public final class RadioQueueSelfCheck {
         r.airtime = true;
         q.drain(1, null, r);
         check(r.played.equals(List.of(1)), "soft plays once airtime frees");
+    }
+
+    private static void domainGating() {
+        for (CrewRadio.Line l : CrewRadio.Line.values()) {
+            boolean warning = l.name().startsWith("WARN_");
+            for (CrewRadio.Domain d : CrewRadio.Domain.values()) {
+                boolean b = CrewRadio.blocked(l, d);
+                if (warning) check(b == (d != CrewRadio.Domain.AIR), l + " is a cockpit line, aircraft only");
+            }
+        }
+        check(CrewRadio.blocked(CrewRadio.Line.DAMAGE_TRACK, CrewRadio.Domain.AIR), "no tracks in the air");
+        check(CrewRadio.blocked(CrewRadio.Line.LOAD_AP, CrewRadio.Domain.AIR), "no loader in the air");
+        check(CrewRadio.blocked(CrewRadio.Line.ENGINE_START, CrewRadio.Domain.FIXED), "emplacements start no engine");
+        check(!CrewRadio.blocked(CrewRadio.Line.VEHICLE_HIT, CrewRadio.Domain.AIR), "aircraft still get hit lines");
+        check(!CrewRadio.blocked(CrewRadio.Line.DAMAGE_TRACK, CrewRadio.Domain.GROUND), "ground keeps tracks");
+        // A blocked line's fallback chain must not lead back to an allowed line on that domain.
+        for (CrewRadio.Line l : CrewRadio.Line.values()) {
+            for (CrewRadio.Domain d : CrewRadio.Domain.values()) {
+                if (!CrewRadio.blocked(l, d)) continue;
+                for (CrewRadio.Line f = l.fallback; f != null; f = f.fallback) {
+                    check(CrewRadio.blocked(f, d) || l.name().startsWith("PLAN_"),
+                            l + " blocked on " + d + " but falls back to " + f);
+                }
+            }
+        }
     }
 
     private static void check(boolean ok, String what) {

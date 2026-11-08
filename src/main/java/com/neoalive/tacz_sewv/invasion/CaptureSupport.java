@@ -165,7 +165,9 @@ public final class CaptureSupport {
             return;
         }
 
-        InvasionSession.noteCapture(level, be.getBlockPos(), holdingTeam(be), team);
+        String previous = holdingTeam(be);
+        InvasionSession.noteCapture(level, be.getBlockPos(), previous, team);
+        com.neoalive.tacz_sewv.crew.CrewRadio.onObjective(level, be.getBlockPos(), previous, team);
         be.setOwnedTeam(team);
         be.setProgress(0f);
         be.setContested(false);

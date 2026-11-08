@@ -107,7 +107,23 @@ public final class CrewRadio {
         /** Calling for mortar or TOW. Shares the {@code support} category cooldown. */
         VEHICLE_SUPPORT_MORTAR("vehicle_support_mortar", 160, "support", Tier.HARD, null),
         /** Hull first indexed as a hostile contact. */
-        VEHICLE_TARGETED("vehicle_targeted", 140, "targeted", Tier.HARD, null);
+        VEHICLE_TARGETED("vehicle_targeted", 140, "targeted", Tier.HARD, null),
+
+        /** Radio answer to an accepted mortar or TOW mission. Played on the caller, not a hull. */
+        SUPPORT_ACK_MORTAR("support_ack_mortar", 0),
+        /** Radio answer to an accepted CAS mission. Played on the caller, not a hull. */
+        SUPPORT_ACK_AIR("support_ack_air", 0),
+        OBJECTIVE_TAKEN("objective_taken", 200),
+        OBJECTIVE_LOST("objective_lost", 200),
+
+        /** Cockpit voice: guided missile inbound. Aircraft only. */
+        WARN_MISSILE("warn_missile", 60, null, Tier.URGENT, null),
+        /** Cockpit voice: locked or being locked. Aircraft only. */
+        WARN_LOCK("warn_lock", 100),
+        /** Cockpit voice: too low and sinking. Aircraft only. */
+        WARN_ALTITUDE("warn_altitude", 200),
+        /** Cockpit voice: gear on the landing approach. Aircraft only. */
+        WARN_GEAR("warn_gear", 400);
 
         final String pool;
         final int cooldown;
@@ -141,7 +157,8 @@ public final class CrewRadio {
     }
 
     /** Line types for the queue's diversity rule. Lines not listed are a group of their own. */
-    enum Group { TARGET, PLAN, RESULT, DAMAGE, HEALTH, HIT, CREW, SHOOT, LOAD, SUPPORT, UNIT, ALLY_LOST, SMOKE, BAIL, IDLE }
+    enum Group { TARGET, PLAN, RESULT, DAMAGE, HEALTH, HIT, CREW, SHOOT, LOAD, SUPPORT, UNIT, ALLY_LOST, SMOKE, BAIL, IDLE,
+        OBJECTIVE, WARNING }
 
     static Group groupOf(Line l) {
         return switch (l) {
@@ -156,7 +173,9 @@ public final class CrewRadio {
             case CREW_DOWN, CREW_COMMAND -> Group.CREW;
             case VEHICLE_MG_SHOOT, VEHICLE_CANNON_SHOOT -> Group.SHOOT;
             case LOAD_AP, LOAD_HE, LOAD_HEAT, LOAD_MISSILE, GUN_READY -> Group.LOAD;
-            case VEHICLE_SUPPORT_AIR, VEHICLE_SUPPORT_MORTAR -> Group.SUPPORT;
+            case VEHICLE_SUPPORT_AIR, VEHICLE_SUPPORT_MORTAR, SUPPORT_ACK_MORTAR, SUPPORT_ACK_AIR -> Group.SUPPORT;
+            case OBJECTIVE_TAKEN, OBJECTIVE_LOST -> Group.OBJECTIVE;
+            case WARN_MISSILE, WARN_LOCK, WARN_ALTITUDE, WARN_GEAR -> Group.WARNING;
             case UNIT_DEPLOY_DRONE, UNIT_DIG, UNIT_HEAL, UNIT_REPAIR -> Group.UNIT;
             case ALLY_LOST -> Group.ALLY_LOST;
             case POP_SMOKE -> Group.SMOKE;
@@ -179,6 +198,73 @@ public final class CrewRadio {
         }
     }
 
+    /**
+     * What kind of hull is speaking. A domain can swap a line's clips ({@code <pool>_<domain>_<faction>},
+     * falling back to the plain pool) or block the line outright: aircraft have no tracks or loaders,
+     * an emplacement has no engine to start, and only aircraft have a cockpit voice.
+     */
+    enum Domain {
+        GROUND(null), AIR("air"), SEA("sea"), FIXED("fixed");
+
+        final String key;
+
+        Domain(String key) {
+            this.key = key;
+        }
+    }
+
+    private static final Domain[] DOMAINS = Domain.values();
+
+    static int blockedMask(Line l) {
+        int air = 1 << Domain.AIR.ordinal();
+        int sea = 1 << Domain.SEA.ordinal();
+        int fixed = 1 << Domain.FIXED.ordinal();
+        int ground = 1 << Domain.GROUND.ordinal();
+        return switch (l) {
+            case DAMAGE_TRACK -> air | sea | fixed;
+            case DAMAGE_TURRET, TRAVERSE_LEFT, TRAVERSE_RIGHT, LOAD_AP, LOAD_HE, LOAD_HEAT -> air;
+            case ENGINE_START -> fixed;
+            case PLAN_ADVANCE, PLAN_HOLD, PLAN_RETREAT, PLAN_FLANK -> air | fixed;
+            case WARN_MISSILE, WARN_LOCK, WARN_ALTITUDE, WARN_GEAR -> ground | sea | fixed;
+            default -> 0;
+        };
+    }
+
+    private static final int[] BLOCKED = new int[Line.values().length];
+
+    static {
+        for (Line l : Line.values()) BLOCKED[l.ordinal()] = blockedMask(l);
+    }
+
+    static boolean blocked(Line l, Domain d) {
+        return (BLOCKED[l.ordinal()] & (1 << d.ordinal())) != 0;
+    }
+
+    /** Resolved once per hull and kept on its radio queue. */
+    static Domain domainOf(VehicleEntity hull) {
+        RadioQueue q = ((IHullRadio) hull).sewv$radio();
+        if (q.domain < 0) q.domain = resolveDomain(hull).ordinal();
+        return DOMAINS[q.domain];
+    }
+
+    private static Domain resolveDomain(VehicleEntity hull) {
+        com.atsuishio.superbwarfare.data.vehicle.subdata.EngineType t;
+        try {
+            t = com.neoalive.tacz_sewv.compat.NpcVehicleOverrides.applyEngineHint(
+                    net.minecraftforge.registries.ForgeRegistries.ENTITY_TYPES.getKey(hull.getType()).toString(),
+                    com.neoalive.tacz_sewv.entity.ai.core.HullFacts.engineType(hull));
+        } catch (Throwable e) {
+            return Domain.GROUND;
+        }
+        if (t == null) return Domain.GROUND;
+        return switch (t) {
+            case HELICOPTER, AIRCRAFT -> Domain.AIR;
+            case SHIP -> Domain.SEA;
+            case FIXED -> Domain.FIXED;
+            default -> Domain.GROUND;
+        };
+    }
+
     private static final Line[] LINES = Line.values();
 
     private static final String TYPE_KEY = "tacz_sewv:radio_";
@@ -199,8 +285,8 @@ public final class CrewRadio {
     private static final int AIRTIME_WINDOW_TICKS = 50;
     private static final java.util.WeakHashMap<ServerLevel, AirtimeRing> AIRTIME = new java.util.WeakHashMap<>();
 
-    /** Resolved pools per faction: [line] then [0 = normal, 1 = panicked]. Built on first use. */
-    private static volatile EnumMap<Faction, SoundPool[][]> pools;
+    /** Resolved pools per faction: [domain][line] then [0 = normal, 1 = panicked]. Built on first use. */
+    private static volatile EnumMap<Faction, SoundPool[][][]> pools;
 
     private CrewRadio() {}
 
@@ -488,7 +574,7 @@ public final class CrewRadio {
             return false;
         }
         if (data.getBoolean(LOW_HEALTH_SPOKEN_KEY)) return false;
-        if (pool(crew, Line.VEHICLE_LOW_HEALTH, false) == null) {
+        if (pool(factionOf(crew), domainOf(hull), Line.VEHICLE_LOW_HEALTH, false) == null) {
             data.putBoolean(LOW_HEALTH_SPOKEN_KEY, true);
             return false;
         }
@@ -563,6 +649,64 @@ public final class CrewRadio {
         if (line != null) play(hull, line);
     }
 
+    // ---------------------------------------------------------------- cockpit and objectives
+
+    /** A guided missile is flying at this hull. Cockpit voice, aircraft only. */
+    public static void onMissileInbound(VehicleEntity hull) {
+        if (!enabled() || hull.level().isClientSide || hull.isWreck()) return;
+        play(hull, Line.WARN_MISSILE);
+    }
+
+    /** Someone is locking or has locked this hull. Cockpit voice, aircraft only. */
+    public static void onLocked(VehicleEntity hull) {
+        if (!enabled() || hull.level().isClientSide || hull.isWreck()) return;
+        play(hull, Line.WARN_LOCK);
+    }
+
+    /** Too low and sinking. Rising edge and cooldown are the caller's and the line's. */
+    public static void onLowAltitude(VehicleEntity hull) {
+        if (!enabled() || hull.level().isClientSide || hull.isWreck()) return;
+        play(hull, Line.WARN_ALTITUDE);
+    }
+
+    /** A plane starting its landing approach. */
+    public static void onLandingApproach(VehicleEntity hull) {
+        if (!enabled() || hull.level().isClientSide || hull.isWreck()) return;
+        play(hull, Line.WARN_GEAR);
+    }
+
+    private static final double OBJECTIVE_RANGE = 96.0;
+
+    /**
+     * An invasion point changed hands: the nearest crewed hull of the new holder calls it taken, the
+     * nearest of the old holder calls it lost. Team is read off the first crewman's invasion tag.
+     */
+    public static void onObjective(ServerLevel level, net.minecraft.core.BlockPos pos, String previous, String taken) {
+        if (!enabled()) return;
+        boolean hasPrevious = previous != null && !previous.isEmpty();
+        AABB box = new AABB(pos).inflate(OBJECTIVE_RANGE);
+        VehicleEntity winner = null;
+        VehicleEntity loser = null;
+        double winSq = Double.MAX_VALUE;
+        double loseSq = Double.MAX_VALUE;
+        for (VehicleEntity hull : level.getEntitiesOfClass(VehicleEntity.class, box, v -> !v.isWreck())) {
+            AbstractUnit crew = firstCrew(hull, null);
+            if (crew == null) continue;
+            String team = crew.getPersistentData().getString(com.neoalive.tacz_sewv.invasion.InvasionTags.TEAM);
+            if (team.isEmpty()) continue;
+            double d = hull.distanceToSqr(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5);
+            if (team.equals(taken) && d < winSq) {
+                winSq = d;
+                winner = hull;
+            } else if (hasPrevious && team.equals(previous) && d < loseSq) {
+                loseSq = d;
+                loser = hull;
+            }
+        }
+        if (winner != null) play(winner, Line.OBJECTIVE_TAKEN);
+        if (loser != null) play(loser, Line.OBJECTIVE_LOST);
+    }
+
     /** @return true if the clip played */
     public static boolean playIdle(VehicleEntity hull) {
         if (!enabled() || hull.level().isClientSide) return false;
@@ -591,33 +735,48 @@ public final class CrewRadio {
     }
 
     private static boolean playLine(VehicleEntity hull, AbstractUnit speaker, Line line, boolean panicked) {
+        Domain domain = domainOf(hull);
+        if (blocked(line, domain)) return false;
+        Faction faction = factionOf(speaker);
         Line resolved = line;
-        SoundPool pool = pool(speaker, resolved, panicked);
+        SoundPool pool = pool(faction, domain, resolved, panicked);
         while (pool == null && resolved.fallback != null) {
             resolved = resolved.fallback;
-            pool = pool(speaker, resolved, panicked);
+            if (blocked(resolved, domain)) return false;
+            pool = pool(faction, domain, resolved, panicked);
         }
         if (pool == null) return false;
         return playPool(hull, line, pool, hull.getPersistentData());
     }
 
-    private static SoundPool pool(AbstractUnit unit, Line line, boolean panicked) {
-        SoundPool[] pair = table().get(factionOf(unit))[line.ordinal()];
+    private static SoundPool pool(Faction faction, Domain domain, Line line, boolean panicked) {
+        SoundPool[] pair = table().get(faction)[domain.ordinal()][line.ordinal()];
         if (panicked && pair[1] != null) return pair[1];
         return pair[0];
     }
 
-    private static EnumMap<Faction, SoundPool[][]> table() {
-        EnumMap<Faction, SoundPool[][]> t = pools;
+    /** The clips for a line with no hull behind it (radio answers), or null when the faction has none. */
+    public static SoundPool poolFor(Faction faction, Line line) {
+        return pool(faction, Domain.GROUND, line, false);
+    }
+
+    private static EnumMap<Faction, SoundPool[][][]> table() {
+        EnumMap<Faction, SoundPool[][][]> t = pools;
         if (t != null) return t;
         t = new EnumMap<>(Faction.class);
         for (Faction f : Faction.values()) {
             String suffix = "_" + f.name().toLowerCase(java.util.Locale.ROOT);
-            Line[] lines = Line.values();
-            SoundPool[][] rows = new SoundPool[lines.length][2];
-            for (Line l : lines) {
-                rows[l.ordinal()][0] = ModSounds.crew(l.pool + suffix);
-                rows[l.ordinal()][1] = ModSounds.crew(l.pool + suffix + "_panicked");
+            SoundPool[][][] rows = new SoundPool[DOMAINS.length][LINES.length][2];
+            for (Domain d : DOMAINS) {
+                for (Line l : LINES) {
+                    SoundPool[] pair = rows[d.ordinal()][l.ordinal()];
+                    if (d.key != null) {
+                        pair[0] = ModSounds.crew(l.pool + "_" + d.key + suffix);
+                        pair[1] = ModSounds.crew(l.pool + "_" + d.key + suffix + "_panicked");
+                    }
+                    if (pair[0] == null) pair[0] = ModSounds.crew(l.pool + suffix);
+                    if (pair[1] == null) pair[1] = ModSounds.crew(l.pool + suffix + "_panicked");
+                }
             }
             t.put(f, rows);
         }

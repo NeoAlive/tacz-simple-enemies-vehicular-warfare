@@ -34,6 +34,7 @@ import com.neoalive.tacz_sewv.compat.NeoArmsCarrierAccess;
 import com.neoalive.tacz_sewv.compat.NpcVehicleOverrides;
 import com.neoalive.tacz_sewv.config.ClientConfig;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.crew.CrewRadio;
 import com.neoalive.tacz_sewv.debug.PlanePerf;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
@@ -608,6 +609,10 @@ public class DrivePlaneGoal extends Goal {
         this.mode = PlaneMode.GROUNDED;
     }
 
+    private final AirframeSupport.AltitudeWarn altitudeWarn = new AirframeSupport.AltitudeWarn();
+    /** Gear call made for the current landing; cleared once the landing order ends. */
+    private boolean landingCalled;
+
     @Override
     public void tick() {
         HudNotify.watchPmcVehicle(this.unit, this.vehicle);
@@ -638,6 +643,10 @@ public class DrivePlaneGoal extends Goal {
                 DECOY_HEALTH_FRACTION, PRESERVE_DECOY_CHANCE);
 
         long now = this.unit.level().getGameTime();
+        int flightCommand = (this.unit instanceof IHelicopterPilot p ? p.sewv$getHeliCommand() : IHelicopterPilot.HELI_CMD_NONE);
+        this.altitudeWarn.tick(this.vehicle, now, parked
+                || flightCommand == IHelicopterPilot.HELI_CMD_LANDING
+                || flightCommand == IHelicopterPilot.HELI_CMD_TAKEOFF);
         this.kinematics.sample(this.vehicle, now);
         refreshAllies(now, AirLod.farTransit(this.vehicle,
                 SewvConfig.PLANE_FAR_LOD_BLOCKS.get(), isFarTransitMode(this.mode)));
@@ -1008,10 +1017,13 @@ public class DrivePlaneGoal extends Goal {
     private PlaneMode chooseMode(@Nullable IHelicopterPilot pilot, @Nullable LivingEntity target,
                                  @Nullable Vec3 mark, long now) {
         int command = pilot != null ? pilot.sewv$getHeliCommand() : IHelicopterPilot.HELI_CMD_NONE;
+        boolean landing = command == IHelicopterPilot.HELI_CMD_LANDING || forcedLand();
+        if (landing && !this.landingCalled) CrewRadio.onLandingApproach(this.vehicle);
+        this.landingCalled = landing;
 
         // Ordered to land: nothing outranks it, and the order is re-asserted every tick so no
         // combat or order-queue change can quietly retask the aircraft mid-approach.
-        if (command == IHelicopterPilot.HELI_CMD_LANDING || forcedLand()) {
+        if (landing) {
             BlockPos pad = resolveLandPad(pilot);
             if (pad == null) {
                 clearLanding(pilot);

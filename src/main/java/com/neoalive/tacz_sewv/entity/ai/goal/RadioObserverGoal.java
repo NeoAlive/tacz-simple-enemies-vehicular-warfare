@@ -100,7 +100,7 @@ public class RadioObserverGoal extends Goal {
             }
             // A unit phoning in its own contact names no ordnance — it is reporting what it sees,
             // not choosing how the aircraft attacks.
-            var ack = FireMissionSupport.ackFor(call.kinds(), PlaneAttackMode.AUTO);
+            var ack = FireMissionSupport.ackFor(call.kinds(), PlaneAttackMode.AUTO, CrewRadio.Faction.PMC);
             if (ack != null) {
                 this.unit.level().playSound(null, this.unit, ack,
                         SoundSource.VOICE, 1.8F, 1.0F);

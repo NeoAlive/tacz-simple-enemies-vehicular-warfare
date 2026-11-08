@@ -37,6 +37,9 @@ public final class RadioQueue {
     private final long[] expires = new long[SLOTS];
     private final Object[] payload = new Object[SLOTS];
 
+    /** Owner's hull domain, cached by the caller; -1 until resolved. */
+    public int domain = -1;
+
     public boolean isEmpty() {
         return count == 0;
     }

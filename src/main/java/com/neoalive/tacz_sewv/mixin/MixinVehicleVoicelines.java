@@ -70,6 +70,25 @@ public abstract class MixinVehicleVoicelines {
         if (!hull.level().isClientSide && hull.getDecoyCount() < before) CrewRadio.onSmoke(hull);
     }
 
+    /** Same edge for flares: SBW calls releaseDecoy every tick for a hull that carries them. */
+    @Unique
+    private int tacz_sewv$flaresBefore = -1;
+
+    @Inject(method = "releaseDecoy", at = @At("HEAD"), remap = false)
+    private void tacz_sewv$flaresBefore(CallbackInfo ci) {
+        VehicleEntity hull = (VehicleEntity) (Object) this;
+        this.tacz_sewv$flaresBefore = hull.decoyInputDown() ? hull.getDecoyCount() : -1;
+    }
+
+    @Inject(method = "releaseDecoy", at = @At("RETURN"), remap = false)
+    private void tacz_sewv$flaresVoice(CallbackInfo ci) {
+        int before = this.tacz_sewv$flaresBefore;
+        this.tacz_sewv$flaresBefore = -1;
+        if (before <= 0 || !CrewRadio.enabled()) return;
+        VehicleEntity hull = (VehicleEntity) (Object) this;
+        if (!hull.level().isClientSide && hull.getDecoyCount() < before) CrewRadio.onSmoke(hull);
+    }
+
     /**
      * Fire callout on a real launch. Hooks VehicleEntity's shoot so cancelled HEAD gates never
      * announce, and so native SBW AI fire (not only tryAiFireAssist) is covered. Player shooters

@@ -358,6 +358,8 @@ public class DriveHelicopterGoal extends Goal {
         this.allyAssist.clear();
     }
 
+    private final AirframeSupport.AltitudeWarn altitudeWarn = new AirframeSupport.AltitudeWarn();
+
     @Override
     public void tick() {
         if (HeliFlight.stale(this.runtime)) {
@@ -385,6 +387,10 @@ public class DriveHelicopterGoal extends Goal {
             command = IHelicopterPilot.HELI_CMD_TAKEOFF;
             pilot.sewv$setHeliCommand(command);
         }
+
+        this.altitudeWarn.tick(this.vehicle, this.vehicle.level().getGameTime(),
+                command == IHelicopterPilot.HELI_CMD_LANDING || command == IHelicopterPilot.HELI_CMD_TAKEOFF
+                        || command == IHelicopterPilot.HELI_CMD_LANDED);
 
         // Committed rope slides finish even if RAPPEL tears down mid-descent.
         rappelAdvanceDescents();

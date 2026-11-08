@@ -218,6 +218,8 @@ public final class ModSounds {
         private final int[] bag;
         private int cursor;
         private int last = -1;
+        private short[] ticks;
+        private static final int DEFAULT_CLIP_TICKS = 50;
 
         private SoundPool(String prefix, List<RegistryObject<SoundEvent>> variants) {
             this.prefix = prefix;
@@ -232,6 +234,11 @@ public final class ModSounds {
         }
 
         public synchronized SoundEvent next() {
+            return event(draw());
+        }
+
+        /** Next clip index from the shuffle bag. */
+        public synchronized int draw() {
             if (cursor >= bag.length) {
                 ThreadLocalRandom rng = ThreadLocalRandom.current();
                 for (int i = bag.length - 1; i > 0; i--) { // Fisher-Yates
@@ -244,7 +251,22 @@ public final class ModSounds {
                 cursor = 0;
             }
             last = bag[cursor++];
-            return variants.get(last).get();
+            return last;
+        }
+
+        public SoundEvent event(int index) {
+            return variants.get(index).get();
+        }
+
+        /** Game ticks the clip at this index lasts; a safe guess when no length was generated. */
+        public int ticks(int index) {
+            short[] t = ticks;
+            if (t == null) {
+                t = com.neoalive.tacz_sewv.crew.CrewClipLengths.of(prefix);
+                ticks = t == null ? new short[0] : t;
+                t = ticks;
+            }
+            return index < t.length ? t[index] : DEFAULT_CLIP_TICKS;
         }
     }
 }

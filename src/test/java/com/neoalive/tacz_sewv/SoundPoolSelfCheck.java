@@ -43,6 +43,14 @@ public final class SoundPoolSelfCheck {
             for (int i = 1; i <= count; i++) {
                 checkKey(json, soundsDir, problems, prefix + "_" + i);
             }
+            // Crew pools are timed by the radio queue, so each needs one length per clip.
+            if (prefix.matches(".*_(us|pmc|ru)(_panicked)?")) {
+                short[] ticks = com.neoalive.tacz_sewv.crew.CrewClipLengths.of(prefix);
+                if (ticks == null || ticks.length != count) {
+                    problems.add("CrewClipLengths for " + prefix + " has " + (ticks == null ? "no" : ticks.length)
+                            + " lengths, pool has " + count + " (run tools/crew_audio/lengths.py)");
+                }
+            }
         }
 
         Matcher singles = SINGLE.matcher(src);

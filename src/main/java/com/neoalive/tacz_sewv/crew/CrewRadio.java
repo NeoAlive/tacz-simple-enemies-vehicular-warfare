@@ -16,6 +16,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
 
+import com.neoalive.tacz_sewv.bridge.IHullRadio;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.support.FireMissionSupport;
 import com.neoalive.tacz_sewv.entity.ai.utility.Action;
@@ -28,8 +29,8 @@ import com.neoalive.tacz_sewv.init.ModSounds.SoundPool;
  * crew unless a caller names another speaker. Gated by {@link SewvConfig#VEHICLE_VOICELINES_ENABLED}
  * on every entry point.
  *
- * <p>Tier A lines use per-hull overlap + per-line cooldown; Tier B (soft) lines also pass a local
- * airtime gate so dense packs do not chorus. A line's clips are the pool
+ * <p>Lines go through the hull's {@link RadioQueue}: one clip at a time, two waiting, never two of a
+ * {@link Group} at once, ordered and spaced by {@link Tier}. A per-line cooldown still applies. A line's clips are the pool
  * {@code <line.pool>_<faction>[_panicked]}; a line with no clips for a faction falls back along
  * {@link Line#fallback}, and is silent when the chain runs out.
  */
@@ -130,13 +131,56 @@ public final class CrewRadio {
         String cooldownKey() {
             return category != null ? category : name();
         }
+
+        /** Queue type: two lines of one group never share the playing and waiting slots. */
+        private int group;
+
+        static {
+            for (Line l : values()) l.group = groupOf(l).ordinal();
+        }
     }
 
-    /** HARD: overlap + cooldown. SOFT: also the local airtime gate. URGENT: skips the overlap gate. */
-    enum Tier { HARD, SOFT, URGENT }
+    /** Line types for the queue's diversity rule. Lines not listed are a group of their own. */
+    enum Group { TARGET, PLAN, RESULT, DAMAGE, HEALTH, HIT, CREW, SHOOT, LOAD, SUPPORT, UNIT, ALLY_LOST, SMOKE, BAIL, IDLE }
 
-    private static final int OVERLAP_TICKS = 90;
-    private static final String OVERLAP_KEY = "tacz_sewv:radio_cd";
+    static Group groupOf(Line l) {
+        return switch (l) {
+            case TARGET_GENERIC, TARGET_HELICOPTER, TARGET_PLANE, TARGET_SHIP, TARGET_TANK, TRAVERSE_LEFT,
+                    TRAVERSE_RIGHT, VEHICLE_TARGETED -> Group.TARGET;
+            case ORDER_DISPATCH, ORDER_DISPATCH_PLAN, PLAN_ADVANCE, PLAN_HOLD, PLAN_RETREAT, PLAN_FLANK,
+                    ENGINE_START -> Group.PLAN;
+            case TARGET_HIT, TARGET_NOPEN, TARGET_DESTROYED, AREA_CLEAR -> Group.RESULT;
+            case DAMAGE_TRACK, DAMAGE_ENGINE, DAMAGE_TURRET, DAMAGE_REPAIRED -> Group.DAMAGE;
+            case VEHICLE_LOW_HEALTH, VEHICLE_CRITICAL -> Group.HEALTH;
+            case VEHICLE_HIT -> Group.HIT;
+            case CREW_DOWN, CREW_COMMAND -> Group.CREW;
+            case VEHICLE_MG_SHOOT, VEHICLE_CANNON_SHOOT -> Group.SHOOT;
+            case LOAD_AP, LOAD_HE, LOAD_HEAT, LOAD_MISSILE, GUN_READY -> Group.LOAD;
+            case VEHICLE_SUPPORT_AIR, VEHICLE_SUPPORT_MORTAR -> Group.SUPPORT;
+            case UNIT_DEPLOY_DRONE, UNIT_DIG, UNIT_HEAL, UNIT_REPAIR -> Group.UNIT;
+            case ALLY_LOST -> Group.ALLY_LOST;
+            case POP_SMOKE -> Group.SMOKE;
+            case VEHICLE_BAIL -> Group.BAIL;
+            case VEHICLE_IDLE -> Group.IDLE;
+        };
+    }
+
+    /**
+     * How a line waits in the hull's {@link RadioQueue}: URGENT goes to the front with the shortest gap,
+     * HARD next, SOFT last with the longest gap and the local airtime gate on top.
+     */
+    enum Tier {
+        HARD(RadioQueue.HARD), SOFT(RadioQueue.SOFT), URGENT(RadioQueue.URGENT);
+
+        final int rank;
+
+        Tier(int rank) {
+            this.rank = rank;
+        }
+    }
+
+    private static final Line[] LINES = Line.values();
+
     private static final String TYPE_KEY = "tacz_sewv:radio_";
     static final String LOW_HEALTH_SPOKEN_KEY = "tacz_sewv:radio_low_hp";
     private static final String CRITICAL_SPOKEN_KEY = "tacz_sewv:radio_crit";
@@ -584,19 +628,44 @@ public final class CrewRadio {
     /** The cooldown key used is always the requested line's, so a fallback never resets another line's timer. */
     private static boolean playPool(VehicleEntity hull, Line line, SoundPool pool, CompoundTag data) {
         long now = hull.level().getGameTime();
-        String typeKey = TYPE_KEY + line.cooldownKey();
-        if (line.tier != Tier.URGENT && now < data.getLong(OVERLAP_KEY)) return false;
-        if (now < data.getLong(typeKey)) return false;
-        boolean soft = line.tier == Tier.SOFT;
-        if (soft && hull.level() instanceof ServerLevel sl && !airtimeFree(sl, hull.position(), now)) {
-            return false;
-        }
-        data.putLong(OVERLAP_KEY, now + OVERLAP_TICKS);
-        data.putLong(typeKey, now + line.cooldown);
-        hull.level().playSound(null, hull, pool.next(), SoundSource.VOICE, VOICELINE_VOLUME, 1.0f);
-        if (soft && hull.level() instanceof ServerLevel sl) recordAirtime(sl, hull.position(), now);
-        return true;
+        if (now < data.getLong(TYPE_KEY + line.cooldownKey())) return false;
+        RadioQueue q = ((IHullRadio) hull).sewv$radio();
+        return q.offer(now, line.ordinal(), line.group, line.tier.rank, pool, hull, SINK);
     }
+
+    /** Plays the hull's next waiting line when its turn comes. Called from the hull tick while one waits. */
+    public static void drain(VehicleEntity hull, RadioQueue q) {
+        if (hull.level().isClientSide) return;
+        if (hull.isWreck() || !enabled()) {
+            q.clear();
+            return;
+        }
+        q.drain(hull.level().getGameTime(), hull, SINK);
+    }
+
+    private static final RadioQueue.Sink SINK = new RadioQueue.Sink() {
+        @Override
+        public boolean ready(Object ctx, int tier) {
+            if (tier != RadioQueue.SOFT) return true;
+            VehicleEntity hull = (VehicleEntity) ctx;
+            return !(hull.level() instanceof ServerLevel sl) || airtimeFree(sl, hull.position(), sl.getGameTime());
+        }
+
+        @Override
+        public int play(Object ctx, int lineId, Object payload) {
+            VehicleEntity hull = (VehicleEntity) ctx;
+            Line line = LINES[lineId];
+            SoundPool pool = (SoundPool) payload;
+            long now = hull.level().getGameTime();
+            hull.getPersistentData().putLong(TYPE_KEY + line.cooldownKey(), now + line.cooldown);
+            int index = pool.draw();
+            hull.level().playSound(null, hull, pool.event(index), SoundSource.VOICE, VOICELINE_VOLUME, 1.0f);
+            if (line.tier == Tier.SOFT && hull.level() instanceof ServerLevel sl) {
+                recordAirtime(sl, hull.position(), now);
+            }
+            return pool.ticks(index);
+        }
+    };
 
     private static boolean airtimeFree(ServerLevel level, Vec3 pos, long now) {
         AirtimeRing ring = AIRTIME.get(level);

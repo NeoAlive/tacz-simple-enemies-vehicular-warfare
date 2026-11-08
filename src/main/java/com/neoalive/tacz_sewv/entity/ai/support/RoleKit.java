@@ -5,7 +5,9 @@ import java.util.function.Predicate;
 
 import javax.annotation.Nullable;
 
+import com.tacz.guns.api.TimelessAPI;
 import com.tacz.guns.api.item.IGun;
+import com.tacz.guns.resource.index.CommonGunIndex;
 import net.minecraft.world.Containers;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.common.capabilities.ForgeCapabilities;
@@ -28,15 +30,17 @@ public final class RoleKit {
     public static final int FIRST_POCKET = 6;
 
     public enum Kit {
-        INFANTRY(stack -> IGun.getIGunOrNull(stack) != null),
-        MEDIC(SupportRole::isMedicalKit),
-        ENGINEER(SupportRole::isRepairTool),
-        COMBAT_ENGINEER(SupportRole::isShovel);
+        INFANTRY(RoleKit::isGun, "\u263A"),
+        MEDIC(SupportRole::isMedicalKit, "\u271A"),
+        ENGINEER(SupportRole::isRepairTool, "\u2692"),
+        COMBAT_ENGINEER(SupportRole::isShovel, "\u26CF");
 
         private final Predicate<ItemStack> test;
+        public final String glyph;
 
-        Kit(Predicate<ItemStack> test) {
+        Kit(Predicate<ItemStack> test, String glyph) {
             this.test = test;
+            this.glyph = glyph;
         }
 
         public boolean matches(ItemStack stack) {
@@ -55,6 +59,10 @@ public final class RoleKit {
         boolean conflicts(ItemStack stack) {
             return SupportRole.isRoleTool(stack) && !matches(stack);
         }
+
+        boolean wantsSidearm() {
+            return this == ENGINEER || this == COMBAT_ENGINEER;
+        }
     }
 
     public enum Result { DONE, ALREADY, NO_ITEM, BUSY }
@@ -69,6 +77,27 @@ public final class RoleKit {
                 || MedicControl.isTreating(pmc);
     }
 
+    public static boolean isGun(ItemStack stack) {
+        return !stack.isEmpty() && IGun.getIGunOrNull(stack) != null;
+    }
+
+    /** TaCZ type "pistol". A gun whose index cannot be read counts as a primary. */
+    public static boolean isPistol(ItemStack stack) {
+        IGun gun = IGun.getIGunOrNull(stack);
+        if (gun == null) return false;
+        try {
+            return TimelessAPI.getCommonGunIndex(gun.getGunId(stack)).map(CommonGunIndex::getType)
+                    .map("pistol"::equals).orElse(false);
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    private static boolean isPrimary(ItemStack stack) {
+        return isGun(stack) && !isPistol(stack);
+    }
+
+    /** Hands only, so the client can ask it too. */
     public static boolean holds(PmcUnitEntity pmc, Kit kit) {
         if (kit == Kit.INFANTRY) {
             return kit.matches(pmc.getMainHandItem()) && !SupportRole.isRoleTool(pmc.getOffhandItem());
@@ -88,18 +117,49 @@ public final class RoleKit {
         if (inv == null) return Result.NO_ITEM;
         pmc.syncEquipmentToInventory();
 
-        boolean moved = false;
-        if (!kit.matches(inv.getStackInSlot(MAIN_SLOT))) {
+        boolean moved;
+        if (kit == Kit.INFANTRY) {
+            ItemStack main = inv.getStackInSlot(MAIN_SLOT);
+            int src = isPrimary(main) ? -1 : find(inv, RoleKit::isPrimary);
+            if (src < 0 && !isGun(main)) src = find(inv, RoleKit::isGun);
+            if (src < 0 && !isGun(main)) return Result.NO_ITEM;
+            moved = src >= 0 && intoMain(inv, src);
+        } else if (!kit.matches(inv.getStackInSlot(MAIN_SLOT))) {
             int src = findSource(inv, kit);
             if (src < 0) return Result.NO_ITEM;
-            ItemStack wanted = inv.getStackInSlot(src).copy();
-            ItemStack old = inv.getStackInSlot(MAIN_SLOT).copy();
-            inv.setStackInSlot(src, old);
-            inv.setStackInSlot(MAIN_SLOT, wanted);
-            moved = true;
+            moved = intoMain(inv, src);
+        } else {
+            moved = false;
         }
         moved |= clearOffHand(pmc, inv, kit);
+        moved |= armSidearm(inv, kit);
         return moved ? Result.DONE : Result.ALREADY;
+    }
+
+    /** Moves {@code src} into the main hand. A displaced pistol takes a free off hand over a pocket. */
+    private static boolean intoMain(IItemHandlerModifiable inv, int src) {
+        ItemStack wanted = inv.getStackInSlot(src).copy();
+        ItemStack old = inv.getStackInSlot(MAIN_SLOT).copy();
+        if (src != OFF_SLOT && isPistol(old) && inv.getStackInSlot(OFF_SLOT).isEmpty()) {
+            inv.setStackInSlot(src, ItemStack.EMPTY);
+            inv.setStackInSlot(OFF_SLOT, old);
+        } else {
+            inv.setStackInSlot(src, old);
+        }
+        inv.setStackInSlot(MAIN_SLOT, wanted);
+        return true;
+    }
+
+    /** Engineers fight only with an off-hand gun: a pocket pistol, else any pocket gun. */
+    private static boolean armSidearm(IItemHandlerModifiable inv, Kit kit) {
+        if (!kit.wantsSidearm() || isGun(inv.getStackInSlot(OFF_SLOT))) return false;
+        int src = findPocket(inv, RoleKit::isPistol);
+        if (src < 0) src = findPocket(inv, RoleKit::isGun);
+        if (src < 0) return false;
+        ItemStack gun = inv.getStackInSlot(src).copy();
+        inv.setStackInSlot(src, inv.getStackInSlot(OFF_SLOT).copy());
+        inv.setStackInSlot(OFF_SLOT, gun);
+        return true;
     }
 
     /**
@@ -114,6 +174,7 @@ public final class RoleKit {
         inv.setStackInSlot(MAIN_SLOT, one);
         stow(pmc, inv, old);
         clearOffHand(pmc, inv, kit);
+        armSidearm(inv, kit);
         return true;
     }
 
@@ -124,9 +185,18 @@ public final class RoleKit {
     }
 
     private static int findSource(IItemHandler inv, Kit kit) {
-        if (kit.matches(inv.getStackInSlot(OFF_SLOT))) return OFF_SLOT;
+        return kit == Kit.INFANTRY ? find(inv, RoleKit::isGun) : find(inv, kit::matches);
+    }
+
+    /** Off hand first, then pockets. */
+    private static int find(IItemHandler inv, Predicate<ItemStack> test) {
+        if (test.test(inv.getStackInSlot(OFF_SLOT))) return OFF_SLOT;
+        return findPocket(inv, test);
+    }
+
+    private static int findPocket(IItemHandler inv, Predicate<ItemStack> test) {
         for (int slot = FIRST_POCKET; slot < inv.getSlots(); slot++) {
-            if (kit.matches(inv.getStackInSlot(slot))) return slot;
+            if (test.test(inv.getStackInSlot(slot))) return slot;
         }
         return -1;
     }

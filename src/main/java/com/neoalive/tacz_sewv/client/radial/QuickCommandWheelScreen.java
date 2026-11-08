@@ -165,6 +165,7 @@ public final class QuickCommandWheelScreen extends Screen {
 
     @Override
     protected void init() {
+        RoleChoice.autoPick();
         disableCursor();
         this.menuAlpha = 0.0f;
     }
@@ -679,7 +680,12 @@ public final class QuickCommandWheelScreen extends Screen {
     private String hotLeafLabel() {
         int hot = this.input.hotIndex();
         List<WedgeEntry> wedges = this.input.currentWedges();
-        return hot >= 0 && hot < wedges.size() ? wedges.get(hot).labelKey() : "";
+        if (hot < 0 || hot >= wedges.size()) return "";
+        WedgeEntry entry = wedges.get(hot);
+        if (entry instanceof WedgeEntry.PipelineEntry leaf && RoleChoice.isRoleLeaf(leaf.pipelineId())) {
+            return QuickCommandRegistry.labelKey(RoleChoice.concreteId(leaf.pipelineId()));
+        }
+        return entry.labelKey();
     }
 
     private boolean inFormationSubmenu() {

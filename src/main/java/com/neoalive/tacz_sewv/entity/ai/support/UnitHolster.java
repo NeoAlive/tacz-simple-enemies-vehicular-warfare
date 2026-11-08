@@ -233,6 +233,9 @@ public final class UnitHolster {
 
         @Override
         public void tick() {
+            // Vanilla's in-between tick runs a goal without re-checking canContinueToUse, so a unit
+            // that just stopped being an engineer would get one more hand swap.
+            if (!canUse()) return;
             updateHolster(this.unit);
         }
     }

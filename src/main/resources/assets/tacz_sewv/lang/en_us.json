@@ -521,6 +521,8 @@
   "gui.tacz_sewv.wheel.quick_refill": "Refill",
   "gui.tacz_sewv.wheel.quick_search_gear": "Search Equipment",
   "gui.tacz_sewv.wheel.quick_swap_role": "Swap To",
+  "gui.tacz_sewv.wheel.quick_search_gear.picked": "Search: %s",
+  "gui.tacz_sewv.wheel.quick_swap_role.picked": "Swap To: %s",
   "gui.tacz_sewv.wheel.quick_search_gear_medic": "Search Medic Gear",
   "gui.tacz_sewv.wheel.quick_search_gear_engineer": "Search Engineer Gear",
   "gui.tacz_sewv.wheel.quick_search_gear_combat_engineer": "Search Shovel",

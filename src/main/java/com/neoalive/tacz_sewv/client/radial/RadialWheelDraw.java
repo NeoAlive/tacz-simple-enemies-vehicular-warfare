@@ -163,7 +163,7 @@ final class RadialWheelDraw {
             int ix = cx + (int) Math.round(iconX);
             int iy = cy + (int) Math.round(iconY);
             int iconColor = scaleAlpha(lerpArgb(coldLabel, hotIcon, hot), ringA);
-            drawScaledIcon(g, font, entry.icon(), ix, iy, iconColor);
+            drawScaledIcon(g, font, RoleChoice.icon(entry), ix, iy, iconColor);
 
             String label = labelText(entry, isChecked);
             Box box = labelBox(font, label, i, denom, cx, cy, wedgeOuter, outerR);
@@ -230,7 +230,7 @@ final class RadialWheelDraw {
     }
 
     private static String labelText(WedgeEntry entry, boolean checked) {
-        String text = I18n.get(entry.labelKey(), entry.labelArgs());
+        String text = RoleChoice.label(entry);
         return checked ? I18n.get("gui.tacz_sewv.wheel.checked", text) : text;
     }
 

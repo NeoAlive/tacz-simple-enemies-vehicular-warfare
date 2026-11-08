@@ -940,6 +940,10 @@ final class ConfigRegistryBootstrap {
                 SewvConfig.QUICK_REFILL_TIMEOUT_TICKS, SewvConfig.QUICK_REFILL_TIMEOUT_TICKS::set);
         b.doubleRange(ConfigScope.SERVER, "boarding", "quickLandRadius", 8.0, 256.0,
                 SewvConfig.QUICK_LAND_RADIUS, SewvConfig.QUICK_LAND_RADIUS::set);
+        b.doubleRange(ConfigScope.SERVER, "boarding", "quickGearSearchRadius", 4.0, 128.0,
+                SewvConfig.QUICK_GEAR_SEARCH_RADIUS, SewvConfig.QUICK_GEAR_SEARCH_RADIUS::set);
+        b.intRange(ConfigScope.SERVER, "boarding", "quickGearSearchTimeoutTicks", 40, 2400,
+                SewvConfig.QUICK_GEAR_SEARCH_TIMEOUT_TICKS, SewvConfig.QUICK_GEAR_SEARCH_TIMEOUT_TICKS::set);
     }
 
     private static void registerMapIntel(ConfigRegistry.Builder b) {

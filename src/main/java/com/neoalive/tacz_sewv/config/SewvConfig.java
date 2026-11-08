@@ -366,6 +366,8 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.IntValue QUICK_EVAC_BOARD_TIMEOUT_TICKS;
     public static final ForgeConfigSpec.IntValue QUICK_REFILL_TIMEOUT_TICKS;
     public static final ForgeConfigSpec.DoubleValue QUICK_LAND_RADIUS;
+    public static final ForgeConfigSpec.DoubleValue QUICK_GEAR_SEARCH_RADIUS;
+    public static final ForgeConfigSpec.IntValue QUICK_GEAR_SEARCH_TIMEOUT_TICKS;
     /**
      * Max ids the server sends in admin-editor add-catalogs (guns / attachments / armor /
      * vehicles / target types). Overflow is truncated, never a disconnect.
@@ -1539,6 +1541,14 @@ public final class SewvConfig {
                         "How far (blocks) Quick Board / Entrench / Refill / General / Formation look",
                         "for owned PMCs, friendly vehicles, trenches, and chests.")
                 .defineInRange("quickLandRadius", 64.0, 8.0, 256.0);
+        QUICK_GEAR_SEARCH_RADIUS = builder.comment(
+                        "How far (blocks) from each unit Search equipment looks for a medical kit, repair",
+                        "tool or shovel, on the ground or in a container.")
+                .defineInRange("quickGearSearchRadius", 32.0, 4.0, 128.0);
+        QUICK_GEAR_SEARCH_TIMEOUT_TICKS = builder.comment(
+                        "Absolute game-time budget (ticks) for Search equipment walks before the MOVE is",
+                        "dropped back to FREE_FIRE.")
+                .defineInRange("quickGearSearchTimeoutTicks", 600, 40, 2400);
         EDITOR_CATALOG_MAX = builder.comment(
                         "Max registry ids sent in /sewv pool (and similar) add-catalogs.",
                         "If a pack has more guns/armor/vehicles than this, the rest are omitted from",

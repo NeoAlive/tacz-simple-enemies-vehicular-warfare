@@ -6,6 +6,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.BiPredicate;
 
 import javax.annotation.Nullable;
 
@@ -192,7 +193,15 @@ public final class QuickRefillTracker {
             }
         }
 
-        AABB box = pmc.getBoundingBox().inflate(radius);
+        return nearestContainer(level, pmc, radius,
+                (be, handler) -> FobResupplySupport.handlerHasEligible(pmc, handler));
+    }
+
+    /** Nearest loaded block entity within {@code radius} whose item handler passes {@code test}. */
+    @Nullable
+    public static BlockPos nearestContainer(ServerLevel level, Entity origin, double radius,
+                                            BiPredicate<BlockEntity, IItemHandler> test) {
+        AABB box = origin.getBoundingBox().inflate(radius);
         BlockPos best = null;
         double bestDist = Double.MAX_VALUE;
         int minCx = SectionPos.blockToSectionCoord((int) Math.floor(box.minX));
@@ -208,8 +217,8 @@ public final class QuickRefillTracker {
                     if (!box.contains(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5)) continue;
                     IItemHandler handler = be.getCapability(ForgeCapabilities.ITEM_HANDLER, null)
                             .orElse(null);
-                    if (!FobResupplySupport.handlerHasEligible(pmc, handler)) continue;
-                    double d = pmc.distanceToSqr(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5);
+                    if (handler == null || !test.test(be, handler)) continue;
+                    double d = origin.distanceToSqr(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5);
                     if (d < bestDist) {
                         bestDist = d;
                         best = pos.immutable();

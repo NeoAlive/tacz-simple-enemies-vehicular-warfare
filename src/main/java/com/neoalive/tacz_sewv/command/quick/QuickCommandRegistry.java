@@ -12,6 +12,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import com.neoalive.tacz_sewv.client.radial.WedgeEntry;
 import com.neoalive.tacz_sewv.compat.PlayerReviveCompat;
 import com.neoalive.tacz_sewv.entity.ai.support.FormationShape;
+import com.neoalive.tacz_sewv.entity.ai.support.RoleKit;
 import com.neoalive.tacz_sewv.item.PlaneAttackMode;
 import com.neoalive.tacz_sewv.item.RadioFrequency;
 import com.neoalive.tacz_sewv.item.RadioSettings;
@@ -35,6 +36,12 @@ public final class QuickCommandRegistry {
     public static final String ID_BOARD_QUEUED = "board_queued";
     public static final String ID_QUICK_ENTRENCH = "quick_entrench";
     public static final String ID_QUICK_REFILL = "quick_refill";
+    /** Wheel-only leaves; the role picked with Ctrl+scroll turns them into a per-kit id. */
+    public static final String ID_QUICK_SEARCH_GEAR = "quick_search_gear";
+    public static final String ID_QUICK_SWAP_ROLE = "quick_swap_role";
+    public static final List<RoleKit.Kit> SEARCH_KITS =
+            List.of(RoleKit.Kit.MEDIC, RoleKit.Kit.ENGINEER, RoleKit.Kit.COMBAT_ENGINEER);
+    public static final List<RoleKit.Kit> SWAP_KITS = List.of(RoleKit.Kit.values());
     public static final String ID_QUICK_CANCEL = "quick_cancel";
     public static final String ID_QUICK_FOLLOW = "quick_follow";
     public static final String ID_QUICK_DISMOUNT = "quick_dismount";
@@ -111,6 +118,8 @@ public final class QuickCommandRegistry {
         register(ID_QUICK_ROUTE_FOB, new QuickRouteFobPipeline());
         register(ID_REVIVE_CALL, new QuickReviveCallPipeline());
         register(ID_QUICK_SUPPRESS, new QuickSuppressPipeline());
+        for (RoleKit.Kit kit : SEARCH_KITS) register(searchGearId(kit), new QuickSearchGearPipeline(kit));
+        for (RoleKit.Kit kit : SWAP_KITS) register(swapRoleId(kit), new QuickSwapRolePipeline(kit));
         // Formation leaves are client-committed via PacketVehicleFormation (not PacketQuickCommand).
 
         List<WedgeEntry> general = new ArrayList<>();
@@ -140,7 +149,9 @@ public final class QuickCommandRegistry {
                 category("land", "\u26F0", 0x6BA84A, List.of(
                         leaf(ID_QUICK_ENTRENCH, "\u26F0", 0x6BA84A),
                         leaf(ID_QUICK_REFILL, "\u21BB", 0x6BA84A),
-                        leaf(ID_QUICK_ROUTE_FOB, "\u2302", 0x6BA84A))),
+                        leaf(ID_QUICK_ROUTE_FOB, "\u2302", 0x6BA84A),
+                        leaf(ID_QUICK_SEARCH_GEAR, "\u2315", 0x6BA84A),
+                        leaf(ID_QUICK_SWAP_ROLE, "\u21C6", 0x6BA84A))),
                 category("air", "\u2708", 0x4AB8E8, List.of(
                         leaf(ID_QUICK_TAKEOFF, "\u2191", 0x4AB8E8),
                         leaf(ID_QUICK_LANDING, "\u2193", 0x4AB8E8),
@@ -215,9 +226,27 @@ public final class QuickCommandRegistry {
         return pipelineId.startsWith(SELECT_KIND_PREFIX) || pipelineId.startsWith(SELECT_PLATOON_PREFIX);
     }
 
+    public static String searchGearId(RoleKit.Kit kit) {
+        return ID_QUICK_SEARCH_GEAR + "_" + kit.key();
+    }
+
+    public static String swapRoleId(RoleKit.Kit kit) {
+        return ID_QUICK_SWAP_ROLE + "_" + kit.key();
+    }
+
+    public static boolean isSearchGear(String pipelineId) {
+        return pipelineId.startsWith(ID_QUICK_SEARCH_GEAR);
+    }
+
+    public static boolean isSwapRole(String pipelineId) {
+        return pipelineId.startsWith(ID_QUICK_SWAP_ROLE);
+    }
+
     /** True when the pipeline needs on-foot PMCs only (board / mortar / refill walks). */
     public static boolean requiresOnFoot(String pipelineId) {
-        return ID_QUICK_BOARD.equals(pipelineId)
+        return isSearchGear(pipelineId)
+                || isSwapRole(pipelineId)
+                || ID_QUICK_BOARD.equals(pipelineId)
                 || ID_QUICK_ENTRENCH.equals(pipelineId)
                 || ID_QUICK_REFILL.equals(pipelineId)
                 || ID_QUICK_EVAC.equals(pipelineId);

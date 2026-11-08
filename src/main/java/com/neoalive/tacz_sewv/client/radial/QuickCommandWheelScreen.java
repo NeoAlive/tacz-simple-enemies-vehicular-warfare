@@ -380,6 +380,7 @@ public final class QuickCommandWheelScreen extends Screen {
 
     /** @return whether a value moved */
     private static boolean stepScale(String pipelineId, int dir, boolean coarse) {
+        if (RoleChoice.isRoleLeaf(pipelineId)) return RoleChoice.step(pipelineId, dir);
         if (QuickCommandRegistry.ID_SUPPORT_MORTAR.equals(pipelineId)) {
             int next = RadioSettings.stepDelay(supportDelay, dir);
             boolean moved = next != supportDelay;
@@ -392,6 +393,7 @@ public final class QuickCommandWheelScreen extends Screen {
 
     private static boolean hasScale(String pipelineId) {
         return QuickCommandRegistry.ID_SUPPORT_MORTAR.equals(pipelineId)
+                || RoleChoice.isRoleLeaf(pipelineId)
                 || OrderScales.forPipeline(pipelineId) != null;
     }
 
@@ -453,14 +455,14 @@ public final class QuickCommandWheelScreen extends Screen {
                         ? QuickAirClient.pilotsFor(id)
                         : WheelScope.units(id, null);
                 OrderQueueClient.begin(id, hotLabel, units);
-                boolean fired = firePipeline(id);
+                boolean fired = firePipeline(RoleChoice.concreteId(id));
                 OrderQueueClient.endOrAwaitPick();
                 if (fired && (CommanderOverlayRenderer.isSelectingPosition
                         || CommanderOverlayRenderer.isSelectingTarget
                         || ClientEvents.hasPendingOrderPick())) {
                     closeQuiet();
                 }
-            } else if (firePipeline(id)) {
+            } else if (firePipeline(RoleChoice.concreteId(id))) {
                 closeQuiet();
             }
             // Client-side reject (no units, etc.): keep the wheel open.
@@ -835,6 +837,17 @@ public final class QuickCommandWheelScreen extends Screen {
     }
 
     private static ScaleCardDraw.Card cardFor(String pipelineId) {
+        if (RoleChoice.isRoleLeaf(pipelineId)) {
+            String widest = "";
+            for (var kit : RoleChoice.options(pipelineId)) {
+                String name = I18n.get(kit.labelKey());
+                if (name.length() > widest.length()) widest = name;
+            }
+            return new ScaleCardDraw.Card(I18n.get("gui.tacz_sewv.wheel.scale.role"),
+                    I18n.get(RoleChoice.current(pipelineId).labelKey()), widest,
+                    I18n.get("gui.tacz_sewv.wheel.scale.tag." + pipelineId),
+                    RoleChoice.fraction(pipelineId), true);
+        }
         if (QuickCommandRegistry.ID_SUPPORT_MORTAR.equals(pipelineId)) {
             String value = supportDelay <= 0
                     ? I18n.get("gui.tacz_sewv.support.delay.off")

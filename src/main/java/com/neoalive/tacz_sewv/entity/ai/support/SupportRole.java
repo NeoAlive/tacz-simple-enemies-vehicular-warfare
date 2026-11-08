@@ -43,13 +43,29 @@ public enum SupportRole {
      */
     public static SupportRole of(LivingEntity entity) {
         if (!(entity instanceof AbstractUnit unit)) return NONE;
-        if (holds(unit, MedicalKitItem.class)) return MEDIC;
-        if (holdsShovel(unit)) return COMBAT_ENGINEER;
-        if (unit.getMainHandItem().is(ModItems.REPAIR_TOOL.get())
-                || unit.getOffhandItem().is(ModItems.REPAIR_TOOL.get())) {
-            return ENGINEER;
-        }
+        ItemStack main = unit.getMainHandItem();
+        ItemStack off = unit.getOffhandItem();
+        if (isMedicalKit(main) || isMedicalKit(off)) return MEDIC;
+        if (isShovel(main) || isShovel(off)) return COMBAT_ENGINEER;
+        if (isRepairTool(main) || isRepairTool(off)) return ENGINEER;
         return NONE;
+    }
+
+    public static boolean isMedicalKit(ItemStack stack) {
+        return !stack.isEmpty() && stack.getItem() instanceof MedicalKitItem;
+    }
+
+    public static boolean isShovel(ItemStack stack) {
+        return stack.is(ModItems.MILITARY_SHOVEL.get());
+    }
+
+    public static boolean isRepairTool(ItemStack stack) {
+        return stack.is(ModItems.REPAIR_TOOL.get());
+    }
+
+    /** Any item that gives a role, whichever one. */
+    public static boolean isRoleTool(ItemStack stack) {
+        return isMedicalKit(stack) || isShovel(stack) || isRepairTool(stack);
     }
 
     /** A PMC in a support role — the case the entity-typed {@code VehicleTargeting.isMedic} misses. */
@@ -86,15 +102,6 @@ public enum SupportRole {
     }
 
     public static boolean holdsShovel(AbstractUnit unit) {
-        return unit.getMainHandItem().is(ModItems.MILITARY_SHOVEL.get())
-                || unit.getOffhandItem().is(ModItems.MILITARY_SHOVEL.get());
-    }
-
-    private static boolean holds(AbstractUnit unit, Class<?> item) {
-        return isItem(unit.getMainHandItem(), item) || isItem(unit.getOffhandItem(), item);
-    }
-
-    private static boolean isItem(ItemStack stack, Class<?> item) {
-        return !stack.isEmpty() && item.isInstance(stack.getItem());
+        return isShovel(unit.getMainHandItem()) || isShovel(unit.getOffhandItem());
     }
 }

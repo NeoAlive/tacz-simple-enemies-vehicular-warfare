@@ -133,6 +133,8 @@ public final class OrderQueue {
      * say) carries it on rather than replacing it.
      */
     private static boolean done(ServerPlayer player, Entry e) {
+        if (QuickCommandRegistry.isSwapRole(e.pipelineId)) return true;
+        if (QuickCommandRegistry.isSearchGear(e.pipelineId)) return !GearSearchTracker.isActive(player.getUUID());
         switch (e.pipelineId) {
             case QuickCommandRegistry.ID_QUICK_DISMOUNT:
             case QuickCommandRegistry.ID_BAIL_OUT:

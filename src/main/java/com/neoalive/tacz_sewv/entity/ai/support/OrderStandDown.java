@@ -41,6 +41,7 @@ public final class OrderStandDown {
         }
         ((IPathwayInfantry) pmc).sewv$clearPathway();
         SuppressOrders.clear(pmc);
+        com.neoalive.tacz_sewv.command.quick.GearSearchTracker.release(pmc);
     }
 
     /**
@@ -59,6 +60,7 @@ public final class OrderStandDown {
         if (GuardSupport.isReaching(pmc) || TowRecoverySupport.hasTowOrder(pmc)) return true;
         if (pmc instanceof ICaptureOrder capture && capture.sewv$hasCaptureOrder()) return true;
         if (((IPathwayInfantry) pmc).sewv$hasPathway()) return true;
+        if (com.neoalive.tacz_sewv.command.quick.GearSearchTracker.isSearching(pmc)) return true;
         IVehicleBoarder boarder = (IVehicleBoarder) pmc;
         if (boarder.tacz_sewv$isBoarding() || boarder.tacz_sewv$getMountTargetId() >= 0) return true;
         return MortarSupport.hasMortarClaim(pmc) || FobSupport.hasRoutePending(pmc);
@@ -69,6 +71,7 @@ public final class OrderStandDown {
         FormationSubjects.onDowned(pmc);
         pmc.setTarget(null);
         SuppressOrders.clear(pmc);
+        com.neoalive.tacz_sewv.command.quick.GearSearchTracker.release(pmc);
         pmc.setOrder(OrderType.CEASE_FIRE);
 
         PatrolSupport.clearSweepMembership(pmc, reason);

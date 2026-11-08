@@ -39,6 +39,7 @@ public final class QuickCancelPipeline implements QuickCommandPipeline {
 
         boolean abortedRefill = QuickRefillTracker.cancelPlayer(issuer.getUUID(), level);
         boolean abortedEvac = QuickEvacTracker.cancelPlayer(issuer.getUUID(), level);
+        abortedRefill |= GearSearchTracker.cancelPlayer(issuer.getUUID(), level);
 
         double radius = context.unitRadius(SewvConfig.QUICK_LAND_RADIUS.get());
         int cancelled = 0;

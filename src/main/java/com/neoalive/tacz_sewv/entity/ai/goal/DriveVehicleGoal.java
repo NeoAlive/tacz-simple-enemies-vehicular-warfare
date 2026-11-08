@@ -584,7 +584,7 @@ public class DriveVehicleGoal extends Goal {
             return;
         }
         if (now - this.pendingDispatchSince < PLAN_DISPATCH_HOLD_TICKS) return;
-        CrewRadio.play(this.vehicle, CrewRadio.Line.ORDER_DISPATCH_PLAN);
+        CrewRadio.onPlan(this.vehicle, plan);
         this.lastSpokenPlan = plan;
         this.pendingDispatchPlan = null;
         this.pendingDispatchSince = Long.MIN_VALUE;

@@ -1,7 +1,9 @@
 package com.neoalive.tacz_sewv.init;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 
 import net.minecraft.resources.ResourceLocation;
@@ -17,71 +19,143 @@ public final class ModSounds {
     public static final DeferredRegister<SoundEvent> SOUNDS =
             DeferredRegister.create(ForgeRegistries.SOUND_EVENTS, TaczSewv.MODID);
 
-    // --- Crew / unit voicelines (CrewRadio) ---
-    public static final SoundPool ORDER_DISPATCH_PMC = pool("order_dispatch_pmc", 2);
-    public static final SoundPool ORDER_DISPATCH_RU = pool("order_dispatch_ru", 2);
-    public static final SoundPool ORDER_DISPATCH_US = pool("order_dispatch_us", 2);
-
-    public static final SoundPool TARGET_GENERIC_PMC = pool("target_generic_pmc", 10);
-    public static final SoundPool TARGET_GENERIC_RU = pool("target_generic_ru", 10);
-    public static final SoundPool TARGET_GENERIC_US = pool("target_generic_us", 10);
-    public static final SoundPool TARGET_HELICOPTER_PMC = pool("target_helicopter_pmc", 10);
-    public static final SoundPool TARGET_HELICOPTER_RU = pool("target_helicopter_ru", 10);
-    public static final SoundPool TARGET_HELICOPTER_US = pool("target_helicopter_us", 10);
-    public static final SoundPool TARGET_PLANE_PMC = pool("target_plane_pmc", 10);
-    public static final SoundPool TARGET_PLANE_RU = pool("target_plane_ru", 10);
-    public static final SoundPool TARGET_PLANE_US = pool("target_plane_us", 10);
-    public static final SoundPool TARGET_SHIP_PMC = pool("target_ship_pmc", 10);
-    public static final SoundPool TARGET_SHIP_RU = pool("target_ship_ru", 10);
-    public static final SoundPool TARGET_SHIP_US = pool("target_ship_us", 9);
-    public static final SoundPool TARGET_TANK_PMC = pool("target_tank_pmc", 10);
-    public static final SoundPool TARGET_TANK_RU = pool("target_tank_ru", 9);
-    public static final SoundPool TARGET_TANK_US = pool("target_tank_us", 10);
-
-    public static final SoundPool UNIT_DEPLOY_DRONE_PMC = pool("unit_deploy_drone_pmc", 2);
-    public static final SoundPool UNIT_DEPLOY_DRONE_RU = pool("unit_deploy_drone_ru", 2);
-    public static final SoundPool UNIT_DEPLOY_DRONE_US = pool("unit_deploy_drone_us", 2);
-    public static final SoundPool UNIT_DIG_RU = pool("unit_dig_ru", 2);
-    public static final SoundPool UNIT_DIG_US = pool("unit_dig_us", 2);
-    public static final SoundPool UNIT_HEAL_PMC = pool("unit_heal_pmc", 2);
-    public static final SoundPool UNIT_HEAL_RU = pool("unit_heal_ru", 2);
-    public static final SoundPool UNIT_HEAL_US = pool("unit_heal_us", 2);
-    public static final SoundPool UNIT_REPAIR_PMC = pool("unit_repair_pmc", 2);
-    public static final SoundPool UNIT_REPAIR_RU = pool("unit_repair_ru", 2);
-    public static final SoundPool UNIT_REPAIR_US = pool("unit_repair_us", 2);
-
-    public static final SoundPool VEHICLE_BAIL_PMC = pool("vehicle_bail_pmc", 3);
-    public static final SoundPool VEHICLE_BAIL_RU = pool("vehicle_bail_ru", 3);
-    public static final SoundPool VEHICLE_BAIL_US = pool("vehicle_bail_us", 3);
-    public static final SoundPool VEHICLE_IDLE_PMC = pool("vehicle_idle_pmc", 10);
-    public static final SoundPool VEHICLE_IDLE_RU = pool("vehicle_idle_ru", 10);
-    public static final SoundPool VEHICLE_IDLE_US = pool("vehicle_idle_us", 9);
-    public static final SoundPool VEHICLE_LOW_HEALTH_PMC = pool("vehicle_low_health_pmc", 4);
-    public static final SoundPool VEHICLE_LOW_HEALTH_RU = pool("vehicle_low_health_ru", 2);
-    public static final SoundPool VEHICLE_LOW_HEALTH_US = pool("vehicle_low_health_us", 3);
-
-    public static final SoundPool VEHICLE_CANNON_SHOOT_PMC = pool("vehicle_cannon_shoot_pmc", 5);
-    public static final SoundPool VEHICLE_CANNON_SHOOT_RU = pool("vehicle_cannon_shoot_ru", 3);
-    public static final SoundPool VEHICLE_CANNON_SHOOT_US = pool("vehicle_cannon_shoot_us", 5);
-    public static final SoundPool VEHICLE_CANNON_SHOOT_PMC_PANICKED = pool("vehicle_cannon_shoot_pmc_panicked", 2);
-    public static final SoundPool VEHICLE_CANNON_SHOOT_RU_PANICKED = pool("vehicle_cannon_shoot_ru_panicked", 3);
-    public static final SoundPool VEHICLE_CANNON_SHOOT_US_PANICKED = pool("vehicle_cannon_shoot_us_panicked", 2);
-
-    public static final SoundPool VEHICLE_MG_SHOOT_PMC = pool("vehicle_mg_shoot_pmc", 4);
-    public static final SoundPool VEHICLE_MG_SHOOT_RU = pool("vehicle_mg_shoot_ru", 2);
-    public static final SoundPool VEHICLE_MG_SHOOT_US = pool("vehicle_mg_shoot_us", 4);
-    public static final SoundPool VEHICLE_MG_SHOOT_PMC_PANICKED = pool("vehicle_mg_shoot_pmc_panicked", 2);
-    public static final SoundPool VEHICLE_MG_SHOOT_RU_PANICKED = pool("vehicle_mg_shoot_ru_panicked", 2);
-    public static final SoundPool VEHICLE_MG_SHOOT_US_PANICKED = pool("vehicle_mg_shoot_us_panicked", 2);
-
-    /** PMC only: calling for air / mortar-or-tow support. */
-    public static final SoundPool VEHICLE_SUPPORT_AIR_PMC = pool("vehicle_support_air_pmc", 2);
-    public static final SoundPool VEHICLE_SUPPORT_MORTAR_PMC = pool("vehicle_support_mortar_pmc", 2);
-
-    /** Hull reacting when first indexed as a hostile contact. */
-    public static final SoundPool VEHICLE_TARGETED_PMC = pool("vehicle_targeted_pmc", 5);
-    public static final SoundPool VEHICLE_TARGETED_RU = pool("vehicle_targeted_ru", 5);
-    public static final SoundPool VEHICLE_TARGETED_US = pool("vehicle_targeted_us", 4);
+    /**
+     * Mounted-crew radio pools, keyed by file prefix ({@code <line>_<faction>[_panicked]}). Read
+     * through {@link #crew(String)}; {@code crew/CrewRadio} owns the mapping from line to prefix.
+     * The block between the markers is written by the crew audio script together with the .ogg
+     * files and sounds.json, so counts, keys and files always agree. Do not hand-edit it.
+     */
+    private static final Map<String, SoundPool> CREW = crewPools(
+            // BEGIN GENERATED CREW POOLS
+            pool("ally_lost_pmc", 2),
+            pool("ally_lost_ru", 4),
+            pool("ally_lost_us", 1),
+            pool("area_clear_ru", 1),
+            pool("area_clear_us", 11),
+            pool("crew_command_us", 9),
+            pool("crew_down_pmc", 30),
+            pool("crew_down_ru", 30),
+            pool("crew_down_us", 30),
+            pool("damage_engine_pmc", 7),
+            pool("damage_engine_ru", 30),
+            pool("damage_engine_us", 30),
+            pool("damage_repaired_pmc", 30),
+            pool("damage_repaired_ru", 30),
+            pool("damage_repaired_us", 30),
+            pool("damage_track_pmc", 25),
+            pool("damage_track_ru", 28),
+            pool("damage_track_us", 30),
+            pool("damage_turret_pmc", 30),
+            pool("damage_turret_ru", 30),
+            pool("damage_turret_us", 30),
+            pool("engine_start_pmc", 22),
+            pool("engine_start_ru", 16),
+            pool("engine_start_us", 29),
+            pool("gun_ready_pmc", 30),
+            pool("gun_ready_ru", 30),
+            pool("gun_ready_us", 30),
+            pool("load_ap_pmc", 21),
+            pool("load_ap_ru", 30),
+            pool("load_ap_us", 30),
+            pool("load_he_pmc", 4),
+            pool("load_he_ru", 30),
+            pool("load_he_us", 30),
+            pool("load_heat_pmc", 9),
+            pool("load_heat_ru", 30),
+            pool("load_heat_us", 22),
+            pool("load_missile_pmc", 17),
+            pool("load_missile_ru", 24),
+            pool("load_missile_us", 30),
+            pool("order_dispatch_pmc", 8),
+            pool("order_dispatch_ru", 10),
+            pool("order_dispatch_us", 13),
+            pool("plan_advance_pmc", 17),
+            pool("plan_advance_ru", 10),
+            pool("plan_advance_us", 24),
+            pool("plan_flank_us", 6),
+            pool("plan_hold_ru", 4),
+            pool("plan_hold_us", 3),
+            pool("plan_retreat_pmc", 1),
+            pool("plan_retreat_ru", 1),
+            pool("plan_retreat_us", 4),
+            pool("pop_smoke_pmc", 16),
+            pool("pop_smoke_ru", 30),
+            pool("pop_smoke_us", 30),
+            pool("target_destroyed_pmc", 30),
+            pool("target_destroyed_ru", 30),
+            pool("target_destroyed_us", 30),
+            pool("target_generic_pmc", 29),
+            pool("target_generic_ru", 30),
+            pool("target_generic_us", 30),
+            pool("target_helicopter_pmc", 10),
+            pool("target_helicopter_ru", 10),
+            pool("target_helicopter_us", 11),
+            pool("target_hit_pmc", 9),
+            pool("target_hit_ru", 29),
+            pool("target_hit_us", 20),
+            pool("target_nopen_pmc", 8),
+            pool("target_nopen_ru", 17),
+            pool("target_nopen_us", 17),
+            pool("target_plane_pmc", 13),
+            pool("target_plane_ru", 8),
+            pool("target_plane_us", 10),
+            pool("target_ship_pmc", 12),
+            pool("target_ship_ru", 10),
+            pool("target_ship_us", 9),
+            pool("target_tank_pmc", 25),
+            pool("target_tank_ru", 13),
+            pool("target_tank_us", 30),
+            pool("traverse_left_us", 4),
+            pool("traverse_right_us", 6),
+            pool("unit_deploy_drone_pmc", 2),
+            pool("unit_deploy_drone_ru", 2),
+            pool("unit_deploy_drone_us", 2),
+            pool("unit_dig_ru", 2),
+            pool("unit_dig_us", 2),
+            pool("unit_heal_pmc", 2),
+            pool("unit_heal_ru", 2),
+            pool("unit_heal_us", 2),
+            pool("unit_repair_pmc", 4),
+            pool("unit_repair_ru", 4),
+            pool("unit_repair_us", 3),
+            pool("vehicle_bail_pmc", 4),
+            pool("vehicle_bail_ru", 4),
+            pool("vehicle_bail_us", 9),
+            pool("vehicle_cannon_shoot_pmc", 30),
+            pool("vehicle_cannon_shoot_pmc_panicked", 30),
+            pool("vehicle_cannon_shoot_ru", 26),
+            pool("vehicle_cannon_shoot_ru_panicked", 30),
+            pool("vehicle_cannon_shoot_us", 30),
+            pool("vehicle_cannon_shoot_us_panicked", 30),
+            pool("vehicle_critical_pmc", 30),
+            pool("vehicle_critical_ru", 30),
+            pool("vehicle_critical_us", 30),
+            pool("vehicle_hit_pmc", 30),
+            pool("vehicle_hit_ru", 30),
+            pool("vehicle_hit_us", 30),
+            pool("vehicle_idle_pmc", 30),
+            pool("vehicle_idle_ru", 30),
+            pool("vehicle_idle_us", 30),
+            pool("vehicle_low_health_pmc", 5),
+            pool("vehicle_low_health_ru", 5),
+            pool("vehicle_low_health_us", 3),
+            pool("vehicle_mg_shoot_pmc", 7),
+            pool("vehicle_mg_shoot_pmc_panicked", 2),
+            pool("vehicle_mg_shoot_ru", 7),
+            pool("vehicle_mg_shoot_ru_panicked", 2),
+            pool("vehicle_mg_shoot_us", 6),
+            pool("vehicle_mg_shoot_us_panicked", 2),
+            pool("vehicle_support_air_pmc", 5),
+            pool("vehicle_support_air_ru", 4),
+            pool("vehicle_support_air_us", 8),
+            pool("vehicle_support_mortar_pmc", 13),
+            pool("vehicle_support_mortar_ru", 19),
+            pool("vehicle_support_mortar_us", 18),
+            pool("vehicle_targeted_pmc", 4),
+            pool("vehicle_targeted_ru", 11),
+            pool("vehicle_targeted_us", 11)
+            // END GENERATED CREW POOLS
+    );
 
     // PMC handheld-radio ordnance acks (faction-neutral pilot pools).
     public static final SoundPool PILOT_AGM = pool("pilot_agm", 2);
@@ -117,7 +191,18 @@ public final class ModSounds {
     private static SoundPool pool(String prefix, int count) {
         List<RegistryObject<SoundEvent>> variants = new ArrayList<>(count);
         for (int i = 1; i <= count; i++) variants.add(register(prefix + "_" + i));
-        return new SoundPool(variants);
+        return new SoundPool(prefix, variants);
+    }
+
+    private static Map<String, SoundPool> crewPools(SoundPool... pools) {
+        Map<String, SoundPool> map = new HashMap<>(pools.length * 2);
+        for (SoundPool pool : pools) map.put(pool.prefix(), pool);
+        return map;
+    }
+
+    /** The crew pool with this file prefix, or null when none ships. */
+    public static SoundPool crew(String prefix) {
+        return CREW.get(prefix);
     }
 
     /**
@@ -128,16 +213,22 @@ public final class ModSounds {
      * allocation-free after construction (the bag is shuffled in place with {@link ThreadLocalRandom}).
      */
     public static final class SoundPool {
+        private final String prefix;
         private final List<RegistryObject<SoundEvent>> variants;
         private final int[] bag;
         private int cursor;
         private int last = -1;
 
-        private SoundPool(List<RegistryObject<SoundEvent>> variants) {
+        private SoundPool(String prefix, List<RegistryObject<SoundEvent>> variants) {
+            this.prefix = prefix;
             this.variants = variants;
             this.bag = new int[variants.size()];
             for (int i = 0; i < bag.length; i++) bag[i] = i;
             this.cursor = bag.length; // empty: the first draw reshuffles
+        }
+
+        public String prefix() {
+            return prefix;
         }
 
         public synchronized SoundEvent next() {

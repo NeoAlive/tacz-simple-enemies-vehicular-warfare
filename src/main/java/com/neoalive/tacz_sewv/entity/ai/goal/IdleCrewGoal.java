@@ -30,6 +30,11 @@ public class IdleCrewGoal extends Goal {
     private VehicleEntity vehicle;
 
     private long nextIdleAt;
+    /** Game time at which a crew that scored a kill calls the area clear; MIN when not armed. */
+    private long areaClearAt = Long.MIN_VALUE;
+    private long nextRepairPoll;
+    private static final int AREA_CLEAR_DELAY = 160;
+    private static final int REPAIR_POLL_TICKS = 40;
     private long nextSweep;
     private Vec3 bearing = Vec3.ZERO;
 
@@ -65,6 +70,8 @@ public class IdleCrewGoal extends Goal {
     @Override
     public void start() {
         long now = this.unit.level().getGameTime();
+        CrewRadio.onCrewTakesHull(this.vehicle);
+        this.areaClearAt = CrewRadio.recentKill(this.vehicle) ? now + AREA_CLEAR_DELAY : Long.MIN_VALUE;
         this.nextSweep = now;
         int delay = SewvConfig.IDLE_VOICELINE_DELAY_TICKS.get();
         int jitter = SewvConfig.IDLE_VOICELINE_INITIAL_JITTER_TICKS.get();
@@ -80,6 +87,14 @@ public class IdleCrewGoal extends Goal {
     public void tick() {
         long now = this.unit.level().getGameTime();
         sweepTurret(now);
+        if (this.areaClearAt != Long.MIN_VALUE && now >= this.areaClearAt) {
+            this.areaClearAt = Long.MIN_VALUE;
+            CrewRadio.maybeAreaClear(this.vehicle);
+        }
+        if (now >= this.nextRepairPoll) {
+            this.nextRepairPoll = now + REPAIR_POLL_TICKS;
+            CrewRadio.pollRepairs(this.vehicle);
+        }
 
         if (now < this.nextIdleAt) return;
         float floor = SewvConfig.IDLE_VOICELINE_HEALTH_FRACTION.get().floatValue();

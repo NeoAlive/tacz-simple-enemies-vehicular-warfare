@@ -23,6 +23,8 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
 import org.slf4j.Logger;
 
+import com.neoalive.tacz_sewv.crew.CrewRadio;
+
 /**
  * Weapon doctrine for AI crews. Ground crews ({@link DriveVehicleGoal}) classify
  * the target and pick the slot for it — special/cannon against armor, range-split
@@ -333,10 +335,16 @@ public final class VehicleWeapons {
         // Nothing on this seat is usable (every slot is a placeholder) — leave the
         // index alone rather than parking the crew on a turret-breaking slot.
         if (chosen < 0) return new WeaponSelection(UNCLASSIFIED, null);
+        int previous = vehicle.getWeaponIndex(seatIndex);
         vehicle.setWeaponIndex(seatIndex, chosen);
         String switchedAmmo = null;
         if (ammo != null) switchedAmmo = selectCannonAmmo(vehicle, seatIndex, chosen, ammo);
-        return new WeaponSelection(roleOf(slot, chosen), switchedAmmo);
+        int role = roleOf(slot, chosen);
+        if (shooter != null) {
+            if (switchedAmmo != null) CrewRadio.onAmmoSwitch(vehicle, switchedAmmo);
+            else if (previous != chosen && role == WEAPON_SPECIAL) CrewRadio.onMissileSelected(vehicle);
+        }
+        return new WeaponSelection(role, switchedAmmo);
     }
 
     /** The physical slot filling {@code role} (WEAPON_CANNON / _MG / _SPECIAL) on this seat, or -1. */

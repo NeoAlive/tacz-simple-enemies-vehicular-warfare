@@ -52,7 +52,7 @@ public final class PlayerReviveCompat {
     /** Revives {@code player} — resets bleeding, applies configured effects, restores health. No-op when absent. */
     public static void revive(Player player) {
         if (!isLoaded() || player == null) return;
-        Access.revive(player);
+        FirstAidCompat.withHealthWritesIgnored(player, () -> Access.revive(player));
     }
 
     private static final class Access {

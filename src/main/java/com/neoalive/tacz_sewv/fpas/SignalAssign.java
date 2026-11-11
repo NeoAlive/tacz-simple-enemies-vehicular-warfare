@@ -5,32 +5,49 @@ import java.util.List;
 
 /**
  * Who shoots what. Rounds of nearest pairing: each round every ally takes its nearest enemy nobody
- * has claimed yet, the closest pairs picking first, until every enemy is taken. Allies left over
- * once the enemies run out double up on their nearest one. So two allies against two enemies split
- * them, one ally against two takes both in order, three against one all take the one.
- * Deterministic: ties break on index.
+ * has claimed yet, the ally with the fewest options left picking first and the closest pair
+ * breaking ties, until no ally can take another. Allies left with
+ * nothing once the enemies run out double up on their nearest one. So two allies against two enemies
+ * split them, one ally against two takes both in order, three against one all take the one.
+ * {@code able[a][e]} false keeps that pair apart entirely (a rifleman and a tank). Deterministic:
+ * ties break on index.
  */
 public final class SignalAssign {
 
     private SignalAssign() {}
 
-    /** @return per ally, enemy indices in the order they should be engaged (never empty if enemies exist) */
     public static List<List<Integer>> assign(double[][] allies, double[][] enemies) {
+        boolean[][] able = new boolean[allies.length][enemies.length];
+        for (boolean[] row : able) java.util.Arrays.fill(row, true);
+        return assign(allies, enemies, able);
+    }
+
+    /** @return per ally, enemy indices in the order they should be engaged (empty if it can take none) */
+    public static List<List<Integer>> assign(double[][] allies, double[][] enemies, boolean[][] able) {
         int na = allies.length, ne = enemies.length;
         List<List<Integer>> out = new ArrayList<>(na);
         for (int i = 0; i < na; i++) out.add(new ArrayList<>());
         if (na == 0 || ne == 0) return out;
         boolean[] taken = new boolean[ne];
-        int left = ne;
-        while (left > 0) {
+        boolean progress = true;
+        while (progress) {
+            progress = false;
             boolean[] moved = new boolean[na];
-            for (int k = 0; k < na && left > 0; k++) {
-                int bestA = -1, bestE = -1;
+            while (true) {
+                int bestA = -1, bestE = -1, bestOptions = Integer.MAX_VALUE;
                 double best = Double.MAX_VALUE;
                 for (int a = 0; a < na; a++) {
                     if (moved[a]) continue;
+                    // The ally with the fewest targets left picks first, so a choosier unit is not starved.
+                    int options = 0;
+                    for (int e = 0; e < ne; e++) if (!taken[e] && able[a][e]) options++;
+                    if (options == 0 || options > bestOptions) continue;
+                    if (options < bestOptions) {
+                        bestOptions = options;
+                        best = Double.MAX_VALUE;
+                    }
                     for (int e = 0; e < ne; e++) {
-                        if (taken[e]) continue;
+                        if (taken[e] || !able[a][e]) continue;
                         double d = d2(allies[a], enemies[e]);
                         if (d < best) {
                             best = d;
@@ -39,29 +56,31 @@ public final class SignalAssign {
                         }
                     }
                 }
+                if (bestA < 0) break;
                 moved[bestA] = true;
                 taken[bestE] = true;
                 out.get(bestA).add(bestE);
-                left--;
+                progress = true;
             }
         }
         for (int a = 0; a < na; a++) {
             if (!out.get(a).isEmpty()) continue;
-            int bestE = 0;
+            int bestE = -1;
             double best = Double.MAX_VALUE;
             for (int e = 0; e < ne; e++) {
+                if (!able[a][e]) continue;
                 double d = d2(allies[a], enemies[e]);
                 if (d < best) {
                     best = d;
                     bestE = e;
                 }
             }
-            out.get(a).add(bestE);
+            if (bestE >= 0) out.get(a).add(bestE);
         }
         return out;
     }
 
-    private static double d2(double[] p, double[] q) {
+    static double d2(double[] p, double[] q) {
         double dx = p[0] - q[0], dz = p[1] - q[1];
         return dx * dx + dz * dz;
     }

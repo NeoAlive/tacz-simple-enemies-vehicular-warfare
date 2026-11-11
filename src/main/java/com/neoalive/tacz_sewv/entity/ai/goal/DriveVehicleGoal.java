@@ -58,6 +58,7 @@ import com.neoalive.tacz_sewv.entity.ai.utility.Facts;
 import com.neoalive.tacz_sewv.entity.ai.utility.TacticalBrain;
 import com.neoalive.tacz_sewv.entity.ai.utility.TacticalPosture;
 import com.neoalive.tacz_sewv.entity.ai.utility.TacticalScale;
+import com.neoalive.tacz_sewv.fpas.SignalTasks;
 import com.neoalive.tacz_sewv.invasion.CaptureOrderSupport;
 import com.neoalive.tacz_sewv.notify.HudNotify;
 
@@ -123,6 +124,9 @@ public class DriveVehicleGoal extends Goal {
     private static final long COVER_STALL_TICKS = 1200;
     private double coverBestDistSq = Double.MAX_VALUE;
     private long coverProgressTick = Long.MIN_VALUE;
+    private static final long SIGNAL_STALL_TICKS = 400;
+    private double signalBestDistSq = Double.MAX_VALUE;
+    private long signalProgressTick = Long.MIN_VALUE;
     /** Long enough for SBW to register the held decoy input and fire one volley. */
     private static final long RUN_SMOKE_TICKS = 10;
     /** Blocks past the hull's half-width at which a posture waypoint counts as reached. */
@@ -198,6 +202,7 @@ public class DriveVehicleGoal extends Goal {
         if (seekCoverWantsDrive()) return true;
         if (SuppressOrders.active(this.unit, this.unit.level().getGameTime()) != null) return true;
         if (CoverHoldOrders.has(this.unit)) return true;
+        if (signalMoving()) return true;
         return getTargetPos() != null; // only drive if there's somewhere to go
     }
 
@@ -217,6 +222,7 @@ public class DriveVehicleGoal extends Goal {
                         || seekCoverWantsDrive()
                         || SuppressOrders.active(this.unit, this.unit.level().getGameTime()) != null
                         || CoverHoldOrders.has(this.unit)
+                        || signalMoving()
                         || getTargetPos() != null);
     }
 
@@ -330,6 +336,8 @@ public class DriveVehicleGoal extends Goal {
         if (orderedSuppressTick()) return;
         // Cover and Hold: drive to the ordered cover and stay on it (see CoverHoldOrders).
         if (coverHoldTick(target)) return;
+        // FPAS Signal: drive to a spot with a line of fire on the assigned target (see SignalTasks).
+        if (signalTick(target)) return;
 
         // Posture hard steers on the main tick so area-hold / lost-target still honour them.
         if (trySteerSeekCover()) return;
@@ -523,6 +531,50 @@ public class DriveVehicleGoal extends Goal {
         Vec3 facing = new Vec3(look.x - this.vehicle.getX(), 0.0, look.z - this.vehicle.getZ());
         this.driver.holdStation(facing.lengthSqr() > 1.0E-4 ? facing.normalize() : null);
         this.driver.clearRecovery(); // on station on purpose, not stuck
+        return true;
+    }
+
+    private boolean signalMoving() {
+        return this.unit instanceof PmcUnitEntity pmc && SignalTasks.moving(pmc);
+    }
+
+    /**
+     * A Signal task's approach: drive to the firing spot {@link SignalTasks#spot} picked against the
+     * radar track, or straight at the track when no spot has a line of fire. Once there, or as soon
+     * as the sweep sees a clear shot, the task flips to ENGAGE and this hands the tick back to the
+     * ordinary fight. Self-defence inside {@link SuppressOrders#CREW_SELF_DEFENCE} also hands it back.
+     * Every branch issues input.
+     */
+    private boolean signalTick(@javax.annotation.Nullable LivingEntity target) {
+        if (!(this.unit instanceof PmcUnitEntity pmc) || !SignalTasks.moving(pmc)) return false;
+        SignalTasks.Task task = SignalTasks.get(pmc);
+        if (task == null) return false;
+        if (target != null && target.getId() != pmc.getAttackTargetId()
+                && SuppressOrders.selfDefence(this.unit, SuppressOrders.CREW_SELF_DEFENCE)) return false;
+        long now = this.unit.level().getGameTime();
+        if (target != null) {
+            selectWeaponForTarget(this.vehicle.getSeatIndex(this.unit), target);
+            fireAssistIfSpecial(target);
+        }
+        if (now >= this.smokeUntil) this.vehicle.setDecoyInputDown(false);
+        Vec3 spot = SignalTasks.spot(pmc);
+        Vec3 goal = spot != null ? spot : task.track();
+        double dx = goal.x - this.vehicle.getX();
+        double dz = goal.z - this.vehicle.getZ();
+        double distSq = dx * dx + dz * dz;
+        if (spot != null && parkedOn(spot, distSq, BattlePosition.arriveRadius(this.vehicle))) {
+            SignalTasks.arrive(pmc);
+            this.driver.stop();
+            return true;
+        }
+        if (this.signalProgressTick == Long.MIN_VALUE || distSq < this.signalBestDistSq - 4.0) {
+            this.signalBestDistSq = distSq;
+            this.signalProgressTick = now;
+        } else if (now - this.signalProgressTick > SIGNAL_STALL_TICKS) {
+            SignalTasks.stalled(pmc);
+            this.signalProgressTick = Long.MIN_VALUE;
+        }
+        this.driver.navigateTo(BlockPos.containing(goal), this.vehicle.distanceToSqr(goal));
         return true;
     }
 

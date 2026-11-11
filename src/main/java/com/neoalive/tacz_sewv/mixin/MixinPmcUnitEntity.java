@@ -363,6 +363,8 @@ public abstract class MixinPmcUnitEntity
         ((Mob) self).goalSelector.addGoal(2, new com.neoalive.tacz_sewv.entity.ai.goal.SuppressAreaGoal(self));
         // Cover and Hold on foot. Priority 1 so the walk outranks SEM's cover and chase goals.
         ((Mob) self).goalSelector.addGoal(1, new com.neoalive.tacz_sewv.entity.ai.goal.CoverHoldGoal(self));
+        // FPAS Signal on foot: the walk to a firing spot. Priority 1 for the same reason.
+        ((Mob) self).goalSelector.addGoal(1, new com.neoalive.tacz_sewv.entity.ai.goal.SignalEngageGoal(self));
         // Soft-compat: PlayerReviveMod. Any friendly PMC — no medical kit required, unlike
         // MedicGoal — revives a downed player automatically; see PlayerReviveCompat/PlayerReviveGoal.
         // Gated at goal-add time rather than inside canUse() so the goal simply doesn't exist

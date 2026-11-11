@@ -985,6 +985,14 @@ final class ConfigRegistryBootstrap {
                 SewvConfig.ZONE_BEACON_MAX_RADIUS, SewvConfig.ZONE_BEACON_MAX_RADIUS::set);
         b.doubleRange(ConfigScope.SERVER, "spawn_zones", "zoneBeaconMtiUpkeepMultiplier", 0.0, 100.0,
                 SewvConfig.ZONE_BEACON_MTI_UPKEEP_MULT, SewvConfig.ZONE_BEACON_MTI_UPKEEP_MULT::set);
+        b.bool(ConfigScope.SERVER, "spawn_zones", "signalInfantryEngagesVehicles",
+                SewvConfig.SIGNAL_INFANTRY_ENGAGES_VEHICLES, SewvConfig.SIGNAL_INFANTRY_ENGAGES_VEHICLES::set);
+        b.doubleRange(ConfigScope.SERVER, "spawn_zones", "signalAllyRadius", 16.0, 512.0,
+                SewvConfig.SIGNAL_ALLY_RADIUS, SewvConfig.SIGNAL_ALLY_RADIUS::set);
+        b.doubleRange(ConfigScope.SERVER, "spawn_zones", "signalInfantryRange", 8.0, 96.0,
+                SewvConfig.SIGNAL_INFANTRY_RANGE, SewvConfig.SIGNAL_INFANTRY_RANGE::set);
+        b.intRange(ConfigScope.SERVER, "spawn_zones", "signalTargetSeconds", 10, 900,
+                SewvConfig.SIGNAL_TARGET_SECONDS, SewvConfig.SIGNAL_TARGET_SECONDS::set);
     }
 
     private static void registerInvasion(ConfigRegistry.Builder b) {

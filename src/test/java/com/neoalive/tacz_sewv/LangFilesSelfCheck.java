@@ -185,13 +185,22 @@ public final class LangFilesSelfCheck {
         }
         String folded = dst.toLowerCase();
         for (String phrase : BANNED.getOrDefault(locale, List.of())) {
-            if (folded.contains(phrase.toLowerCase())) {
+            if (hasPhrase(dst, folded, phrase)) {
                 problems.add(where + ": banned phrase " + phrase);
             }
         }
         if ("es_mx".equals(locale) && ES_MX_EXTRA.matcher(dst).find()) {
             problems.add(where + ": Spain-only wording");
         }
+    }
+
+    private static boolean hasPhrase(String raw, String folded, String phrase) {
+        boolean han = phrase.codePoints().anyMatch(cp -> Character.UnicodeScript.of(cp) == Character.UnicodeScript.HAN);
+        if (han) {
+            return raw.contains(phrase);
+        }
+        return Pattern.compile("(?<!\\p{L})" + Pattern.quote(phrase) + "(?!\\p{L})",
+                Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE).matcher(folded).find();
     }
 
     private static void requirePattern(Pattern pattern, String src, String dst, String where, List<String> problems) {

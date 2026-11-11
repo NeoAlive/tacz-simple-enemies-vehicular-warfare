@@ -7,7 +7,6 @@ import com.github.mcmodderanchor.simplebedrockmodel.v2.common.model.runtime.Bake
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
 import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
 import net.minecraft.util.Mth;
@@ -75,9 +74,7 @@ public class ZoneBeaconRenderer implements BlockEntityRenderer<ZoneBeaconBlockEn
 
         poseStack.pushPose();
         poseStack.translate(0.5D, 0.0D, 0.5D);
-        instance.renderToBuffer(poseStack,
-                buffer.getBuffer(RenderType.entityCutout(FobBlockClient.texture(FobBlockClient.Kind.FPAS))),
-                packedLight, packedOverlay);
+        FobBlockClient.render(instance, FobBlockClient.Kind.FPAS, poseStack, buffer, packedLight, packedOverlay);
         poseStack.popPose();
     }
 }

@@ -630,7 +630,15 @@ public final class VehicleTargeting {
      */
     public static boolean isNonHostile(AbstractUnit unit, LivingEntity target) {
         if (target instanceof Player p && (p.isCreative() || p.isSpectator())) return true;
+        return isNonHostileIgnoringGameMode(unit, target);
+    }
 
+    /**
+     * {@link #isNonHostile} without the creative/spectator shield: whether {@code unit} would be
+     * hostile to {@code target} on relations alone. For things that only observe (the FPAS radar),
+     * never for targeting.
+     */
+    public static boolean isNonHostileIgnoringGameMode(AbstractUnit unit, LivingEntity target) {
         // Explicit enemy list stamped at invasion spawn — allies on our team never count as enemies.
         if (InvasionHostility.isAlly(unit, target)) {
             return true;

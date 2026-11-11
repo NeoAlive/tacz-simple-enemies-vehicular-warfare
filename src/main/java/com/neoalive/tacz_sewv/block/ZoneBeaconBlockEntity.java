@@ -197,19 +197,17 @@ public class ZoneBeaconBlockEntity extends BlockEntity implements MenuProvider {
      */
     private void scan(ServerLevel level) {
         if (this.owner == null) return;
-        Player player = level.getPlayerByUUID(this.owner);
-        // A creative owner is shielded by isNonHostile, so judge from one of their PMCs instead.
-        if (player != null && (player.isCreative() || player.isSpectator())) player = null;
-        AbstractUnit pmc = player == null ? FobSupport.ownerPerspective(level, this.owner) : null;
-        if (player == null && pmc == null) return;
-        final Player subject = player;
+        // Relations only: a creative owner is still somebody the enemy would shoot at.
+        Player subject = level.getPlayerByUUID(this.owner);
+        AbstractUnit pmc = subject == null ? FobSupport.ownerPerspective(level, this.owner) : null;
+        if (subject == null && pmc == null) return;
         int reach = this.radius * 16 + 8;
         AABB box = new AABB(this.worldPosition).inflate(reach, level.getHeight(), reach);
         Vec3 from = Vec3.atCenterOf(this.worldPosition);
         AbstractUnit best = null;
         double bestDist = Double.MAX_VALUE;
         for (AbstractUnit unit : level.getEntitiesOfClass(AbstractUnit.class, box, u -> u.isAlive() && u != pmc
-                && (subject != null ? !VehicleTargeting.isNonHostile(u, subject)
+                && (subject != null ? !VehicleTargeting.isNonHostileIgnoringGameMode(u, subject)
                         : !VehicleTargeting.isNonHostile(pmc, u)))) {
             double d = unit.distanceToSqr(from);
             if (d < bestDist) {

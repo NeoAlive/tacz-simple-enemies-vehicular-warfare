@@ -85,6 +85,20 @@ public final class FobBlockClient {
         return kind.texture;
     }
 
+    /**
+     * Draws both SBM passes. The single-VertexConsumer {@code renderToBuffer} runs only the cube
+     * pass, so a poly-mesh model (the FPAS) drew nothing at all. SBM writes poly meshes as raw
+     * triangles, so the mesh pass needs its TRIANGLES type: a vanilla QUADS type shifts every face
+     * after the first triangle by a vertex. It is also no-cull, which the mixed winding needs.
+     */
+    public static void render(BakedModelInstance instance, Kind kind, com.mojang.blaze3d.vertex.PoseStack poseStack,
+                              net.minecraft.client.renderer.MultiBufferSource buffer, int light, int overlay) {
+        instance.renderToBuffer(poseStack, buffer,
+                net.minecraft.client.renderer.RenderType.entityCutout(kind.texture),
+                com.github.mcmodderanchor.simplebedrockmodel.v1.client.renderer.BedrockModelRenderTypes
+                        .polyMeshCutout(kind.texture), light, overlay);
+    }
+
     public static void rebake(ResourceManager manager) {
         baked.clear();
         instances.clear();

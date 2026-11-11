@@ -5,7 +5,6 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.model.geom.EntityModelSet;
 import net.minecraft.client.renderer.BlockEntityWithoutLevelRenderer;
 import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderDispatcher;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemDisplayContext;
@@ -34,9 +33,7 @@ public class FobItemRenderer extends BlockEntityWithoutLevelRenderer {
         poseStack.pushPose();
         poseStack.translate(0.5D, 0.0D, 0.5D);
         instance.resetPose();
-        instance.renderToBuffer(poseStack,
-                buffer.getBuffer(RenderType.entityCutout(FobBlockClient.texture(kind))),
-                packedLight, packedOverlay);
+        FobBlockClient.render(instance, kind, poseStack, buffer, packedLight, packedOverlay);
         poseStack.popPose();
     }
 }

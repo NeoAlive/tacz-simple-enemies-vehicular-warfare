@@ -118,6 +118,7 @@ public class ClientModEvents {
         event.registerBlockEntityRenderer(ModBlockEntities.RUNWAY.get(), RunwayBlockRenderer::new);
         event.registerBlockEntityRenderer(ModBlockEntities.FOB_DECOR.get(), FobBlockRenderer::new);
         event.registerBlockEntityRenderer(ModBlockEntities.STOCKPILE.get(), FobBlockRenderer::new);
+        event.registerBlockEntityRenderer(ModBlockEntities.ZONE_BEACON.get(), ZoneBeaconRenderer::new);
         event.registerEntityRenderer(ModEntities.SANDBAG_SEAT.get(), NoopRenderer::new);
         event.registerEntityRenderer(ModEntities.RU_MEDIC.get(), RuSupportRenderer::new);
         event.registerEntityRenderer(ModEntities.US_MEDIC.get(), UsSupportRenderer::new);

@@ -28,16 +28,25 @@ public final class FobBlockClient {
     public enum Kind {
         COMMAND("command_block", ModBlocks.QUARTERS_BENCH.get()),
         PARKING("parking_field", ModBlocks.PARKING_FIELD.get()),
-        STOCKPILE("stockpile_block", ModBlocks.STOCKPILE_AMMO.get());
+        STOCKPILE("stockpile_block", ModBlocks.STOCKPILE_AMMO.get()),
+        /** Kept live so {@link ZoneBeaconRenderer} can slew them. */
+        // Not under geo/: GeckoLib parses every file there and crashes on Blockbench poly meshes.
+        FPAS("models/bedrock/block/", "fpas", ModBlocks.ZONE_BEACON.get(), "radar", "dish");
 
         final ResourceLocation geo;
         final ResourceLocation texture;
         final Block block;
+        final java.util.Set<String> animatedBones;
 
         Kind(String name, Block block) {
-            this.geo = new ResourceLocation(TaczSewv.MODID, "geo/" + name + ".geo.json");
+            this("geo/", name, block);
+        }
+
+        Kind(String geoDir, String name, Block block, String... animatedBones) {
+            this.geo = new ResourceLocation(TaczSewv.MODID, geoDir + name + ".geo.json");
             this.texture = new ResourceLocation(TaczSewv.MODID, "textures/block/" + name + ".png");
             this.block = block;
+            this.animatedBones = java.util.Set.of(animatedBones);
         }
     }
 
@@ -84,7 +93,8 @@ public final class FobBlockClient {
             try (InputStreamReader reader = new InputStreamReader(
                     manager.open(kind.geo), StandardCharsets.UTF_8)) {
                 BedrockModelPOJO pojo = GsonUtil.CLIENT_GSON.fromJson(reader, BedrockModelPOJO.class);
-                baked.put(kind, BakedBedrockModel.bake(pojo, BakerOptions.defaults()));
+                baked.put(kind, BakedBedrockModel.bake(pojo, kind.animatedBones.isEmpty()
+                        ? BakerOptions.defaults() : BakerOptions.ofAnimatedBones(kind.animatedBones)));
             } catch (IOException | JsonParseException | IllegalStateException e) {
                 TaczSewv.LOGGER.error("Failed to load FOB model {}", kind.geo, e);
             }

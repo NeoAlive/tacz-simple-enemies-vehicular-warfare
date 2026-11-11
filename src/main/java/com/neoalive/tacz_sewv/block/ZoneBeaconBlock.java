@@ -1,7 +1,10 @@
 package com.neoalive.tacz_sewv.block;
 
+import java.util.List;
+
 import javax.annotation.Nullable;
 
+import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
@@ -12,6 +15,8 @@ import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.TooltipFlag;
+import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.BaseEntityBlock;
 import net.minecraft.world.level.block.RenderShape;
@@ -33,12 +38,18 @@ public class ZoneBeaconBlock extends BaseEntityBlock {
 
     public ZoneBeaconBlock() {
         super(BlockBehaviour.Properties.of().mapColor(MapColor.METAL).strength(3.5F, 6.0F)
-                .sound(SoundType.METAL));
+                .sound(SoundType.METAL).noOcclusion());
     }
 
     @Override
     public RenderShape getRenderShape(BlockState state) {
-        return RenderShape.MODEL;
+        return RenderShape.ENTITYBLOCK_ANIMATED;
+    }
+
+    @Override
+    public void appendHoverText(ItemStack stack, @Nullable BlockGetter level, List<Component> tooltip,
+            TooltipFlag flag) {
+        tooltip.add(Component.translatable("block.tacz_sewv.zone_beacon.desc").withStyle(ChatFormatting.GRAY));
     }
 
     @Nullable

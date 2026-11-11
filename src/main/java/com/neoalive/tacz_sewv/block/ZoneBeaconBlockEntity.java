@@ -8,6 +8,9 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.Packet;
+import net.minecraft.network.protocol.game.ClientGamePacketListener;
+import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.MenuProvider;
 import net.minecraft.world.entity.player.Inventory;
@@ -18,14 +21,19 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.common.capabilities.ForgeCapabilities;
 import net.minecraftforge.common.util.LazyOptional;
 import net.minecraftforge.energy.EnergyStorage;
 import net.minecraftforge.energy.IEnergyStorage;
 import net.minecraftforge.items.ItemStackHandler;
+import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
+import com.neoalive.tacz_sewv.fob.FobSupport;
 import com.neoalive.tacz_sewv.init.ModBlockEntities;
 import com.neoalive.tacz_sewv.inventory.ZoneBeaconMenu;
 import com.neoalive.tacz_sewv.zone.SpawnZoneData;
@@ -45,6 +53,9 @@ public class ZoneBeaconBlockEntity extends BlockEntity implements MenuProvider {
     private static final int BATTERY_DRAIN_PER_TICK = 4000;
     /** setChanged also pokes comparator neighbours, so steady draw is only flagged this often. */
     private static final int SAVE_EVERY_TICKS = 20;
+    /** Radar poll period. The dish only has to look plausible, so this is deliberately slow. */
+    private static final int SCAN_TICKS = 100;
+    private static final AABB RENDER_EXTENT = new AABB(-2, 0, -2, 3, 6, 3);
 
     /** Receive-only from outside; the beacon spends from it itself. */
     private static final class Buffer extends EnergyStorage {
@@ -89,6 +100,10 @@ public class ZoneBeaconBlockEntity extends BlockEntity implements MenuProvider {
     private int starved;
     private boolean chunkUnloaded;
     private int sinceSave;
+    private long nextScan;
+    /** Last spotted hostile, synced to the client, which slews the radar onto it. */
+    @Nullable
+    private Vec3 aim;
 
     private final ContainerData data = new ContainerData() {
         @Override
@@ -162,6 +177,10 @@ public class ZoneBeaconBlockEntity extends BlockEntity implements MenuProvider {
             this.powered = true;
             this.energy.spend((int) cost);
         }
+        if (this.powered && level.getGameTime() >= this.nextScan) {
+            this.nextScan = level.getGameTime() + SCAN_TICKS;
+            scan(level);
+        }
         if (was != this.powered) {
             publish(level);
             setChanged();
@@ -170,6 +189,60 @@ public class ZoneBeaconBlockEntity extends BlockEntity implements MenuProvider {
             setChanged();
             this.sinceSave = 0;
         }
+    }
+
+    /**
+     * Points the array at the nearest unit hostile to the owner inside the covered chunks. A crew
+     * is aimed at through its hull. With no contact the last spotted position is kept.
+     */
+    private void scan(ServerLevel level) {
+        if (this.owner == null) return;
+        Player player = level.getPlayerByUUID(this.owner);
+        // A creative owner is shielded by isNonHostile, so judge from one of their PMCs instead.
+        if (player != null && (player.isCreative() || player.isSpectator())) player = null;
+        AbstractUnit pmc = player == null ? FobSupport.ownerPerspective(level, this.owner) : null;
+        if (player == null && pmc == null) return;
+        final Player subject = player;
+        int reach = this.radius * 16 + 8;
+        AABB box = new AABB(this.worldPosition).inflate(reach, level.getHeight(), reach);
+        Vec3 from = Vec3.atCenterOf(this.worldPosition);
+        AbstractUnit best = null;
+        double bestDist = Double.MAX_VALUE;
+        for (AbstractUnit unit : level.getEntitiesOfClass(AbstractUnit.class, box, u -> u.isAlive() && u != pmc
+                && (subject != null ? !VehicleTargeting.isNonHostile(u, subject)
+                        : !VehicleTargeting.isNonHostile(pmc, u)))) {
+            double d = unit.distanceToSqr(from);
+            if (d < bestDist) {
+                bestDist = d;
+                best = unit;
+            }
+        }
+        if (best == null) return;
+        Vec3 next = (best.getVehicle() != null ? best.getVehicle() : best).getBoundingBox().getCenter();
+        if (this.aim != null && this.aim.distanceToSqr(next) < 1.0) return;
+        this.aim = next;
+        setChanged();
+        level.sendBlockUpdated(this.worldPosition, getBlockState(), getBlockState(), 3);
+    }
+
+    @Nullable
+    public Vec3 aim() {
+        return this.aim;
+    }
+
+    @Override
+    public AABB getRenderBoundingBox() {
+        return RENDER_EXTENT.move(this.worldPosition);
+    }
+
+    @Override
+    public Packet<ClientGamePacketListener> getUpdatePacket() {
+        return ClientboundBlockEntityDataPacket.create(this);
+    }
+
+    @Override
+    public CompoundTag getUpdateTag() {
+        return saveWithoutMetadata();
     }
 
     private void drainBattery() {
@@ -272,6 +345,11 @@ public class ZoneBeaconBlockEntity extends BlockEntity implements MenuProvider {
         tag.putBoolean("Powered", this.powered);
         tag.putInt("Energy", this.energy.getEnergyStored());
         tag.put("Battery", this.battery.serializeNBT());
+        if (this.aim != null) {
+            tag.putDouble("AimX", this.aim.x);
+            tag.putDouble("AimY", this.aim.y);
+            tag.putDouble("AimZ", this.aim.z);
+        }
     }
 
     @Override
@@ -282,5 +360,7 @@ public class ZoneBeaconBlockEntity extends BlockEntity implements MenuProvider {
         this.powered = tag.getBoolean("Powered");
         this.energy.set(tag.getInt("Energy"));
         this.battery.deserializeNBT(tag.getCompound("Battery"));
+        this.aim = tag.contains("AimX")
+                ? new Vec3(tag.getDouble("AimX"), tag.getDouble("AimY"), tag.getDouble("AimZ")) : null;
     }
 }

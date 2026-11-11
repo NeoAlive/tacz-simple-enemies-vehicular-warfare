@@ -1,8 +1,6 @@
 {
-  "parent": "minecraft:block/cube_bottom_top",
+  "parent": "tacz_sewv:block/fob_invisible",
   "textures": {
-    "top": "minecraft:block/lodestone_top",
-    "bottom": "minecraft:block/chiseled_stone_bricks",
-    "side": "minecraft:block/lodestone_side"
+    "particle": "tacz_sewv:block/fpas"
   }
 }

@@ -1,9 +1,13 @@
 package com.neoalive.tacz_sewv.block;
 
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 import java.util.UUID;
 
 import javax.annotation.Nullable;
 
+import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
@@ -12,9 +16,11 @@ import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
 import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.MenuProvider;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
@@ -31,21 +37,28 @@ import net.minecraftforge.common.util.LazyOptional;
 import net.minecraftforge.energy.EnergyStorage;
 import net.minecraftforge.energy.IEnergyStorage;
 import net.minecraftforge.items.ItemStackHandler;
+import net.minecraftforge.network.PacketDistributor;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
+import com.neoalive.tacz_sewv.entity.ai.sensor.CombatantIndex;
 import com.neoalive.tacz_sewv.fob.FobSupport;
+import com.neoalive.tacz_sewv.fpas.RadarContact;
 import com.neoalive.tacz_sewv.init.ModBlockEntities;
 import com.neoalive.tacz_sewv.init.ModSounds;
 import com.neoalive.tacz_sewv.inventory.ZoneBeaconMenu;
+import com.neoalive.tacz_sewv.network.NetworkHandler;
+import com.neoalive.tacz_sewv.network.PacketRadarContacts;
 import com.neoalive.tacz_sewv.zone.SpawnZoneData;
 import com.neoalive.tacz_sewv.zone.ZoneGeometry;
 
 /**
- * Powered beacon that keeps a square of chunks around itself a no-zone. Takes FE from any side
- * (an SBW charging station next to it pushes on its own) or from a battery in its slot. Only
- * power transitions and radius changes reach the zone data, so a zone never flickers.
+ * The FPAS. Takes FE from any side (an SBW charging station next to it pushes on its own) or from a
+ * battery in its slot. ECM keeps a square of chunks around itself a no-zone; MTI drops the zone and
+ * runs a radar over the same square instead, at a higher upkeep. Only power, mode and radius
+ * transitions reach the zone data, so a zone never flickers.
  */
 public class ZoneBeaconBlockEntity extends BlockEntity implements MenuProvider {
 
@@ -56,8 +69,11 @@ public class ZoneBeaconBlockEntity extends BlockEntity implements MenuProvider {
     private static final int BATTERY_DRAIN_PER_TICK = 4000;
     /** setChanged also pokes comparator neighbours, so steady draw is only flagged this often. */
     private static final int SAVE_EVERY_TICKS = 20;
-    /** Radar poll period. The dish only has to look plausible, so this is deliberately slow. */
-    private static final int SCAN_TICKS = 100;
+    /** MTI poll period, the combatant index's own rebuild cadence. */
+    private static final int SCAN_TICKS = 20;
+    private static final int MAX_CONTACTS = 64;
+
+    public enum Mode { ECM, MTI }
     private static final AABB RENDER_EXTENT = new AABB(-2, 0, -2, 3, 6, 3);
 
     /** Receive-only from outside; the beacon spends from it itself. */
@@ -99,6 +115,9 @@ public class ZoneBeaconBlockEntity extends BlockEntity implements MenuProvider {
     @Nullable
     private UUID owner;
     private int radius = ZoneGeometry.MIN_RADIUS;
+    private Mode mode = Mode.ECM;
+    /** Last MTI scan, nearest first. Transient: a reload rescans within a second. */
+    private List<RadarContact> contacts = List.of();
     private boolean powered;
     private int starved;
     private boolean chunkUnloaded;
@@ -124,6 +143,7 @@ public class ZoneBeaconBlockEntity extends BlockEntity implements MenuProvider {
                 case 6 -> cost & 0xFFFF;
                 case 7 -> cost >>> 16;
                 case 8 -> maxRadius();
+                case 9 -> mode.ordinal();
                 default -> 0;
             };
         }
@@ -133,7 +153,7 @@ public class ZoneBeaconBlockEntity extends BlockEntity implements MenuProvider {
 
         @Override
         public int getCount() {
-            return 9;
+            return ZoneBeaconMenu.DATA_COUNT;
         }
     };
 
@@ -158,7 +178,37 @@ public class ZoneBeaconBlockEntity extends BlockEntity implements MenuProvider {
     }
 
     public long upkeep() {
-        return ZoneGeometry.upkeepPerTick(this.radius, SewvConfig.ZONE_BEACON_FE_PER_CHUNK.get());
+        long base = ZoneGeometry.upkeepPerTick(this.radius, SewvConfig.ZONE_BEACON_FE_PER_CHUNK.get());
+        return this.mode == Mode.MTI ? (long) Math.ceil(base * SewvConfig.ZONE_BEACON_MTI_UPKEEP_MULT.get()) : base;
+    }
+
+    public Mode mode() {
+        return this.mode;
+    }
+
+    public boolean radarOnline() {
+        return this.powered && this.mode == Mode.MTI && !isRemoved();
+    }
+
+    /** Radar reach in blocks from the block centre: the covered chunk square plus half a chunk. */
+    public double reach() {
+        return this.radius * 16 + 8;
+    }
+
+    public List<RadarContact> contacts() {
+        return this.contacts;
+    }
+
+    public void toggleMode() {
+        this.mode = this.mode == Mode.ECM ? Mode.MTI : Mode.ECM;
+        this.contacts = List.of();
+        this.lastTarget = -1;
+        setChanged();
+        if (this.level instanceof ServerLevel s) {
+            publish(s);
+            s.sendBlockUpdated(this.worldPosition, getBlockState(), getBlockState(), 3);
+            sendContacts(s);
+        }
     }
 
     public static void serverTick(Level level, BlockPos pos, BlockState state, ZoneBeaconBlockEntity be) {
@@ -182,9 +232,13 @@ public class ZoneBeaconBlockEntity extends BlockEntity implements MenuProvider {
             this.powered = true;
             this.energy.spend((int) cost);
         }
-        if (this.powered && level.getGameTime() >= this.nextScan) {
+        if (this.powered && this.mode == Mode.MTI && level.getGameTime() >= this.nextScan) {
             this.nextScan = level.getGameTime() + SCAN_TICKS;
             scan(level);
+            sendContacts(level);
+        } else if (!this.powered && !this.contacts.isEmpty()) {
+            this.contacts = List.of();
+            sendContacts(level);
         }
         if (was != this.powered) {
             publish(level);
@@ -197,34 +251,50 @@ public class ZoneBeaconBlockEntity extends BlockEntity implements MenuProvider {
     }
 
     /**
-     * Points the array at the nearest unit hostile to the owner inside the covered chunks. A crew
-     * is aimed at through its hull. With no contact the last spotted position is kept.
+     * Every unit hostile to the owner inside the covered square, off the combatant index. A crewed
+     * hull is one contact classed by its engine. The nearest contact also aims the array; with none
+     * the last spotted position is kept.
      */
     private void scan(ServerLevel level) {
+        this.contacts = List.of();
         if (this.owner == null) return;
         // Relations only: a creative owner is still somebody the enemy would shoot at.
         Player subject = level.getPlayerByUUID(this.owner);
         AbstractUnit pmc = subject == null ? FobSupport.ownerPerspective(level, this.owner) : null;
         if (subject == null && pmc == null) return;
-        int reach = this.radius * 16 + 8;
-        AABB box = new AABB(this.worldPosition).inflate(reach, level.getHeight(), reach);
+        CombatantIndex.Snapshot snap = CombatantIndex.snapshot(level);
+        if (snap == null) return;
+        double reach = reach();
         Vec3 from = Vec3.atCenterOf(this.worldPosition);
-        AbstractUnit best = null;
-        double bestDist = Double.MAX_VALUE;
-        for (AbstractUnit unit : level.getEntitiesOfClass(AbstractUnit.class, box, u -> u.isAlive() && u != pmc
-                && (subject != null ? !VehicleTargeting.isNonHostileIgnoringGameMode(u, subject)
-                        : !VehicleTargeting.isNonHostile(pmc, u)))) {
-            double d = unit.distanceToSqr(from);
-            if (d < bestDist) {
-                bestDist = d;
-                best = unit;
+        List<RadarContact> found = new ArrayList<>();
+        List<Integer> seenHulls = new ArrayList<>();
+        for (CombatantIndex.Entry e : snap.query(from.x, from.z, reach, level.getMinBuildHeight(),
+                level.getMaxBuildHeight())) {
+            if (!(e.living instanceof AbstractUnit unit) || !unit.isAlive() || unit == pmc) continue;
+            double dx = e.x - from.x, dz = e.z - from.z;
+            if (dx * dx + dz * dz > reach * reach) continue;
+            if (subject != null ? VehicleTargeting.isNonHostileIgnoringGameMode(unit, subject)
+                    : VehicleTargeting.isNonHostile(pmc, unit)) continue;
+            if (unit.getVehicle() instanceof VehicleEntity hull) {
+                if (seenHulls.contains(hull.getId())) continue;
+                seenHulls.add(hull.getId());
+                int target = hull.getFirstPassenger() instanceof LivingEntity l ? l.getId() : unit.getId();
+                found.add(new RadarContact(target, hull.getX(), hull.getY(), hull.getZ(),
+                        RadarContact.Cls.of(HullFacts.engineType(hull))));
+            } else {
+                found.add(new RadarContact(unit.getId(), unit.getX(), unit.getY(), unit.getZ(),
+                        RadarContact.Cls.INFANTRY));
             }
         }
-        if (best == null) {
+        found.sort(Comparator.comparingDouble(c -> from.distanceToSqr(c.x(), c.y(), c.z())));
+        this.contacts = List.copyOf(found.size() > MAX_CONTACTS ? found.subList(0, MAX_CONTACTS) : found);
+        if (this.contacts.isEmpty()) {
             this.lastTarget = -1;
             return;
         }
-        Entity spotted = best.getVehicle() != null ? best.getVehicle() : best;
+        Entity t = level.getEntity(this.contacts.get(0).targetId());
+        Entity spotted = t == null ? null : t.getVehicle() != null ? t.getVehicle() : t;
+        if (spotted == null) return;
         if (spotted.getId() != this.lastTarget) {
             this.lastTarget = spotted.getId();
             level.playSound(null, this.worldPosition, ModSounds.FPAS_TARGET.get(), SoundSource.BLOCKS, 1.5F, 1.0F);
@@ -234,6 +304,16 @@ public class ZoneBeaconBlockEntity extends BlockEntity implements MenuProvider {
         this.aim = next;
         setChanged();
         level.sendBlockUpdated(this.worldPosition, getBlockState(), getBlockState(), 3);
+    }
+
+    /** Streams the contact list to whoever has this FPAS's panel open. */
+    private void sendContacts(ServerLevel level) {
+        for (ServerPlayer p : level.players()) {
+            if (p.containerMenu instanceof ZoneBeaconMenu m && m.isFor(this)) {
+                NetworkHandler.CHANNEL.send(PacketDistributor.PLAYER.with(() -> p),
+                        new PacketRadarContacts(this.worldPosition, this.contacts));
+            }
+        }
     }
 
     @Nullable
@@ -268,7 +348,8 @@ public class ZoneBeaconBlockEntity extends BlockEntity implements MenuProvider {
     }
 
     private void publish(ServerLevel level) {
-        SpawnZoneData.get(level).putBeacon(this.worldPosition, this.owner, this.radius, this.powered);
+        SpawnZoneData.get(level).putBeacon(this.worldPosition, this.owner, this.radius,
+                this.powered && this.mode == Mode.ECM);
     }
 
     public void setOwner(@Nullable UUID owner) {
@@ -354,6 +435,7 @@ public class ZoneBeaconBlockEntity extends BlockEntity implements MenuProvider {
         if (this.owner != null) tag.putUUID("Owner", this.owner);
         tag.putInt("Radius", this.radius);
         tag.putBoolean("Powered", this.powered);
+        tag.putString("Mode", this.mode.name());
         tag.putInt("Energy", this.energy.getEnergyStored());
         tag.put("Battery", this.battery.serializeNBT());
         if (this.aim != null) {
@@ -369,6 +451,7 @@ public class ZoneBeaconBlockEntity extends BlockEntity implements MenuProvider {
         this.owner = tag.hasUUID("Owner") ? tag.getUUID("Owner") : null;
         this.radius = tag.contains("Radius") ? tag.getInt("Radius") : ZoneGeometry.MIN_RADIUS;
         this.powered = tag.getBoolean("Powered");
+        this.mode = "MTI".equals(tag.getString("Mode")) ? Mode.MTI : Mode.ECM;
         this.energy.set(tag.getInt("Energy"));
         this.battery.deserializeNBT(tag.getCompound("Battery"));
         this.aim = tag.contains("AimX")

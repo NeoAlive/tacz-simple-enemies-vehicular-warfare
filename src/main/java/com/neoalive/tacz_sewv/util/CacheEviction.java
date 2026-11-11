@@ -76,6 +76,7 @@ public final class CacheEviction {
         ContactBoard.clearAll();
         com.neoalive.tacz_sewv.entity.ai.support.SuppressiveFire.clearAll();
         com.neoalive.tacz_sewv.entity.ai.support.SuppressOrders.clearAll();
+        com.neoalive.tacz_sewv.fpas.SignalQueue.clearAll();
         com.neoalive.tacz_sewv.entity.ai.support.CoverHoldOrders.clearAll();
         VehicleDarknessAccuracy.clearAll();
         VehicleTargeting.clearDiagThrottle();

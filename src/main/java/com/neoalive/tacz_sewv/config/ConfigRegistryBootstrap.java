@@ -983,6 +983,8 @@ final class ConfigRegistryBootstrap {
                 SewvConfig.ZONE_BEACON_BUFFER_FE, SewvConfig.ZONE_BEACON_BUFFER_FE::set);
         b.intRange(ConfigScope.SERVER, "spawn_zones", "zoneBeaconMaxRadius", 2, 10,
                 SewvConfig.ZONE_BEACON_MAX_RADIUS, SewvConfig.ZONE_BEACON_MAX_RADIUS::set);
+        b.doubleRange(ConfigScope.SERVER, "spawn_zones", "zoneBeaconMtiUpkeepMultiplier", 0.0, 100.0,
+                SewvConfig.ZONE_BEACON_MTI_UPKEEP_MULT, SewvConfig.ZONE_BEACON_MTI_UPKEEP_MULT::set);
     }
 
     private static void registerInvasion(ConfigRegistry.Builder b) {

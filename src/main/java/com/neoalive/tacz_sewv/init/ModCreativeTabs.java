@@ -25,6 +25,7 @@ public final class ModCreativeTabs {
                     .displayItems((params, output) -> {
                         // Command & equipment
                         output.accept(ModItems.HANDHELD_RADIO.get());
+                        output.accept(ModItems.SIGNAL_RELAY.get());
                         output.accept(ModItems.TACTICAL_DATA_TERMINAL.get());
                         output.accept(ModItems.POOL_CLIPBOARD.get());
                         output.accept(ModItems.DOCTRINE_LEDGER.get());

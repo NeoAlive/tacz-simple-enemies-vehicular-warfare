@@ -1,6 +1,9 @@
 package com.neoalive.tacz_sewv.inventory;
 
+import java.util.List;
+
 import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
@@ -14,14 +17,20 @@ import net.minecraftforge.items.ItemStackHandler;
 import net.minecraftforge.items.SlotItemHandler;
 
 import com.neoalive.tacz_sewv.block.ZoneBeaconBlockEntity;
+import com.neoalive.tacz_sewv.fpas.RadarContact;
+import com.neoalive.tacz_sewv.fpas.SignalOrders;
 import com.neoalive.tacz_sewv.init.ModBlocks;
 import com.neoalive.tacz_sewv.init.ModMenus;
 
-/** Battery slot, radius stepper (menu buttons 0 and 1) and status readout of a zone beacon. */
+/** Battery slot, radius stepper, mode toggle, MTI attack buttons and status readout of the FPAS. */
 public class ZoneBeaconMenu extends AbstractContainerMenu {
 
     public static final int BUTTON_SMALLER = 0;
     public static final int BUTTON_LARGER = 1;
+    public static final int BUTTON_MODE = 2;
+    /** Attack buttons are this plus the contact class ordinal. */
+    public static final int BUTTON_ATTACK = 3;
+    public static final int DATA_COUNT = 10;
     /** Slot positions are the grid of {@code textures/gui/fpas_inventory.png}. */
     public static final int SLOT_X = 150;
     public static final int SLOT_Y = 80;
@@ -33,7 +42,7 @@ public class ZoneBeaconMenu extends AbstractContainerMenu {
     private final ZoneBeaconBlockEntity beacon;
 
     public ZoneBeaconMenu(int id, Inventory inv, FriendlyByteBuf buf) {
-        this(id, inv, inv.player.level().getBlockEntity(buf.readBlockPos()), new SimpleContainerData(9));
+        this(id, inv, inv.player.level().getBlockEntity(buf.readBlockPos()), new SimpleContainerData(DATA_COUNT));
     }
 
     public ZoneBeaconMenu(int id, Inventory inv, BlockEntity be, ContainerData data) {
@@ -75,13 +84,37 @@ public class ZoneBeaconMenu extends AbstractContainerMenu {
         return this.data.get(8);
     }
 
+    public ZoneBeaconBlockEntity.Mode mode() {
+        return this.data.get(9) == 1 ? ZoneBeaconBlockEntity.Mode.MTI : ZoneBeaconBlockEntity.Mode.ECM;
+    }
+
+    public boolean isFor(ZoneBeaconBlockEntity be) {
+        return this.beacon == be;
+    }
+
+    @javax.annotation.Nullable
+    public ZoneBeaconBlockEntity beacon() {
+        return this.beacon;
+    }
+
     @Override
     public boolean clickMenuButton(Player player, int id) {
         if (this.beacon == null || !this.beacon.mayEdit(player)) return false;
         return switch (id) {
             case BUTTON_SMALLER -> this.beacon.stepRadius(-1);
             case BUTTON_LARGER -> this.beacon.stepRadius(1);
-            default -> false;
+            case BUTTON_MODE -> {
+                this.beacon.toggleMode();
+                yield true;
+            }
+            default -> {
+                int cls = id - BUTTON_ATTACK;
+                if (cls < 0 || cls >= RadarContact.Cls.values().length || !(player instanceof ServerPlayer sp)) {
+                    yield false;
+                }
+                SignalOrders.attack(sp, List.of(this.beacon), RadarContact.Cls.values()[cls]);
+                yield true;
+            }
         };
     }
 

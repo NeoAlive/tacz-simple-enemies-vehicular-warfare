@@ -43,6 +43,7 @@ import com.neoalive.tacz_sewv.entity.unit.PmcCommanderEntity;
 import com.neoalive.tacz_sewv.init.ModSounds;
 import com.neoalive.tacz_sewv.item.HandheldRadioItem;
 import com.neoalive.tacz_sewv.item.RadioSettings;
+import com.neoalive.tacz_sewv.item.SignalRelayItem;
 import com.neoalive.tacz_sewv.map.VehicleMarker;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketClearBoarding;
@@ -138,11 +139,20 @@ public final class QuickCommandWheelScreen extends Screen {
     private static List<WedgeEntry> visibleRoot() {
         List<WedgeEntry> root = new ArrayList<>(QuickCommandRegistry.rootWedges());
         Player player = Minecraft.getInstance().player;
-        if (player != null && HandheldRadioItem.canCall(player)) {
-            ItemStack radio = HandheldRadioItem.findCarried(player);
-            if (!radio.isEmpty()) supportDelay = RadioSettings.read(radio).delaySeconds();
-        } else {
-            root.remove(QuickCommandRegistry.SUPPORT_CATEGORY);
+        boolean radio = player != null && HandheldRadioItem.canCall(player);
+        boolean signal = player != null && !SignalRelayItem.findBound(player).isEmpty();
+        if (radio) {
+            ItemStack carried = HandheldRadioItem.findCarried(player);
+            if (!carried.isEmpty()) supportDelay = RadioSettings.read(carried).delaySeconds();
+        }
+        int at = root.indexOf(QuickCommandRegistry.SUPPORT_CATEGORY);
+        if (!radio && !signal) {
+            root.remove(at);
+        } else if (!radio || !signal) {
+            // Only the half the player can use: radio calls need a radio, Signal needs a bound relay.
+            WedgeEntry.CategoryEntry full = QuickCommandRegistry.SUPPORT_CATEGORY;
+            root.set(at, new WedgeEntry.CategoryEntry(full.labelKey(), full.icon(), full.accentRgb(),
+                    radio ? QuickCommandRegistry.RADIO_LEAVES : QuickCommandRegistry.SIGNAL_LEAVES));
         }
         WedgeEntry.CategoryEntry select = SelectLeaves.category();
         if (select != null) root.add(root.size() - 1, select);
@@ -555,6 +565,12 @@ public final class QuickCommandWheelScreen extends Screen {
         RadioSettings.State support = QuickCommandRegistry.supportSettings(pipelineId, supportDelay);
         if (support != null) {
             ClientEvents.callRadio(support);
+            return true;
+        }
+
+        // Signal: no unit scope, the server takes every owned unit under the bound radars.
+        if (QuickCommandRegistry.isSignalLeaf(pipelineId)) {
+            NetworkHandler.CHANNEL.sendToServer(new PacketQuickCommand(pipelineId, List.of(), false, null));
             return true;
         }
 

@@ -60,6 +60,8 @@ public final class OrderQueueClient {
      */
     public static boolean queueable(String pipelineId) {
         if (QuickCommandRegistry.isSelectLeaf(pipelineId)) return false;
+        // Signal acts on what the radars see now; replayed later it would name stale contacts.
+        if (QuickCommandRegistry.isSignalLeaf(pipelineId)) return false;
         return switch (pipelineId) {
             case QuickCommandRegistry.ID_QUICK_CANCEL,
                  QuickCommandRegistry.ID_BOARD_QUEUED,

@@ -27,8 +27,9 @@ import com.neoalive.tacz_sewv.init.ModSounds;
 
 /**
  * The FPAS: {@code radar} turns on Y (azimuth), {@code dish} tilts on its Z (zenith) by at most
- * {@link #ZENITH_LIMIT_DEG} around its bind pose, past which it clips the supports. Both slew
- * toward the server's last spotted hostile ({@link ZoneBeaconBlockEntity#aim}).
+ * {@link #ZENITH_LIMIT_DEG} around its bind pose, past which it clips the supports. In MTI both slew
+ * toward the server's last spotted hostile ({@link ZoneBeaconBlockEntity#aim}); in ECM the array
+ * just sweeps slowly round.
  *
  * <p>The dish's rest facing is read off its bind rotation rather than assumed, so the mapping
  * survives SBM's axis conversion and future edits of the model.
@@ -38,6 +39,8 @@ public class ZoneBeaconRenderer implements BlockEntityRenderer<ZoneBeaconBlockEn
     private static final float ZENITH_LIMIT_DEG = 10.0F;
     private static final float AZIMUTH_DEG_PER_TICK = 3.0F;
     private static final float ZENITH_DEG_PER_TICK = 0.5F;
+    /** ECM idle sweep, a full turn in about 45 s. */
+    private static final float ECM_SPIN_DEG_PER_TICK = 0.4F;
 
     /** Remaining error below which an axis counts as settled, for the slew sounds. */
     private static final float AZIMUTH_SETTLED_DEG = 0.5F;
@@ -83,8 +86,12 @@ public class ZoneBeaconRenderer implements BlockEntityRenderer<ZoneBeaconBlockEn
 
             // Dish boresight in the radar's frame at rest: the feed struts sit on its local +Y.
             Vector3f rest = dish.definition().bindRotation().transform(new Vector3f(0.0F, 1.0F, 0.0F));
-            Vec3 aim = be.aim();
-            if (aim != null) {
+            Vec3 aim = be.mode() == ZoneBeaconBlockEntity.Mode.MTI ? be.aim() : null;
+            if (aim == null) {
+                // ECM, or MTI with nothing seen yet: a slow sweep, dish settling level. No servo loop.
+                s.azimuth = Mth.wrapDegrees(s.azimuth + ECM_SPIN_DEG_PER_TICK * dt);
+                s.zenith -= Mth.clamp(s.zenith, -ZENITH_DEG_PER_TICK * dt, ZENITH_DEG_PER_TICK * dt);
+            } else {
                 double dx = aim.x - (be.getBlockPos().getX() + 0.5);
                 double dz = aim.z - (be.getBlockPos().getZ() + 0.5);
                 double dy = aim.y - (be.getBlockPos().getY() + Math.abs(dish.definition().pivotY()) / 16.0);

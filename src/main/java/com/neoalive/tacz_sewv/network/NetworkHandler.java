@@ -161,7 +161,8 @@ public class NetworkHandler {
     // 110: PacketSideRelations (S->C) carries the player's diplomacy toward SEM sides ru and us.
     // 111: PacketZoneView (C->S) + PacketSpawnZoneState (S->C) for the operator spawn zone map.
     // 112: PacketZoneEdit (C->S), operator brush strokes on the zone map.
-    private static final String PROTOCOL_VERSION = "112";
+    // 113: PacketRadarContacts (S->C), FPAS MTI contacts for the open panel.
+    private static final String PROTOCOL_VERSION = "113";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),
@@ -807,6 +808,13 @@ public class NetworkHandler {
                 PacketSpawnZoneState::encode,
                 PacketSpawnZoneState::new,
                 PacketSpawnZoneState::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketRadarContacts.class,
+                PacketRadarContacts::encode,
+                PacketRadarContacts::new,
+                PacketRadarContacts::handle
         );
         CHANNEL.registerMessage(
                 nextId(),

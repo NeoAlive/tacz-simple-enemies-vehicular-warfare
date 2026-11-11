@@ -14,6 +14,7 @@ import com.neoalive.tacz_sewv.compat.PlayerReviveCompat;
 import com.neoalive.tacz_sewv.entity.ai.support.CoverHoldOrders;
 import com.neoalive.tacz_sewv.entity.ai.support.FormationShape;
 import com.neoalive.tacz_sewv.entity.ai.support.RoleKit;
+import com.neoalive.tacz_sewv.fpas.RadarContact;
 import com.neoalive.tacz_sewv.item.PlaneAttackMode;
 import com.neoalive.tacz_sewv.item.RadioFrequency;
 import com.neoalive.tacz_sewv.item.RadioSettings;
@@ -83,21 +84,31 @@ public final class QuickCommandRegistry {
     public static final String SELECT_PLATOON_PREFIX = "select_platoon:";
     public static final int SELECT_ACCENT = 0x9AA7B4;
 
-    /** Handheld-radio fire missions. Signal orange; every aircraft order shares the airplane glyph. */
+    /** The Support category itself. Its leaves carry their subcategory's colour instead. */
     public static final int SUPPORT_ACCENT = 0xF08A24;
+    public static final int SUPPORT_AIR_ACCENT = 0x6EC6F0;
+    public static final int SUPPORT_ARTILLERY_ACCENT = 0xE0503C;
+    public static final int SUPPORT_MORTAR_ACCENT = 0xF08A24;
+    public static final int SUPPORT_SIGNAL_ACCENT = 0x5CCB6A;
+    /** FPAS Signal leaves: {@code signal_attack_<class>}, one per radar contact class. */
+    public static final String SIGNAL_PREFIX = "signal_attack_";
     /**
      * Language-key prefix for every wedge label ({@code gui.tacz_sewv.wheel.<id>}). The queue
      * packet stores the key itself ({@code readUtf(64)}), so a key must stay within 64 characters.
      */
     public static final String LABEL_PREFIX = "gui.tacz_sewv.wheel.";
     private static final String AIR_GLYPH = "\u2708";
+    /** Radio leaves, grouped by subcategory; the wheel drops them without a radio. */
+    public static final List<WedgeEntry> RADIO_LEAVES = List.of(
+            leaf(ID_SUPPORT_CARPET_BOMB, AIR_GLYPH, SUPPORT_AIR_ACCENT),
+            leaf(ID_SUPPORT_AGM, AIR_GLYPH, SUPPORT_AIR_ACCENT),
+            leaf(ID_SUPPORT_CANNON, AIR_GLYPH, SUPPORT_AIR_ACCENT),
+            leaf(ID_SUPPORT_ARTILLERY, "\u2739", SUPPORT_ARTILLERY_ACCENT),
+            leaf(ID_SUPPORT_MORTAR, "\u2604", SUPPORT_MORTAR_ACCENT));
+    /** Signal leaves; the wheel drops them without a bound Signal Relay. */
+    public static final List<WedgeEntry> SIGNAL_LEAVES = signalLeaves();
     public static final WedgeEntry.CategoryEntry SUPPORT_CATEGORY = category(
-            "support", "\u260E", SUPPORT_ACCENT, List.of(
-                    leaf(ID_SUPPORT_CARPET_BOMB, AIR_GLYPH, SUPPORT_ACCENT),
-                    leaf(ID_SUPPORT_AGM, AIR_GLYPH, SUPPORT_ACCENT),
-                    leaf(ID_SUPPORT_CANNON, AIR_GLYPH, SUPPORT_ACCENT),
-                    leaf(ID_SUPPORT_ARTILLERY, "\u2739", SUPPORT_ACCENT),
-                    leaf(ID_SUPPORT_MORTAR, "\u2604", SUPPORT_ACCENT)));
+            "support", "\u260E", SUPPORT_ACCENT, concat(RADIO_LEAVES, SIGNAL_LEAVES));
 
     private static final Map<String, QuickCommandPipeline> BY_ID = new HashMap<>();
     private static List<WedgeEntry> ROOT = List.of();
@@ -121,6 +132,7 @@ public final class QuickCommandRegistry {
         register(ID_QUICK_ROUTE_FOB, new QuickRouteFobPipeline());
         register(ID_REVIVE_CALL, new QuickReviveCallPipeline());
         register(ID_QUICK_SUPPRESS, new QuickSuppressPipeline());
+        for (RadarContact.Cls cls : RadarContact.Cls.values()) register(signalId(cls), new QuickSignalPipeline(cls));
         for (int s = 0; s <= CoverHoldOrders.MAX_HOLD_SECONDS; s += CoverHoldOrders.HOLD_STEP_SECONDS) {
             register(coverHoldId(s), new QuickCoverHoldPipeline(s));
         }
@@ -189,6 +201,35 @@ public final class QuickCommandRegistry {
     /** {@code gui.tacz_sewv.wheel.<id>} — the English string is the lang file, not this class. */
     public static String labelKey(String id) {
         return LABEL_PREFIX + id;
+    }
+
+    public static String signalId(RadarContact.Cls cls) {
+        return SIGNAL_PREFIX + cls.key();
+    }
+
+    public static boolean isSignalLeaf(String pipelineId) {
+        return pipelineId.startsWith(SIGNAL_PREFIX);
+    }
+
+    private static List<WedgeEntry> signalLeaves() {
+        List<WedgeEntry> out = new ArrayList<>();
+        for (RadarContact.Cls cls : RadarContact.Cls.values()) {
+            String glyph = switch (cls) {
+                case GROUND -> "▣";
+                case ROTOR -> "❁";
+                case PLANE -> AIR_GLYPH;
+                case SHIP -> "⚓";
+                case INFANTRY -> "♟";
+            };
+            out.add(leaf(signalId(cls), glyph, SUPPORT_SIGNAL_ACCENT));
+        }
+        return List.copyOf(out);
+    }
+
+    private static List<WedgeEntry> concat(List<WedgeEntry> a, List<WedgeEntry> b) {
+        List<WedgeEntry> out = new ArrayList<>(a);
+        out.addAll(b);
+        return List.copyOf(out);
     }
 
     private static WedgeEntry.PipelineEntry leaf(String id, String icon, int accent) {

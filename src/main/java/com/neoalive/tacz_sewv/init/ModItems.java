@@ -35,6 +35,10 @@ public class ModItems {
     public static final RegistryObject<Item> PMC_HELMET_MICH =
             ITEMS.register("pmc_helmet_mich", PmcHelmetMichItem::new);
 
+    /** Binds FPAS arrays; carrying one unlocks the quickwheel Signal leaves. */
+    public static final RegistryObject<Item> SIGNAL_RELAY =
+            ITEMS.register("signal_relay", com.neoalive.tacz_sewv.item.SignalRelayItem::new);
+
     public static final RegistryObject<Item> TACTICAL_DATA_TERMINAL =
             ITEMS.register("tactical_data_terminal", TacticalDataTerminalItem::new);
 

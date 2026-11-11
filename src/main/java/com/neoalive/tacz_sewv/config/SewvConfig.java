@@ -387,6 +387,7 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue ZONE_BEACON_FE_PER_CHUNK;
     public static final ForgeConfigSpec.IntValue ZONE_BEACON_BUFFER_FE;
     public static final ForgeConfigSpec.IntValue ZONE_BEACON_MAX_RADIUS;
+    public static final ForgeConfigSpec.DoubleValue ZONE_BEACON_MTI_UPKEEP_MULT;
 
     /** Invasion HUD colours (hex RGB). Team A/B match the left/right bases on the layout. */
     public static final ForgeConfigSpec.BooleanValue UNLIMITED_TEAM_BASES;
@@ -1614,6 +1615,9 @@ public final class SewvConfig {
                 .defineInRange("zoneBeaconBufferCapacity", 1000000, 1000, 100000000);
         ZONE_BEACON_MAX_RADIUS = builder.comment("Largest radius (chunks) a zone beacon may be set to. Minimum is 2.")
                 .defineInRange("zoneBeaconMaxRadius", 10, 2, 10);
+        ZONE_BEACON_MTI_UPKEEP_MULT = builder.comment(
+                        "FPAS upkeep multiplier while in MTI (radar) mode. MTI keeps no spawn zone.")
+                .defineInRange("zoneBeaconMtiUpkeepMultiplier", 2.0, 0.0, 100.0);
         builder.pop();
 
         builder.push("invasion");

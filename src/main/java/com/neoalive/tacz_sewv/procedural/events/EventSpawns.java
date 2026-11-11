@@ -15,6 +15,7 @@ import com.neoalive.tacz_sewv.entity.ai.support.InfantrySquads;
 import com.neoalive.tacz_sewv.init.ModGameRules;
 import com.neoalive.tacz_sewv.spawn.AmbientSpawnGate;
 import com.neoalive.tacz_sewv.spawn.InfantrySpawner;
+import com.neoalive.tacz_sewv.spawn.SpawnDeny;
 import com.neoalive.tacz_sewv.spawn.TankSpawner;
 
 /**
@@ -39,7 +40,12 @@ final class EventSpawns {
      * {@link AmbientSpawnGate#allowsAt} on its own alongside its biome and navigability checks.
      */
     static boolean placeable(ServerLevel level, BlockPos pos) {
-        return SpawnHelper.isValidSpawn(level, pos) && AmbientSpawnGate.allowsAt(level, pos);
+        if (!AmbientSpawnGate.allowsAt(level, pos)) return false;
+        if (!SpawnHelper.isValidSpawn(level, pos)) {
+            SpawnDeny.set(SpawnDeny.Why.SPOT);
+            return false;
+        }
+        return true;
     }
 
     /** One rifleman of {@code faction}, scattered up to {@code scatter} blocks around {@code anchor}. */

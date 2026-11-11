@@ -10,10 +10,12 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.notify.HudNotify;
 import com.neoalive.tacz_sewv.spawn.AmbientSpawnGate;
+import com.neoalive.tacz_sewv.spawn.SpawnDeny;
 import com.neoalive.tacz_sewv.zone.SpawnZones;
 
 /**
@@ -32,6 +34,21 @@ import com.neoalive.tacz_sewv.zone.SpawnZones;
 public abstract class MixinDynamicEventManager {
 
     private static final double FAR_SCALE = 2.5;
+
+    @Inject(method = "forceEvent", at = @At("HEAD"), remap = false)
+    private static void tacz_sewv$clearSpawnDeny(ServerLevel level, ServerPlayer player, String eventId,
+            CallbackInfoReturnable<Boolean> cir) {
+        SpawnDeny.clear();
+    }
+
+    /** SEM's own line only says the force failed. This one names the gate that actually refused. */
+    @Inject(method = "forceEvent", at = @At("RETURN"), remap = false)
+    private static void tacz_sewv$explainSpawnDeny(ServerLevel level, ServerPlayer player, String eventId,
+            CallbackInfoReturnable<Boolean> cir) {
+        if (cir.getReturnValueZ() || player == null || SpawnDeny.unset()) return;
+        player.sendSystemMessage(SpawnDeny.component());
+        SpawnDeny.clear();
+    }
 
     @Inject(method = "tick", at = @At("HEAD"), cancellable = true, remap = false)
     private static void tacz_sewv$gateAmbientEvents(ServerLevel level, CallbackInfo ci) {
@@ -68,8 +85,12 @@ public abstract class MixinDynamicEventManager {
         double scale = SewvConfig.FAR_EVENT_SPAWNS.get() ? FAR_SCALE : 1.0;
         double min = event.getMinDistance() * scale;
         double max = event.getMaxDistance() * scale;
+        BlockPos rolled = pos;
         pos = SpawnZones.eventSpot(level, player.blockPosition(), pos, min, max, level.random);
-        if (pos == null) return false;
+        if (pos == null) {
+            SpawnDeny.zoneAt(level, rolled);
+            return false;
+        }
         boolean ok = event.execute(level, player, pos);
         if (ok) {
             HudNotify.eventNearby(player, event.getId(), pos);

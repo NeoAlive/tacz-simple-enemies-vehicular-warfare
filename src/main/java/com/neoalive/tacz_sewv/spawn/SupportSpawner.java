@@ -53,8 +53,15 @@ public final class SupportSpawner {
     /** Spawn a support unit of the given faction/role at {@code pos}, kitted and ready. */
     @Nullable
     public static AbstractUnit spawn(ServerLevel level, BlockPos pos, boolean ru, SupportRole role) {
-        if (!TankSpawner.spawnsEnabled(level, ru ? TankSpawner.TankFaction.RU : TankSpawner.TankFaction.US)) return null;
-        if (!SpawnZones.allows(level, pos)) return null;
+        TankSpawner.TankFaction faction = ru ? TankSpawner.TankFaction.RU : TankSpawner.TankFaction.US;
+        if (!TankSpawner.spawnsEnabled(level, faction)) {
+            SpawnDeny.set(SpawnDeny.Why.GAMERULE, faction.name());
+            return null;
+        }
+        if (!SpawnZones.allows(level, pos)) {
+            SpawnDeny.zoneAt(level, pos);
+            return null;
+        }
         EntityType<?> type = typeFor(ru, role);
         if (!(type.create(level) instanceof AbstractUnit unit)) return null;
         unit.setPos(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5);

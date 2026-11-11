@@ -31,6 +31,18 @@ public final class AmbientSpawnGate {
      * absent, so this costs a boolean read on a normal install.
      */
     public static boolean allowsAt(ServerLevel level, BlockPos pos) {
-        return allows(level) && SpawnZones.allows(level, pos) && !MineColoniesCompat.inAnyColony(level, pos);
+        if (!allows(level)) {
+            SpawnDeny.set(GracePeriodData.active(level) ? SpawnDeny.Why.GRACE : SpawnDeny.Why.AMBIENT);
+            return false;
+        }
+        if (!SpawnZones.allows(level, pos)) {
+            SpawnDeny.zoneAt(level, pos);
+            return false;
+        }
+        if (MineColoniesCompat.inAnyColony(level, pos)) {
+            SpawnDeny.set(SpawnDeny.Why.COLONY);
+            return false;
+        }
+        return true;
     }
 }

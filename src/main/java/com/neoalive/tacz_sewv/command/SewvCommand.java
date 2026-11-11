@@ -74,6 +74,7 @@ import com.neoalive.tacz_sewv.network.PacketReloadVehicleSkins;
 import com.neoalive.tacz_sewv.notify.NotificationKind;
 import com.neoalive.tacz_sewv.spawn.EmplacementSpawner;
 import com.neoalive.tacz_sewv.spawn.EmplacementSpawner.Emplacement;
+import com.neoalive.tacz_sewv.spawn.SpawnDeny;
 import com.neoalive.tacz_sewv.spawn.SupportSpawner;
 import com.neoalive.tacz_sewv.spawn.SupportSpawner.SupportRole;
 import com.neoalive.tacz_sewv.spawn.TankSpawner;
@@ -1175,15 +1176,13 @@ public class SewvCommand {
 
     private static int spawnSupport(CommandSourceStack source, boolean ru, SupportRole role,
                                     @Nullable BlockPos explicitPos) {
+        SpawnDeny.clear();
         ServerLevel level = source.getLevel();
         BlockPos pos = explicitPos != null
                 ? explicitPos
                 : TankSpawner.adjustHeight(level, BlockPos.containing(source.getPosition()));
 
-        if (SupportSpawner.spawn(level, pos, ru, role) == null) {
-            source.sendFailure(Component.translatable("command.tacz_sewv.spawn.support_fail"));
-            return 0;
-        }
+        if (SupportSpawner.spawn(level, pos, ru, role) == null) return failSpawn(source);
 
         String label = (ru ? "RU " : "US ") + role.name().toLowerCase();
         source.sendSuccess(() -> Component.translatable(
@@ -1203,6 +1202,7 @@ public class SewvCommand {
     }
 
     private static int spawnCommander(CommandSourceStack source, @Nullable BlockPos explicitPos) {
+        SpawnDeny.clear();
         ServerLevel level = source.getLevel();
         BlockPos pos = explicitPos != null
                 ? explicitPos
@@ -1210,8 +1210,7 @@ public class SewvCommand {
         UUID ownerId = source.getEntity() instanceof ServerPlayer player ? player.getUUID() : null;
 
         if (com.neoalive.tacz_sewv.spawn.PmcCommanderSpawner.spawn(level, pos, ownerId) == null) {
-            source.sendFailure(Component.translatable("command.tacz_sewv.spawn.support_fail"));
-            return 0;
+            return failSpawn(source);
         }
 
         source.sendSuccess(() -> Component.translatable(
@@ -1253,6 +1252,7 @@ public class SewvCommand {
                                         Emplacement type,
                                         BiFunction<TankFaction, ServerLevel, List<? extends String>> pool,
                                         @Nullable String vehicleId, @Nullable BlockPos explicitPos) {
+        SpawnDeny.clear();
         ServerLevel level = source.getLevel();
 
         if (vehicleId != null && !pool.apply(faction, level).contains(vehicleId)) {
@@ -1270,10 +1270,7 @@ public class SewvCommand {
 
         VehicleEntity weapon = com.neoalive.tacz_sewv.spawn.SupportSpawner.withoutCompanions(
                 () -> EmplacementSpawner.spawn(level, pos, type, faction, ownerId, null, vehicleId));
-        if (weapon == null) {
-            source.sendFailure(Component.translatable("command.tacz_sewv.spawn.emplacement_fail"));
-            return 0;
-        }
+        if (weapon == null) return failSpawn(source);
         VehicleDrops.markCrewAndHull(weapon);
 
         source.sendSuccess(() -> Component.translatable(
@@ -1334,6 +1331,7 @@ public class SewvCommand {
                                     WorldVehiclePools.Category spawner, boolean snapToGround,
                                     boolean reportActualPos,
                                     @Nullable String vehicleId, @Nullable BlockPos explicitPos) {
+        SpawnDeny.clear();
         ServerLevel level = source.getLevel();
 
         // A specific id is only honored if the world pool actually contains it — catch
@@ -1361,16 +1359,19 @@ public class SewvCommand {
         net.minecraft.world.entity.Entity hull = com.neoalive.tacz_sewv.spawn.SupportSpawner.withoutCompanions(
                 () -> TankSpawner.spawnFromPool(level, pos, faction, spawner, ownerId, vehicleId));
 
-        if (hull == null) {
-            source.sendFailure(Component.translatable("command.tacz_sewv.spawn.fail"));
-            return 0;
-        }
+        if (hull == null) return failSpawn(source);
         if (hull instanceof VehicleEntity sbwHull) VehicleDrops.markCrewAndHull(sbwHull);
 
         BlockPos reported = reportActualPos ? hull.blockPosition() : pos;
         source.sendSuccess(() -> Component.translatable(
                 "command.tacz_sewv.spawn.success", faction.name(), reported.toShortString()), true);
         return 1;
+    }
+
+    private static int failSpawn(CommandSourceStack source) {
+        source.sendFailure(SpawnDeny.component());
+        SpawnDeny.clear();
+        return 0;
     }
 
     private static TankFaction parseTankFaction(String name) {

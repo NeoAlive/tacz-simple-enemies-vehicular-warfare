@@ -21,6 +21,7 @@ import org.ywzj.vehicle.vehicle.part.WeaponUnit;
 import org.ywzj.vehicle.vehicle.weapon.AbstractVehicleWeapon;
 
 import com.neoalive.tacz_sewv.TaczSewv;
+import com.neoalive.tacz_sewv.spawn.SpawnDeny;
 import com.neoalive.tacz_sewv.spawn.TankSpawner;
 import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
 import com.neoalive.tacz_sewv.util.WarnOnce;
@@ -56,10 +57,14 @@ final class LvSpawner {
             WarnOnce.warn(TaczSewv.LOGGER, "sewv-lv-wrong-pool-" + id + "-" + category,
                     "[sewv] Limitless Vehicles id '" + id + "' is not a " + category.name().toLowerCase()
                             + " hull for crewed spawns; skipping it.");
+            SpawnDeny.set(SpawnDeny.Why.POOL);
             return null;
         }
         AbstractVehicle hull = build(level, requestedPos, id);
-        if (hull == null || hull.getMainCubeOBB() == null || LvHulls.kindOf(hull) == null) return null;
+        if (hull == null || hull.getMainCubeOBB() == null || LvHulls.kindOf(hull) == null) {
+            SpawnDeny.set(SpawnDeny.Why.NOT_VEHICLE);
+            return null;
+        }
         LvHulls.Kind kind = LvHulls.kindOf(hull);
 
         Vector3f ext = hull.getMainCubeOBB().obb().extents();

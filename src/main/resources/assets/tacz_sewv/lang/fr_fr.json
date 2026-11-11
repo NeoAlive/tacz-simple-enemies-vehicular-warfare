@@ -8,5 +8,20 @@
   "command.tacz_sewv.diplomacy.unknown_side": "Le camp doit être ru ou us.",
   "message.tacz_sewv.interact.not_owner": "Ce n'est pas à vous.",
   "command.tacz_sewv.diplomacy.pair_set": "Diplomatie : %s ↔ %s = %s.",
-  "command.tacz_sewv.diplomacy.pair_cleared": "Diplomatie entre %s et %s effacée (désormais neutre)."
+  "command.tacz_sewv.diplomacy.pair_cleared": "Diplomatie entre %s et %s effacée (désormais neutre).",
+  "command.tacz_sewv.spawn.fail": "Impossible d'apparaître ici.",
+  "command.tacz_sewv.spawn.fail.grace": "Apparition refusée : la période de grâce est encore active.",
+  "command.tacz_sewv.spawn.fail.ambient": "Apparition refusée : les apparitions ambiantes sont désactivées (gamerule sewvAmbientSpawns).",
+  "command.tacz_sewv.spawn.fail.nozone": "Apparition refusée : ce chunk est une zone sans apparition.",
+  "command.tacz_sewv.spawn.fail.priority": "Apparition refusée : uniquement dans les zones de priorité.",
+  "command.tacz_sewv.spawn.fail.colony": "Apparition refusée : cet endroit est dans une colonie.",
+  "command.tacz_sewv.spawn.fail.gamerule": "Apparition refusée : les apparitions %s sont désactivées.",
+  "command.tacz_sewv.spawn.fail.pool": "Apparition refusée : le pool n'a aucun véhicule appariable.",
+  "command.tacz_sewv.spawn.fail.space": "Apparition refusée : pas de place libre ici.",
+  "command.tacz_sewv.spawn.fail.water": "Apparition refusée : pas d'eau libre ici.",
+  "command.tacz_sewv.spawn.fail.unloaded": "Apparition refusée : ces chunks ne sont pas chargés.",
+  "command.tacz_sewv.spawn.fail.crew": "Apparition refusée : l'équipage n'a pas pu monter.",
+  "command.tacz_sewv.spawn.fail.player_only": "Apparition refusée : %s n'accepte pas d'équipage PNJ.",
+  "command.tacz_sewv.spawn.fail.not_vehicle": "Apparition refusée : cet id n'est pas un véhicule.",
+  "command.tacz_sewv.spawn.fail.spot": "Apparition refusée : l'endroit exige un bloc solide sous faible lumière."
 }

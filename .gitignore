@@ -40,6 +40,9 @@ net/
 out/
 classes/
 
+# Translation drafts. Shipped strings stay in assets/tacz_sewv/lang.
+src/test/resources/lang/
+
 # Logs
 *.log
 

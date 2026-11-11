@@ -381,6 +381,13 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.IntValue MAP_IDENTITY_TTL_TICKS;
     public static final ForgeConfigSpec.IntValue ADVANCE_PLAN_MAX_CHUNKS;
 
+    public static final ForgeConfigSpec.BooleanValue ZONES_ENABLED;
+    public static final ForgeConfigSpec.BooleanValue ONLY_SPAWN_IN_PRIORITIZATION;
+    public static final ForgeConfigSpec.DoubleValue PRIORITIZATION_REROLL_CHANCE;
+    public static final ForgeConfigSpec.IntValue ZONE_BEACON_FE_PER_CHUNK;
+    public static final ForgeConfigSpec.IntValue ZONE_BEACON_BUFFER_FE;
+    public static final ForgeConfigSpec.IntValue ZONE_BEACON_MAX_RADIUS;
+
     /** Invasion HUD colours (hex RGB). Team A/B match the left/right bases on the layout. */
     public static final ForgeConfigSpec.BooleanValue UNLIMITED_TEAM_BASES;
     public static final ForgeConfigSpec.ConfigValue<String> INVASION_HUD_TEAM_A_COLOR;
@@ -1584,6 +1591,28 @@ public final class SewvConfig {
                         "Largest region (in chunks) an Advance Plan may cover. Validated when the plan is baked;",
                         "existing plans are not re-validated against a changed cap.")
                 .defineInRange("advancePlanMaxChunks", 25, 1, 1024);
+        builder.pop();
+
+        builder.push("spawn_zones");
+        ZONES_ENABLED = builder.comment(
+                        "Master switch for chunk spawn zones. Off, every chunk is neutral and",
+                        "no-zones and prioritization zones are ignored (they stay saved).")
+                .define("zonesEnabled", true);
+        ONLY_SPAWN_IN_PRIORITIZATION = builder.comment(
+                        "When true, units may only spawn inside prioritization chunks. An event that",
+                        "finds no prioritization chunk in its range is skipped without resetting its chance.")
+                .define("onlySpawnInPrioritization", false);
+        PRIORITIZATION_REROLL_CHANCE = builder.comment(
+                        "Chance an event spot outside a prioritization chunk is moved to a random",
+                        "prioritization chunk within the event's own distance band from the player.")
+                .defineInRange("prioritizationRerollChance", 0.6, 0.0, 1.0);
+        ZONE_BEACON_FE_PER_CHUNK = builder.comment(
+                        "Zone beacon upkeep in FE per tick per covered chunk. Radius r covers (2r+1)^2 chunks.")
+                .defineInRange("zoneBeaconFePerChunk", 1, 0, 10000);
+        ZONE_BEACON_BUFFER_FE = builder.comment("Zone beacon internal energy buffer (FE).")
+                .defineInRange("zoneBeaconBufferFe", 100000, 1000, 100000000);
+        ZONE_BEACON_MAX_RADIUS = builder.comment("Largest radius (chunks) a zone beacon may be set to. Minimum is 2.")
+                .defineInRange("zoneBeaconMaxRadius", 10, 2, 10);
         builder.pop();
 
         builder.push("invasion");

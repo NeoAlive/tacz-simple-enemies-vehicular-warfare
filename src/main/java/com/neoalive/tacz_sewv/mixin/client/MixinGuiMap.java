@@ -32,6 +32,7 @@ import com.neoalive.tacz_sewv.client.NotificationHudOverlay;
 import com.neoalive.tacz_sewv.client.map.FlatMapProjection;
 import com.neoalive.tacz_sewv.client.map.MapOverlayPainter;
 import com.neoalive.tacz_sewv.client.map.MapProjection;
+import com.neoalive.tacz_sewv.client.map.SpawnZonePainter;
 import com.neoalive.tacz_sewv.client.xaero.CruisePlot;
 import com.neoalive.tacz_sewv.client.xaero.GuardPlot;
 import com.neoalive.tacz_sewv.client.xaero.OrderPreview;
@@ -40,6 +41,7 @@ import com.neoalive.tacz_sewv.client.xaero.PathwayPathMenuOptions;
 import com.neoalive.tacz_sewv.client.xaero.PathwayPlot;
 import com.neoalive.tacz_sewv.client.xaero.RtsPanel;
 import com.neoalive.tacz_sewv.client.xaero.UnitOrderOption;
+import com.neoalive.tacz_sewv.client.zone.ZoneViewClient;
 import com.neoalive.tacz_sewv.config.ClientConfig;
 import com.neoalive.tacz_sewv.map.VehicleMarker;
 
@@ -400,6 +402,18 @@ public abstract class MixinGuiMap extends Screen {
     @Inject(method = "removed", at = @At("HEAD"), remap = true)
     private void tacz_sewv$rtsClosed(CallbackInfo ci) {
         RtsPanel.onClosed();
+        ZoneViewClient.closeView();
+    }
+
+    @Inject(method = "render", at = @At("TAIL"), remap = true)
+    private void tacz_sewv$drawSpawnZones(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks,
+                                          CallbackInfo ci) {
+        if (!ZoneViewClient.active()) return;
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.level == null) return;
+        String dim = mc.level.dimension().location().toString();
+        SpawnZonePainter.drawZones(guiGraphics, tacz_sewv$projection(), dim);
+        SpawnZonePainter.drawLegend(guiGraphics, mc.font, this.height, this.mouseBlockPosX, this.mouseBlockPosZ, dim);
     }
 
     @Inject(method = "render", at = @At("TAIL"), remap = true)

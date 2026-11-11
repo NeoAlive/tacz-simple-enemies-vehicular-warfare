@@ -115,7 +115,11 @@ public final class EmplacementSpawner {
         BlockPos crewPos = besideTube ? pos.offset(CREW_OFFSET, 0, 0) : pos;
         crew.setPos(crewPos.getX() + 0.5, crewPos.getY(), crewPos.getZ() + 0.5);
         crew.finalizeSpawn(level, level.getCurrentDifficultyAt(crewPos), MobSpawnType.EVENT, null, null);
-        level.addFreshEntity(crew);
+        if (!level.addFreshEntity(crew)) {
+            // Crew spot fell in a denied spawn zone: no tube without a crew.
+            weapon.discard();
+            return null;
+        }
 
         if (weapon instanceof MortarEntity mortar) {
             crewMortar(level, mortar, crew, fireMission);

@@ -10,6 +10,7 @@ import net.minecraft.world.entity.MobSpawnType;
 
 import com.neoalive.tacz_sewv.entity.unit.PmcCommanderEntity;
 import com.neoalive.tacz_sewv.init.ModEntities;
+import com.neoalive.tacz_sewv.zone.SpawnZones;
 
 /** Debug/egg-spawn entry point for {@link PmcCommanderEntity} — the only two ways one can appear. */
 public final class PmcCommanderSpawner {
@@ -18,6 +19,7 @@ public final class PmcCommanderSpawner {
 
     @Nullable
     public static PmcCommanderEntity spawn(ServerLevel level, BlockPos pos, @Nullable UUID owner) {
+        if (!SpawnZones.allows(level, pos)) return null;
         PmcCommanderEntity unit = ModEntities.PMC_COMMANDER.get().create(level);
         if (unit == null) return null;
         unit.setPos(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5);

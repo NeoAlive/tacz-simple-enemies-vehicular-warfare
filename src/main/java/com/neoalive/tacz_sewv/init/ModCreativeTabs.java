@@ -48,6 +48,7 @@ public final class ModCreativeTabs {
                         output.accept(ModItems.QUARTERS_BENCH.get());
                         output.accept(ModItems.STOCKPILE_AMMO.get());
                         output.accept(ModItems.PARKING_FIELD.get());
+                        output.accept(ModItems.ZONE_BEACON.get());
                         // spawn_probe: command-only (/give), not listed in creative — it is a
                         // structure-authoring marker, not a player-placed FOB block.
 

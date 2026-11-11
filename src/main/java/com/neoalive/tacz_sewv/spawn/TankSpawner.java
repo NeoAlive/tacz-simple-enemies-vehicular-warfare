@@ -52,6 +52,7 @@ import com.neoalive.tacz_sewv.init.ModGameRules;
 import com.neoalive.tacz_sewv.skin.VehicleSkinSupport;
 import com.neoalive.tacz_sewv.util.VehicleEngineLoot;
 import com.neoalive.tacz_sewv.util.WorldVehiclePools;
+import com.neoalive.tacz_sewv.zone.SpawnZones;
 
 public final class TankSpawner {
 
@@ -1013,6 +1014,7 @@ public final class TankSpawner {
                     int x = pos.getX() + dx, z = pos.getZ() + dz;
                     // Never sync-load: noCollision/getBlockState force-generate an unloaded column.
                     if (!level.hasChunk(x >> 4, z >> 4)) continue;
+                    if (!SpawnZones.allowsChunk(level, x >> 4, z >> 4)) continue;
                     int gy = groundY(level, x, z, pos.getY()) + 1; // +1 lift: hull drops onto the surface
                     var box = boxAt.apply(new Vec3(x + 0.5, gy, z + 0.5));
                     if (level.noCollision(box)) return new BlockPos(x, gy, z);
@@ -1035,6 +1037,7 @@ public final class TankSpawner {
                     if (Math.max(Math.abs(dx), Math.abs(dz)) != r) continue;
                     int x = pos.getX() + dx, z = pos.getZ() + dz;
                     if (!level.hasChunk(x >> 4, z >> 4)) continue;
+                    if (!SpawnZones.allowsChunk(level, x >> 4, z >> 4)) continue;
                     for (int dy = 0; dy <= 3; dy++) {
                         var box = type.getDimensions().makeBoundingBox(x + 0.5, pos.getY() + dy, z + 0.5);
                         if (level.noCollision(box)) return new BlockPos(x, pos.getY() + dy, z);
@@ -1069,6 +1072,7 @@ public final class TankSpawner {
                     if (Math.max(Math.abs(dx), Math.abs(dz)) != r) continue;
                     int x = pos.getX() + dx, z = pos.getZ() + dz;
                     if (!level.hasChunk(x >> 4, z >> 4)) continue; // same sync-load ban as findClearSpawn
+                    if (!SpawnZones.allowsChunk(level, x >> 4, z >> 4)) continue;
                     int rawY = groundY(level, x, z, pos.getY());
                     if (!isWaterSurface(level, x, rawY, z)) continue; // dry column — never fall back to land
                     int gy = rawY + 1;

@@ -94,6 +94,9 @@ public class ModItems {
     public static final RegistryObject<Item> HELIPAD = ITEMS.register("helipad",
             () -> new HelipadBlockItem(ModBlocks.HELIPAD.get(), new Item.Properties()));
 
+    public static final RegistryObject<Item> ZONE_BEACON = ITEMS.register("zone_beacon",
+            () -> new BlockItem(ModBlocks.ZONE_BEACON.get(), new Item.Properties()));
+
     // Spawn eggs for the support units. Background = faction tint, highlight = role (white medic,
     // orange engineer, brown combat engineer).
     public static final RegistryObject<Item> RU_MEDIC_SPAWN_EGG = ITEMS.register("ru_medic_spawn_egg",

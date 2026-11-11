@@ -72,7 +72,11 @@ public class ClientModEvents {
                 ColtanSkinBridge.registerCorpses();
             }
         }
-        event.enqueueWork(() -> MenuScreens.register(ModMenus.STOCKPILE.get(), StockpileScreen::new));
+        event.enqueueWork(() -> {
+            MenuScreens.register(ModMenus.STOCKPILE.get(), StockpileScreen::new);
+            MenuScreens.register(ModMenus.ZONE_BEACON.get(),
+                    com.neoalive.tacz_sewv.client.gui.ZoneBeaconScreen::new);
+        });
     }
 
     /**

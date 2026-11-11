@@ -621,6 +621,7 @@ public class ClientEvents {
         SideRelationsClient.clear();
         MapMarkers.clear();
         com.neoalive.tacz_sewv.client.territory.TerritoryClient.clear();
+        com.neoalive.tacz_sewv.client.zone.ZoneViewClient.clear();
         AirportPlots.clear();
         InvasionHudClient.clear();
         VehicleSkinClient.clearAll();

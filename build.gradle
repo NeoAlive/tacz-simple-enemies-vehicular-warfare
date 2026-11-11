@@ -183,6 +183,15 @@ tasks.register('selfCheckUtility', JavaExec) {
     jvmArgs '-ea'
 }
 
+tasks.register('selfCheckSpawnZones', JavaExec) {
+    group = 'verification'
+    description = 'Runs the spawn zone layer and geometry self-check.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
+    mainClass = 'com.neoalive.tacz_sewv.zone.SpawnZonesSelfCheck'
+    jvmArgs '-ea'
+}
+
 tasks.register('selfCheckEasyMode', JavaExec) {
     group = 'verification'
     description = 'Runs the Easy Mode tuning-table self-check.'

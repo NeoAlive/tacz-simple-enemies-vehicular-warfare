@@ -17,5 +17,9 @@ public final class ModMenus {
     public static final RegistryObject<MenuType<StockpileMenu>> STOCKPILE =
             MENUS.register("stockpile", () -> IForgeMenuType.create(StockpileMenu::new));
 
+    public static final RegistryObject<MenuType<com.neoalive.tacz_sewv.inventory.ZoneBeaconMenu>> ZONE_BEACON =
+            MENUS.register("zone_beacon",
+                    () -> IForgeMenuType.create(com.neoalive.tacz_sewv.inventory.ZoneBeaconMenu::new));
+
     private ModMenus() {}
 }

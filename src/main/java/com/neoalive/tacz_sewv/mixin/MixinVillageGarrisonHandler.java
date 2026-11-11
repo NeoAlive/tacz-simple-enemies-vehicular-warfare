@@ -17,6 +17,7 @@ import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.spawn.AmbientSpawnGate;
 import com.neoalive.tacz_sewv.spawn.TankSpawner;
+import com.neoalive.tacz_sewv.zone.SpawnZones;
 
 /**
  * Gives a share of SimpleEnemyMod's village garrisons a single crewed tank of the garrison's own
@@ -62,7 +63,7 @@ public abstract class MixinVillageGarrisonHandler {
     @Inject(method = "spawnGuard", at = @At("HEAD"), cancellable = true, remap = false)
     private static void tacz_sewv$gateAmbientGarrison(ServerLevel level, BlockPos basePos, boolean isRu,
                                                     CallbackInfo ci) {
-        if (!AmbientSpawnGate.allows(level)) {
+        if (!AmbientSpawnGate.allows(level) || !SpawnZones.allows(level, basePos)) {
             ci.cancel();
         }
     }

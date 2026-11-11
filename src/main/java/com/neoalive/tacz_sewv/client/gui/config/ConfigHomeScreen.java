@@ -95,12 +95,25 @@ public final class ConfigHomeScreen extends Screen {
                         .tooltip(Tooltip.create(Component.translatable(e.tooltipKey())))
                         .size(100, 20).build());
             }
+            tools.add(zonesButton());
             if (!tools.isEmpty()) {
                 rows.add(new ConfigEntryList.SectionRow(this.font, heading("gui.tacz_sewv.config.home.tools")));
                 addPairs(rows, tools);
             }
         }
         return rows;
+    }
+
+    /** Opens Xaero's World Map in spawn zone view. Xaero types stay behind the isLoaded gate. */
+    private Button zonesButton() {
+        boolean xaero = net.minecraftforge.fml.ModList.get().isLoaded("xaeroworldmap");
+        Button b = Button.builder(Component.translatable("gui.tacz_sewv.config.home.zones"),
+                        btn -> com.neoalive.tacz_sewv.client.xaero.XaeroZoneView.open(this))
+                .tooltip(Tooltip.create(Component.translatable(xaero
+                        ? "gui.tacz_sewv.config.home.zones.tooltip" : "gui.tacz_sewv.config.home.zones.no_xaero")))
+                .size(100, 20).build();
+        b.active = xaero;
+        return b;
     }
 
     private static Component heading(String key) {

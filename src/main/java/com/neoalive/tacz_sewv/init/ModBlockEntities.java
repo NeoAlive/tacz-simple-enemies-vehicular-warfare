@@ -56,6 +56,11 @@ public class ModBlockEntities {
                     () -> BlockEntityType.Builder.of(SpawnProbeBlockEntity::new, ModBlocks.SPAWN_PROBE.get())
                             .build(null));
 
+    public static final RegistryObject<BlockEntityType<com.neoalive.tacz_sewv.block.ZoneBeaconBlockEntity>> ZONE_BEACON =
+            BLOCK_ENTITIES.register("zone_beacon",
+                    () -> BlockEntityType.Builder.of(com.neoalive.tacz_sewv.block.ZoneBeaconBlockEntity::new,
+                            ModBlocks.ZONE_BEACON.get()).build(null));
+
     public static final RegistryObject<BlockEntityType<StockpileBlockEntity>> STOCKPILE =
             BLOCK_ENTITIES.register("stockpile_ammo",
                     () -> BlockEntityType.Builder.of(StockpileBlockEntity::new, ModBlocks.STOCKPILE_AMMO.get())

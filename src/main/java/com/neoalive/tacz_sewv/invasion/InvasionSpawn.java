@@ -433,6 +433,7 @@ public final class InvasionSpawn {
         List<AbstractUnit> spawned = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
             AbstractUnit unit = InfantrySpawner.spawn(level, base.getBlockPos(), faction, ownerId, scatter);
+            if (unit == null) continue;
             tag(unit, base, true, ForceKind.INFANTRY, captures);
             if (pmcTeamOwned(base)) {
                 PmcOwnerSupport.applyOwnerTeamTag(unit, PmcOwnerKind.TEAM, base.getPmcOwnerValue());

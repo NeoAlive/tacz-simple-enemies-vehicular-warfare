@@ -11,6 +11,7 @@ import net.minecraft.world.level.levelgen.Heightmap;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
 import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
+import com.neoalive.tacz_sewv.zone.SpawnZones;
 
 /**
  * One rifleman on the ground, ungated. World events reach it through {@code EventSpawns.infantry},
@@ -23,15 +24,25 @@ import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
  */
 public final class InfantrySpawner {
 
+    private static final int ZONE_SNAP_CHUNKS = 2;
+
     private InfantrySpawner() {}
 
-    /** {@code ownerId} only matters for PMC: the player whose command menu the unit answers. */
+    /**
+     * {@code ownerId} only matters for PMC: the player whose command menu the unit answers. Null when
+     * the scattered spot is in a denied spawn zone and no allowed loaded chunk is close by.
+     */
+    @Nullable
     public static AbstractUnit spawn(ServerLevel level, BlockPos anchor, TankFaction faction,
                                      @Nullable UUID ownerId, int scatter) {
-        AbstractUnit unit = TankSpawner.createCrewUnit(level, faction, ownerId);
         int s = Math.max(0, scatter);
-        int x = anchor.getX() + level.random.nextInt(s * 2 + 1) - s;
-        int z = anchor.getZ() + level.random.nextInt(s * 2 + 1) - s;
+        BlockPos spot = SpawnZones.snapToAllowed(level, new BlockPos(
+                anchor.getX() + level.random.nextInt(s * 2 + 1) - s, anchor.getY(),
+                anchor.getZ() + level.random.nextInt(s * 2 + 1) - s), ZONE_SNAP_CHUNKS);
+        if (spot == null || !level.hasChunk(spot.getX() >> 4, spot.getZ() >> 4)) return null;
+        AbstractUnit unit = TankSpawner.createCrewUnit(level, faction, ownerId);
+        int x = spot.getX();
+        int z = spot.getZ();
         int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
         unit.setPos(x + 0.5, y, z + 0.5);
         unit.finalizeSpawn(level, level.getCurrentDifficultyAt(unit.blockPosition()), MobSpawnType.EVENT, null, null);

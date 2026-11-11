@@ -21,6 +21,7 @@
     "MixinFactionUnitEntity",
     "MixinCombatEvent",
     "MixinDynamicEventManager",
+    "MixinChunkSafetyEvaluator",
     "MixinEventCooldownEasy",
     "MixinGrenadeBail",
     "MixinVillageGarrisonHandler",

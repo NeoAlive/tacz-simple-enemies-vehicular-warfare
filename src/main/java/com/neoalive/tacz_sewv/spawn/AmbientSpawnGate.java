@@ -6,6 +6,7 @@ import net.minecraft.server.level.ServerLevel;
 import com.neoalive.tacz_sewv.compat.MineColoniesCompat;
 import com.neoalive.tacz_sewv.grace.GracePeriodData;
 import com.neoalive.tacz_sewv.init.ModGameRules;
+import com.neoalive.tacz_sewv.zone.SpawnZones;
 
 /**
  * Master gate for automatic world spawns: SEM events, village garrisons,
@@ -30,6 +31,6 @@ public final class AmbientSpawnGate {
      * absent, so this costs a boolean read on a normal install.
      */
     public static boolean allowsAt(ServerLevel level, BlockPos pos) {
-        return allows(level) && !MineColoniesCompat.inAnyColony(level, pos);
+        return allows(level) && SpawnZones.allows(level, pos) && !MineColoniesCompat.inAnyColony(level, pos);
     }
 }

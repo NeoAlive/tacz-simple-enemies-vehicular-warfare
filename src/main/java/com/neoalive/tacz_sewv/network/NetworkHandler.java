@@ -159,7 +159,8 @@ public class NetworkHandler {
     //      removed (the wheel's Dismount pipeline replaced the TDT button).
     // 109: PacketVehicleFormation's anchor mode may be UNIT (a formation laid on an elected unit).
     // 110: PacketSideRelations (S->C) carries the player's diplomacy toward SEM sides ru and us.
-    private static final String PROTOCOL_VERSION = "110";
+    // 111: PacketZoneView (C->S) + PacketSpawnZoneState (S->C) for the operator spawn zone map.
+    private static final String PROTOCOL_VERSION = "111";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),
@@ -791,6 +792,20 @@ public class NetworkHandler {
                 PacketSideRelations::encode,
                 PacketSideRelations::new,
                 PacketSideRelations::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketZoneView.class,
+                PacketZoneView::encode,
+                PacketZoneView::new,
+                PacketZoneView::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketSpawnZoneState.class,
+                PacketSpawnZoneState::encode,
+                PacketSpawnZoneState::new,
+                PacketSpawnZoneState::handle
         );
     }
 }

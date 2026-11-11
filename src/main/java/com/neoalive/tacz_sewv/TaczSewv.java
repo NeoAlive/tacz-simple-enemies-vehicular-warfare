@@ -113,6 +113,7 @@ public class TaczSewv {
         MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.util.VehicleDrops.class);
         MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.util.CreativeAmmoConsumable.class);
         MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.territory.TerritoryManager.class);
+        MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.zone.SpawnZoneViewers.class);
         MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.territory.AdvancePlanManager.class);
         MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.territory.LegacySweepCleanup.class);
         MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.order.OrderReport.class);
@@ -230,6 +231,11 @@ public class TaczSewv {
             if (GracePeriodData.active(event.getLevel())
                     && ModList.get().isLoaded(BerezkaStructureCompat.MODID)
                     && BerezkaStructureCompat.refusesOnJoin(event.getLevel(), unit)) {
+                event.setCanceled(true);
+                return;
+            }
+            if (event.getLevel() instanceof net.minecraft.server.level.ServerLevel sl
+                    && com.neoalive.tacz_sewv.zone.SpawnZoneJoin.refuses(sl, unit, event.loadedFromDisk())) {
                 event.setCanceled(true);
                 return;
             }

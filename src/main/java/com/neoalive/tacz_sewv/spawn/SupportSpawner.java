@@ -22,6 +22,7 @@ import com.neoalive.tacz_sewv.entity.unit.UsCombatEngineerEntity;
 import com.neoalive.tacz_sewv.entity.unit.UsEngineerEntity;
 import com.neoalive.tacz_sewv.entity.unit.UsMedicEntity;
 import com.neoalive.tacz_sewv.init.ModEntities;
+import com.neoalive.tacz_sewv.zone.SpawnZones;
 
 /** Spawns the medic/engineer support units — on command, and (by chance) alongside regular units. */
 public final class SupportSpawner {
@@ -53,6 +54,7 @@ public final class SupportSpawner {
     @Nullable
     public static AbstractUnit spawn(ServerLevel level, BlockPos pos, boolean ru, SupportRole role) {
         if (!TankSpawner.spawnsEnabled(level, ru ? TankSpawner.TankFaction.RU : TankSpawner.TankFaction.US)) return null;
+        if (!SpawnZones.allows(level, pos)) return null;
         EntityType<?> type = typeFor(ru, role);
         if (!(type.create(level) instanceof AbstractUnit unit)) return null;
         unit.setPos(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5);

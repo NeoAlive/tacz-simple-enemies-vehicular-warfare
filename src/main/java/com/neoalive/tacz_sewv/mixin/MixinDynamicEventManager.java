@@ -14,6 +14,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.notify.HudNotify;
 import com.neoalive.tacz_sewv.spawn.AmbientSpawnGate;
+import com.neoalive.tacz_sewv.zone.SpawnZones;
 
 /**
  * Scales SEM event spawn distance when {@link SewvConfig#FAR_EVENT_SPAWNS} is on. Lives here because
@@ -23,6 +24,9 @@ import com.neoalive.tacz_sewv.spawn.AmbientSpawnGate;
  *
  * <p>Also notifies the rolled player when an event {@code execute} succeeds — one redirect covers
  * both ambient rolls and {@code /semevent force}.
+ *
+ * <p>The same redirect applies spawn zones: the spot may move onto a prioritization chunk, and an
+ * event whose spot is denied returns false, which keeps its accumulated chance.
  */
 @Mixin(targets = "net.nekoyuni.SimpleEnemyMod.procedural.events.DynamicEventManager")
 public abstract class MixinDynamicEventManager {
@@ -61,6 +65,11 @@ public abstract class MixinDynamicEventManager {
             remap = false)
     private static boolean tacz_sewv$notifyOnEventSuccess(
             DynamicEvent event, ServerLevel level, ServerPlayer player, BlockPos pos) {
+        double scale = SewvConfig.FAR_EVENT_SPAWNS.get() ? FAR_SCALE : 1.0;
+        double min = event.getMinDistance() * scale;
+        double max = event.getMaxDistance() * scale;
+        pos = SpawnZones.eventSpot(level, player.blockPosition(), pos, min, max, level.random);
+        if (pos == null) return false;
         boolean ok = event.execute(level, player, pos);
         if (ok) {
             HudNotify.eventNearby(player, event.getId(), pos);

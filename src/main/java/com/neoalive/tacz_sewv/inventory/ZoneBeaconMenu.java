@@ -22,9 +22,11 @@ public class ZoneBeaconMenu extends AbstractContainerMenu {
 
     public static final int BUTTON_SMALLER = 0;
     public static final int BUTTON_LARGER = 1;
-    public static final int SLOT_X = 152;
-    public static final int SLOT_Y = 52;
-    public static final int INV_Y = 84;
+    /** Slot positions are the grid of {@code textures/gui/fpas_inventory.png}. */
+    public static final int SLOT_X = 150;
+    public static final int SLOT_Y = 80;
+    public static final int INV_X = 7;
+    public static final int INV_Y = 119;
 
     private final ContainerLevelAccess access;
     private final ContainerData data;
@@ -44,8 +46,8 @@ public class ZoneBeaconMenu extends AbstractContainerMenu {
         this.addSlot(new SlotItemHandler(slot, 0, SLOT_X, SLOT_Y));
         for (int row = 0; row < 3; row++)
             for (int col = 0; col < 9; col++)
-                this.addSlot(new Slot(inv, col + row * 9 + 9, 8 + col * 18, INV_Y + row * 18));
-        for (int col = 0; col < 9; col++) this.addSlot(new Slot(inv, col, 8 + col * 18, INV_Y + 58));
+                this.addSlot(new Slot(inv, col + row * 9 + 9, INV_X + col * 18, INV_Y + row * 18));
+        for (int col = 0; col < 9; col++) this.addSlot(new Slot(inv, col, INV_X + col * 18, INV_Y + 58));
         this.addDataSlots(data);
     }
 

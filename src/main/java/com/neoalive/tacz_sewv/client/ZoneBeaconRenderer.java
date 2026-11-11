@@ -3,17 +3,27 @@ package com.neoalive.tacz_sewv.client;
 import java.util.Map;
 import java.util.WeakHashMap;
 
+import javax.annotation.Nullable;
+
 import com.github.mcmodderanchor.simplebedrockmodel.v2.common.model.runtime.BakedModelInstance;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
+import net.minecraft.client.resources.sounds.AbstractTickableSoundInstance;
+import net.minecraft.client.resources.sounds.SimpleSoundInstance;
+import net.minecraft.client.resources.sounds.SoundInstance;
+import net.minecraft.client.sounds.SoundManager;
+import net.minecraft.sounds.SoundEvent;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Vector3f;
 
 import com.neoalive.tacz_sewv.block.ZoneBeaconBlockEntity;
+import com.neoalive.tacz_sewv.init.ModSounds;
 
 /**
  * The FPAS: {@code radar} turns on Y (azimuth), {@code dish} tilts on its Z (zenith) by at most
@@ -29,8 +39,29 @@ public class ZoneBeaconRenderer implements BlockEntityRenderer<ZoneBeaconBlockEn
     private static final float AZIMUTH_DEG_PER_TICK = 3.0F;
     private static final float ZENITH_DEG_PER_TICK = 0.5F;
 
-    /** {azimuth deg, zenith offset deg, last render time in ticks}. */
-    private static final Map<ZoneBeaconBlockEntity, float[]> slew = new WeakHashMap<>();
+    /** Remaining error below which an axis counts as settled, for the slew sounds. */
+    private static final float AZIMUTH_SETTLED_DEG = 0.5F;
+    private static final float ZENITH_SETTLED_DEG = 0.1F;
+    /** A loop outlives its last render by this many ticks, so an unseen FPAS goes quiet. */
+    private static final int LOOP_GRACE_TICKS = 5;
+
+    private static final class Slew {
+        float azimuth;
+        float zenith;
+        float last;
+        boolean azMoving;
+        boolean zenMoving;
+        @Nullable
+        SlewLoop azLoop;
+        @Nullable
+        SlewLoop zenLoop;
+
+        Slew(float now) {
+            this.last = now;
+        }
+    }
+
+    private static final Map<ZoneBeaconBlockEntity, Slew> slew = new WeakHashMap<>();
 
     public ZoneBeaconRenderer(BlockEntityRendererProvider.Context context) {
     }
@@ -45,9 +76,10 @@ public class ZoneBeaconRenderer implements BlockEntityRenderer<ZoneBeaconBlockEn
         var dish = instance.getBone("dish");
         if (radar != null && dish != null) {
             float now = be.getLevel().getGameTime() + partialTick;
-            float[] s = slew.computeIfAbsent(be, k -> new float[] {0.0F, 0.0F, now});
-            float dt = Mth.clamp(now - s[2], 0.0F, 20.0F);
-            s[2] = now;
+            Slew s = slew.computeIfAbsent(be, k -> new Slew(now));
+            float dt = Mth.clamp(now - s.last, 0.0F, 20.0F);
+            s.last = now;
+            boolean azMoving = false, zenMoving = false;
 
             // Dish boresight in the radar's frame at rest: the feed struts sit on its local +Y.
             Vector3f rest = dish.definition().bindRotation().transform(new Vector3f(0.0F, 1.0F, 0.0F));
@@ -63,18 +95,71 @@ public class ZoneBeaconRenderer implements BlockEntityRenderer<ZoneBeaconBlockEn
                 // A world-Z turn raises the boresight when it points +X, lowers it when -X.
                 float zenith = Mth.clamp(Math.signum(rest.x) * (wantElev - restElev),
                         -ZENITH_LIMIT_DEG, ZENITH_LIMIT_DEG);
-                s[0] += Mth.clamp(Mth.wrapDegrees(azimuth - s[0]), -AZIMUTH_DEG_PER_TICK * dt,
-                        AZIMUTH_DEG_PER_TICK * dt);
-                s[1] += Mth.clamp(zenith - s[1], -ZENITH_DEG_PER_TICK * dt, ZENITH_DEG_PER_TICK * dt);
+                float azErr = Mth.wrapDegrees(azimuth - s.azimuth);
+                float zenErr = zenith - s.zenith;
+                azMoving = Math.abs(azErr) > AZIMUTH_SETTLED_DEG;
+                zenMoving = Math.abs(zenErr) > ZENITH_SETTLED_DEG;
+                s.azimuth += Mth.clamp(azErr, -AZIMUTH_DEG_PER_TICK * dt, AZIMUTH_DEG_PER_TICK * dt);
+                s.zenith += Mth.clamp(zenErr, -ZENITH_DEG_PER_TICK * dt, ZENITH_DEG_PER_TICK * dt);
             }
-            radar.rotation.mul(Axis.YP.rotationDegrees(s[0]));
+            sounds(be, s, azMoving, zenMoving);
+            radar.rotation.mul(Axis.YP.rotationDegrees(s.azimuth));
             // SBM composes bind rotations Z-outermost, so the zenith goes on the left.
-            dish.rotation.premul(Axis.ZP.rotationDegrees(s[1]));
+            dish.rotation.premul(Axis.ZP.rotationDegrees(s.zenith));
         }
 
         poseStack.pushPose();
         poseStack.translate(0.5D, 0.0D, 0.5D);
         FobBlockClient.render(instance, FobBlockClient.Kind.FPAS, poseStack, buffer, packedLight, packedOverlay);
         poseStack.popPose();
+    }
+
+    private static void sounds(ZoneBeaconBlockEntity be, Slew s, boolean azMoving, boolean zenMoving) {
+        SoundManager manager = Minecraft.getInstance().getSoundManager();
+        if (azMoving && (s.azLoop == null || s.azLoop.isStopped())) {
+            s.azLoop = new SlewLoop(ModSounds.FPAS_AZIMUTH.get(), be, s, true);
+            manager.play(s.azLoop);
+        }
+        if (zenMoving && (s.zenLoop == null || s.zenLoop.isStopped())) {
+            s.zenLoop = new SlewLoop(ModSounds.FPAS_ZENITH.get(), be, s, false);
+            manager.play(s.zenLoop);
+        }
+        if ((s.azMoving && !azMoving) || (s.zenMoving && !zenMoving)) {
+            Vec3 at = Vec3.atBottomCenterOf(be.getBlockPos()).add(0.0, 2.0, 0.0);
+            manager.play(new SimpleSoundInstance(ModSounds.FPAS_STOP.get(), SoundSource.BLOCKS, 1.0F, 1.0F,
+                    SoundInstance.createUnseededRandom(), at.x, at.y, at.z));
+        }
+        s.azMoving = azMoving;
+        s.zenMoving = zenMoving;
+    }
+
+    /** One axis' servo loop; stops itself once that axis settles or the FPAS is no longer drawn. */
+    private static final class SlewLoop extends AbstractTickableSoundInstance {
+        private final ZoneBeaconBlockEntity be;
+        private final Slew slew;
+        private final boolean azimuth;
+
+        SlewLoop(SoundEvent event, ZoneBeaconBlockEntity be, Slew slew, boolean azimuth) {
+            super(event, SoundSource.BLOCKS, SoundInstance.createUnseededRandom());
+            this.be = be;
+            this.slew = slew;
+            this.azimuth = azimuth;
+            this.looping = true;
+            this.delay = 0;
+            this.volume = azimuth ? 0.8F : 0.6F;
+            Vec3 at = Vec3.atBottomCenterOf(be.getBlockPos()).add(0.0, 2.0, 0.0);
+            this.x = at.x;
+            this.y = at.y;
+            this.z = at.z;
+        }
+
+        @Override
+        public void tick() {
+            boolean moving = this.azimuth ? this.slew.azMoving : this.slew.zenMoving;
+            if (this.be.isRemoved() || this.be.getLevel() == null || !moving
+                    || this.be.getLevel().getGameTime() - this.slew.last > LOOP_GRACE_TICKS) {
+                stop();
+            }
+        }
     }
 }

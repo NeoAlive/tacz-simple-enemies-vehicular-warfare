@@ -384,7 +384,7 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.BooleanValue ZONES_ENABLED;
     public static final ForgeConfigSpec.BooleanValue ONLY_SPAWN_IN_PRIORITIZATION;
     public static final ForgeConfigSpec.DoubleValue PRIORITIZATION_REROLL_CHANCE;
-    public static final ForgeConfigSpec.IntValue ZONE_BEACON_FE_PER_CHUNK;
+    public static final ForgeConfigSpec.DoubleValue ZONE_BEACON_FE_PER_CHUNK;
     public static final ForgeConfigSpec.IntValue ZONE_BEACON_BUFFER_FE;
     public static final ForgeConfigSpec.IntValue ZONE_BEACON_MAX_RADIUS;
 
@@ -1607,10 +1607,11 @@ public final class SewvConfig {
                         "prioritization chunk within the event's own distance band from the player.")
                 .defineInRange("prioritizationRerollChance", 0.6, 0.0, 1.0);
         ZONE_BEACON_FE_PER_CHUNK = builder.comment(
-                        "Zone beacon upkeep in FE per tick per covered chunk. Radius r covers (2r+1)^2 chunks.")
-                .defineInRange("zoneBeaconFePerChunk", 1, 0, 10000);
-        ZONE_BEACON_BUFFER_FE = builder.comment("Zone beacon internal energy buffer (FE).")
-                .defineInRange("zoneBeaconBufferFe", 100000, 1000, 100000000);
+                        "FPAS upkeep in FE per tick per covered chunk, rounded up. Radius r covers (2r+1)^2 chunks.",
+                        "At 0.15 the largest radius costs about half of one SBW charging station's output.")
+                .defineInRange("zoneBeaconUpkeepPerChunk", 0.15, 0.0, 10000.0);
+        ZONE_BEACON_BUFFER_FE = builder.comment("FPAS internal energy buffer (FE).")
+                .defineInRange("zoneBeaconBufferCapacity", 1000000, 1000, 100000000);
         ZONE_BEACON_MAX_RADIUS = builder.comment("Largest radius (chunks) a zone beacon may be set to. Minimum is 2.")
                 .defineInRange("zoneBeaconMaxRadius", 10, 2, 10);
         builder.pop();

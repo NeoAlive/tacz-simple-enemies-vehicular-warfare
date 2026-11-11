@@ -31,8 +31,8 @@ public final class ZoneGeometry {
         return side * side;
     }
 
-    public static long upkeepPerTick(int radius, int fePerChunk) {
-        return (long) chunksCovered(radius) * fePerChunk;
+    public static long upkeepPerTick(int radius, double fePerChunk) {
+        return (long) Math.ceil(chunksCovered(radius) * fePerChunk);
     }
 
     public static boolean covers(int centreX, int centreZ, int radius, int cx, int cz) {

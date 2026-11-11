@@ -70,6 +70,7 @@ public final class SpawnZonesSelfCheck {
         // cost and radius clamp
         assert ZoneGeometry.chunksCovered(2) == 25 && ZoneGeometry.chunksCovered(10) == 441;
         assert ZoneGeometry.upkeepPerTick(10, 1) == 441 && ZoneGeometry.upkeepPerTick(3, 4) == 196;
+        assert ZoneGeometry.upkeepPerTick(2, 0.15) == 4 && ZoneGeometry.upkeepPerTick(10, 0.15) == 67;
         assert ZoneGeometry.clampRadius(0, 10) == 2 && ZoneGeometry.clampRadius(99, 10) == 10;
         assert ZoneGeometry.clampRadius(9, 6) == 6;
 

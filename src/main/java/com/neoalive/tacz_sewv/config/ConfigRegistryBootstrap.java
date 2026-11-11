@@ -977,9 +977,9 @@ final class ConfigRegistryBootstrap {
                 SewvConfig.ONLY_SPAWN_IN_PRIORITIZATION, SewvConfig.ONLY_SPAWN_IN_PRIORITIZATION::set);
         b.doubleRange(ConfigScope.SERVER, "spawn_zones", "prioritizationRerollChance", 0.0, 1.0,
                 SewvConfig.PRIORITIZATION_REROLL_CHANCE, SewvConfig.PRIORITIZATION_REROLL_CHANCE::set);
-        b.intRange(ConfigScope.SERVER, "spawn_zones", "zoneBeaconFePerChunk", 0, 10000,
+        b.doubleRange(ConfigScope.SERVER, "spawn_zones", "zoneBeaconUpkeepPerChunk", 0.0, 10000.0,
                 SewvConfig.ZONE_BEACON_FE_PER_CHUNK, SewvConfig.ZONE_BEACON_FE_PER_CHUNK::set);
-        b.intRange(ConfigScope.SERVER, "spawn_zones", "zoneBeaconBufferFe", 1000, 100000000,
+        b.intRange(ConfigScope.SERVER, "spawn_zones", "zoneBeaconBufferCapacity", 1000, 100000000,
                 SewvConfig.ZONE_BEACON_BUFFER_FE, SewvConfig.ZONE_BEACON_BUFFER_FE::set);
         b.intRange(ConfigScope.SERVER, "spawn_zones", "zoneBeaconMaxRadius", 2, 10,
                 SewvConfig.ZONE_BEACON_MAX_RADIUS, SewvConfig.ZONE_BEACON_MAX_RADIUS::set);

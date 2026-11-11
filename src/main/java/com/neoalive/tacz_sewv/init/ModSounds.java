@@ -215,6 +215,12 @@ public final class ModSounds {
     /** FOB scramble siren; one ~0.9 s clip, re-triggered every {@code ThreatEvaluator.ALARM_TICKS}. */
     public static final RegistryObject<SoundEvent> FOB_ALARM = register("fob_alarm");
 
+    /** FPAS radar: azimuth and zenith slew loops, the brake when either axis settles, new contact. */
+    public static final RegistryObject<SoundEvent> FPAS_AZIMUTH = register("fpas_azimuth");
+    public static final RegistryObject<SoundEvent> FPAS_ZENITH = register("fpas_zenith");
+    public static final RegistryObject<SoundEvent> FPAS_STOP = register("fpas_stop");
+    public static final RegistryObject<SoundEvent> FPAS_TARGET = register("fpas_target");
+
     /** Grace period start popup sting. */
     public static final RegistryObject<SoundEvent> GRACE_START = register("grace_start");
 

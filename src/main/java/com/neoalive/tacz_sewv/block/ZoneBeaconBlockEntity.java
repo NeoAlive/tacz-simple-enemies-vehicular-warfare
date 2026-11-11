@@ -12,7 +12,9 @@ import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
 import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.MenuProvider;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
@@ -35,6 +37,7 @@ import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.fob.FobSupport;
 import com.neoalive.tacz_sewv.init.ModBlockEntities;
+import com.neoalive.tacz_sewv.init.ModSounds;
 import com.neoalive.tacz_sewv.inventory.ZoneBeaconMenu;
 import com.neoalive.tacz_sewv.zone.SpawnZoneData;
 import com.neoalive.tacz_sewv.zone.ZoneGeometry;
@@ -104,6 +107,8 @@ public class ZoneBeaconBlockEntity extends BlockEntity implements MenuProvider {
     /** Last spotted hostile, synced to the client, which slews the radar onto it. */
     @Nullable
     private Vec3 aim;
+    /** Entity id of the last spotted hostile, so the contact ping only sounds on a new one. */
+    private int lastTarget = -1;
 
     private final ContainerData data = new ContainerData() {
         @Override
@@ -215,8 +220,16 @@ public class ZoneBeaconBlockEntity extends BlockEntity implements MenuProvider {
                 best = unit;
             }
         }
-        if (best == null) return;
-        Vec3 next = (best.getVehicle() != null ? best.getVehicle() : best).getBoundingBox().getCenter();
+        if (best == null) {
+            this.lastTarget = -1;
+            return;
+        }
+        Entity spotted = best.getVehicle() != null ? best.getVehicle() : best;
+        if (spotted.getId() != this.lastTarget) {
+            this.lastTarget = spotted.getId();
+            level.playSound(null, this.worldPosition, ModSounds.FPAS_TARGET.get(), SoundSource.BLOCKS, 1.5F, 1.0F);
+        }
+        Vec3 next = spotted.getBoundingBox().getCenter();
         if (this.aim != null && this.aim.distanceToSqr(next) < 1.0) return;
         this.aim = next;
         setChanged();

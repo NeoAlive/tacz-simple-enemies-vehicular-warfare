@@ -6,9 +6,12 @@ import java.util.Map;
 import java.util.UUID;
 
 import com.mojang.logging.LogUtils;
+import it.unimi.dsi.fastutil.longs.LongArrays;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.Level;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.server.ServerStoppedEvent;
@@ -28,13 +31,15 @@ public final class SpawnZoneViewers {
     private static final Logger LOG = LogUtils.getLogger();
     private static final int PASS_TICKS = 20;
 
-    /** Viewer to the (dimension, revision) it last received. */
-    private static final Map<UUID, String> SENT = new HashMap<>();
+    /** What a viewer last received. A null value means "send on the next pass". */
+    private record Stamp(ResourceKey<Level> dimension, int revision) {}
+
+    private static final Map<UUID, Stamp> SENT = new HashMap<>();
 
     private SpawnZoneViewers() {}
 
     public static void open(ServerPlayer player) {
-        SENT.put(player.getUUID(), "");
+        SENT.put(player.getUUID(), null);
         push(player);
     }
 
@@ -60,16 +65,15 @@ public final class SpawnZoneViewers {
     private static void push(ServerPlayer player) {
         ServerLevel level = player.serverLevel();
         ZoneLayers layers = SpawnZoneData.get(level).layers();
-        String dim = level.dimension().location().toString();
-        String stamp = dim + "#" + layers.revision();
+        Stamp stamp = new Stamp(level.dimension(), layers.revision());
         if (stamp.equals(SENT.get(player.getUUID()))) return;
         SENT.put(player.getUUID(), stamp);
+        String dim = level.dimension().location().toString();
         double px = player.getX(), pz = player.getZ();
         long[] prio = nearest(layers.manualOf(ZoneType.PRIORITY), px, pz);
         long[] manualNo = nearest(layers.manualOf(ZoneType.NOZONE), px, pz);
         long[] beaconNo = nearest(layers.beaconCovered(), px, pz);
-        int n = 0;
-        for (ZoneLayers.Beacon ignored : layers.beacons()) n++;
+        int n = layers.beaconCount();
         long[] pos = new long[n];
         int[] radius = new int[n];
         boolean[] powered = new boolean[n];
@@ -89,12 +93,10 @@ public final class SpawnZoneViewers {
         int cap = PacketSpawnZoneState.MAX_PER_LAYER;
         if (keys.length <= cap) return keys;
         LOG.warn("Spawn zone layer has {} chunks; sending the nearest {} to the map", keys.length, cap);
-        Long[] boxed = Arrays.stream(keys).boxed().toArray(Long[]::new);
-        Arrays.sort(boxed, (a, b) -> Double.compare(ZoneGeometry.distSqToChunkCentre(px, pz, a),
+        long[] sorted = keys.clone();
+        LongArrays.quickSort(sorted, (a, b) -> Double.compare(ZoneGeometry.distSqToChunkCentre(px, pz, a),
                 ZoneGeometry.distSqToChunkCentre(px, pz, b)));
-        long[] out = new long[cap];
-        for (int i = 0; i < cap; i++) out[i] = boxed[i];
-        return out;
+        return Arrays.copyOf(sorted, cap);
     }
 
     @SubscribeEvent
@@ -104,7 +106,7 @@ public final class SpawnZoneViewers {
 
     @SubscribeEvent
     public static void onDimensionChange(PlayerEvent.PlayerChangedDimensionEvent event) {
-        if (SENT.containsKey(event.getEntity().getUUID())) SENT.put(event.getEntity().getUUID(), "");
+        if (SENT.containsKey(event.getEntity().getUUID())) SENT.put(event.getEntity().getUUID(), null);
     }
 
     @SubscribeEvent

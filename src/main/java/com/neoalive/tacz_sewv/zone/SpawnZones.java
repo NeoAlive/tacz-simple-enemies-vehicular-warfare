@@ -2,7 +2,6 @@ package com.neoalive.tacz_sewv.zone;
 
 import javax.annotation.Nullable;
 
-import it.unimi.dsi.fastutil.longs.LongArrayList;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -47,9 +46,12 @@ public final class SpawnZones {
 
     public static boolean allowsChunk(ServerLevel level, int cx, int cz) {
         if (!enabled()) return true;
-        ZoneType t = SpawnZoneData.get(level).type(cx, cz);
+        ZoneLayers layers = SpawnZoneData.get(level).layers();
+        boolean only = onlyPriority();
+        if (!only && layers.isEmpty()) return true;
+        ZoneType t = layers.type(ZoneGeometry.pack(cx, cz));
         if (t == ZoneType.NOZONE) return false;
-        return t == ZoneType.PRIORITY || !onlyPriority();
+        return t == ZoneType.PRIORITY || !only;
     }
 
     /**
@@ -77,14 +79,12 @@ public final class SpawnZones {
     @Nullable
     private static BlockPos priorityInRing(ServerLevel level, SpawnZoneData data, BlockPos anchor, double min,
             double max, RandomSource random) {
-        long[] all = data.layers().priorityChunks();
+        ZoneLayers layers = data.layers();
+        long[] all = layers.priorityChunks();
         if (all.length == 0) return null;
-        LongArrayList loaded = new LongArrayList();
-        for (long k : all) {
-            if (data.layers().beaconCovered(k)) continue;
-            if (level.hasChunk(ZoneGeometry.x(k), ZoneGeometry.z(k))) loaded.add(k);
-        }
-        long pick = ZoneGeometry.pickInRing(loaded.toLongArray(), anchor.getX(), anchor.getZ(), min, max,
+        // Ring test first: it is arithmetic, the other two are lookups.
+        long pick = ZoneGeometry.pickInRing(all, anchor.getX(), anchor.getZ(), min, max,
+                k -> !layers.beaconCovered(k) && level.hasChunk(ZoneGeometry.x(k), ZoneGeometry.z(k)),
                 random.nextDouble());
         if (pick == Long.MIN_VALUE) return null;
         int x = (ZoneGeometry.x(pick) << 4) + random.nextInt(16);

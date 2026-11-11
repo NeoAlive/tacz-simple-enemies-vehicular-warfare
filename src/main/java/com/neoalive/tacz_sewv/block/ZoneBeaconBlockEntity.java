@@ -43,6 +43,8 @@ public class ZoneBeaconBlockEntity extends BlockEntity implements MenuProvider {
     /** Seconds of upkeep the buffer must hold before a starved beacon powers back up. */
     private static final int RESUME_TICKS = 20;
     private static final int BATTERY_DRAIN_PER_TICK = 4000;
+    /** setChanged also pokes comparator neighbours, so steady draw is only flagged this often. */
+    private static final int SAVE_EVERY_TICKS = 20;
 
     /** Receive-only from outside; the beacon spends from it itself. */
     private static final class Buffer extends EnergyStorage {
@@ -86,6 +88,7 @@ public class ZoneBeaconBlockEntity extends BlockEntity implements MenuProvider {
     private boolean powered;
     private int starved;
     private boolean chunkUnloaded;
+    private int sinceSave;
 
     private final ContainerData data = new ContainerData() {
         @Override
@@ -159,8 +162,14 @@ public class ZoneBeaconBlockEntity extends BlockEntity implements MenuProvider {
             this.powered = true;
             this.energy.spend((int) cost);
         }
-        if (was != this.powered) publish(level);
-        setChanged();
+        if (was != this.powered) {
+            publish(level);
+            setChanged();
+            this.sinceSave = 0;
+        } else if (++this.sinceSave >= SAVE_EVERY_TICKS) {
+            setChanged();
+            this.sinceSave = 0;
+        }
     }
 
     private void drainBattery() {

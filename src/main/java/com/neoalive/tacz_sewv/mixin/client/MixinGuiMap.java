@@ -41,6 +41,7 @@ import com.neoalive.tacz_sewv.client.xaero.PathwayPathMenuOptions;
 import com.neoalive.tacz_sewv.client.xaero.PathwayPlot;
 import com.neoalive.tacz_sewv.client.xaero.RtsPanel;
 import com.neoalive.tacz_sewv.client.xaero.UnitOrderOption;
+import com.neoalive.tacz_sewv.client.zone.ZoneDrawTool;
 import com.neoalive.tacz_sewv.client.zone.ZoneViewClient;
 import com.neoalive.tacz_sewv.config.ClientConfig;
 import com.neoalive.tacz_sewv.map.VehicleMarker;
@@ -138,6 +139,14 @@ public abstract class MixinGuiMap extends Screen {
     @Unique
     private Button tacz_sewv$cancelButton;
 
+    /** Zone brush toolbar: prioritization, no-zone, erase, size. Shown to operators in zone view only. */
+    @Unique
+    private final List<Button> tacz_sewv$zoneTools = new ArrayList<>();
+
+    /** Toolbar state last drawn, so labels are rebuilt only when it changes. -1 = never. */
+    @Unique
+    private int tacz_sewv$zoneToolState = -1;
+
     /**
      * Live multi-unit line-order drag. All transient client state, and deliberately an <b>instance</b>
      * field: it dies with the screen, so a drag interrupted by closing the map can never leak into the
@@ -228,12 +237,76 @@ public abstract class MixinGuiMap extends Screen {
                 .bounds(this.width / 2 + 4, y, 100, 20).build());
         this.tacz_sewv$confirmButton.visible = false;
         this.tacz_sewv$cancelButton.visible = false;
+        tacz_sewv$addZoneTools();
+    }
+
+    @Unique
+    private void tacz_sewv$addZoneTools() {
+        this.tacz_sewv$zoneTools.clear();
+        this.tacz_sewv$zoneToolState = -1;
+        int y = this.height - 52;
+        int[] widths = {90, 70, 56, 56};
+        int total = widths[0] + widths[1] + widths[2] + widths[3] + 12;
+        int x = this.width / 2 - total / 2;
+        ZoneDrawTool.Brush[] brushes = {ZoneDrawTool.Brush.PRIORITY, ZoneDrawTool.Brush.NOZONE, ZoneDrawTool.Brush.ERASE};
+        for (int i = 0; i < 4; i++) {
+            Button.OnPress press = i < 3
+                    ? tacz_sewv$selectBrush(brushes[i])
+                    : b -> ZoneDrawTool.cycleSize();
+            Button b = this.addRenderableWidget(Button.builder(Component.empty(), press)
+                    .bounds(x, y, widths[i], 20).build());
+            b.visible = false;
+            this.tacz_sewv$zoneTools.add(b);
+            x += widths[i] + 4;
+        }
+    }
+
+    @Unique
+    private static Button.OnPress tacz_sewv$selectBrush(ZoneDrawTool.Brush brush) {
+        return b -> ZoneDrawTool.select(brush);
+    }
+
+    /** Labels follow the selection; the toolbar exists only for an operator in zone view. */
+    @Unique
+    private void tacz_sewv$syncZoneTools() {
+        boolean show = ZoneDrawTool.allowed();
+        int state = show ? 1 + ZoneDrawTool.brush().ordinal() * 16 + ZoneDrawTool.size() : 0;
+        if (state == this.tacz_sewv$zoneToolState) return;
+        this.tacz_sewv$zoneToolState = state;
+        String[] keys = {"gui.tacz_sewv.zones.draw.priority", "gui.tacz_sewv.zones.draw.nozone",
+                "gui.tacz_sewv.zones.draw.erase"};
+        ZoneDrawTool.Brush[] brushes = {ZoneDrawTool.Brush.PRIORITY, ZoneDrawTool.Brush.NOZONE, ZoneDrawTool.Brush.ERASE};
+        for (int i = 0; i < this.tacz_sewv$zoneTools.size(); i++) {
+            Button b = this.tacz_sewv$zoneTools.get(i);
+            b.visible = show;
+            if (!show) continue;
+            if (i < 3) {
+                Component label = Component.translatable(keys[i]);
+                b.setMessage(ZoneDrawTool.brush() == brushes[i]
+                        ? label.copy().withStyle(ChatFormatting.YELLOW, ChatFormatting.UNDERLINE) : label);
+            } else {
+                b.setMessage(Component.translatable("gui.tacz_sewv.zones.draw.size", ZoneDrawTool.size()));
+            }
+        }
+    }
+
+    /** Right edge of Xaero's left-hand button column, so the legend sits clear of it. */
+    @Unique
+    private int tacz_sewv$leftColumnInset() {
+        int inset = 0;
+        for (var child : this.children()) {
+            if (child instanceof AbstractWidget w && w.visible && w.getX() <= 2) {
+                inset = Math.max(inset, w.getX() + w.getWidth());
+            }
+        }
+        return inset;
     }
 
     @Inject(method = "mapClicked", at = @At("HEAD"), cancellable = true)
     private void tacz_sewv$mapClicked(int button, int x, int y, CallbackInfo ci) {
         // Plot clicks are handled in mouseClicked (screen-space node pick + RMB swallow).
-        if (CruisePlot.armed() || PathwayPlot.armed() || GuardPlot.armed() || RtsPanel.toolArmed()) {
+        if (CruisePlot.armed() || PathwayPlot.armed() || GuardPlot.armed() || RtsPanel.toolArmed()
+                || (button == 0 && ZoneDrawTool.armed())) {
             ci.cancel();
             return;
         }
@@ -257,6 +330,12 @@ public abstract class MixinGuiMap extends Screen {
     @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true, remap = true)
     private void tacz_sewv$onMapPress(double mouseX, double mouseY, int button,
                                       CallbackInfoReturnable<Boolean> cir) {
+        if (button == 0 && ZoneDrawTool.armed() && !CruisePlot.armed() && !GuardPlot.armed()
+                && !PathwayPlot.armed() && !tacz_sewv$dropdownOpen() && this.getChildAt(mouseX, mouseY).isEmpty()) {
+            ZoneDrawTool.begin(tacz_sewv$worldX(mouseX), tacz_sewv$worldZ(mouseY));
+            cir.setReturnValue(true);
+            return;
+        }
         // RTS panel (only when Xaero + OpenPAC are both present): a press on the panel is the panel's, and an
         // armed Frontline Tool takes the map's clicks: left fires at the chunk under the cursor, right cancels.
         if (RtsPanel.enabled()) {
@@ -313,6 +392,12 @@ public abstract class MixinGuiMap extends Screen {
     @Inject(method = "mouseReleased", at = @At("HEAD"), cancellable = true, remap = true)
     private void tacz_sewv$onMapRelease(double mouseX, double mouseY, int button,
                                         CallbackInfoReturnable<Boolean> cir) {
+        if (button == 0 && ZoneDrawTool.stroking()) {
+            ZoneDrawTool.sample(tacz_sewv$worldX(mouseX), tacz_sewv$worldZ(mouseY));
+            ZoneDrawTool.commit();
+            cir.setReturnValue(true);
+            return;
+        }
         if (RtsPanel.consumeRelease(button, tacz_sewv$worldX(mouseX), tacz_sewv$worldZ(mouseY))) {
             cir.setReturnValue(true);
             return;
@@ -408,12 +493,25 @@ public abstract class MixinGuiMap extends Screen {
     @Inject(method = "render", at = @At("TAIL"), remap = true)
     private void tacz_sewv$drawSpawnZones(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks,
                                           CallbackInfo ci) {
+        tacz_sewv$syncZoneTools();
         if (!ZoneViewClient.active()) return;
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null) return;
         String dim = mc.level.dimension().location().toString();
-        SpawnZonePainter.drawZones(guiGraphics, tacz_sewv$projection(), dim);
-        SpawnZonePainter.drawLegend(guiGraphics, mc.font, this.height, this.mouseBlockPosX, this.mouseBlockPosZ, dim);
+        MapProjection project = tacz_sewv$projection();
+        int minCx = (int) Math.floor(tacz_sewv$worldX(0)) >> 4;
+        int maxCx = (int) Math.floor(tacz_sewv$worldX(this.width)) >> 4;
+        int minCz = (int) Math.floor(tacz_sewv$worldZ(0)) >> 4;
+        int maxCz = (int) Math.floor(tacz_sewv$worldZ(this.height)) >> 4;
+        SpawnZonePainter.drawZones(guiGraphics, project, dim, minCx, maxCx, minCz, maxCz);
+        if (ZoneDrawTool.stroking()) {
+            ZoneDrawTool.sample(tacz_sewv$worldX(mouseX), tacz_sewv$worldZ(mouseY));
+            ZoneDrawTool.Brush brush = ZoneDrawTool.brush();
+            SpawnZonePainter.drawStroke(guiGraphics, project, ZoneDrawTool.stroke(),
+                    brush.previewKind, brush == ZoneDrawTool.Brush.ERASE);
+        }
+        SpawnZonePainter.drawLegend(guiGraphics, mc.font, tacz_sewv$leftColumnInset() + 6, this.height,
+                this.mouseBlockPosX, this.mouseBlockPosZ, dim);
     }
 
     @Inject(method = "render", at = @At("TAIL"), remap = true)

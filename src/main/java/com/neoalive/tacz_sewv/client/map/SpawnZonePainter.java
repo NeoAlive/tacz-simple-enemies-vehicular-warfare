@@ -1,5 +1,7 @@
 package com.neoalive.tacz_sewv.client.map;
 
+import it.unimi.dsi.fastutil.longs.LongCollection;
+import it.unimi.dsi.fastutil.longs.LongIterator;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
@@ -17,6 +19,15 @@ public final class SpawnZonePainter {
     private static final int OUTLINE = 0xFF000000;
     private static final int UNPOWERED = 0xFF9E9E9E;
 
+    private static final Component LEGEND_TITLE = Component.translatable("gui.tacz_sewv.zones.legend.title");
+    private static final Component[] LEGEND_LABELS = {
+            Component.translatable("gui.tacz_sewv.zones.legend.priority"),
+            Component.translatable("gui.tacz_sewv.zones.legend.manual_nozone"),
+            Component.translatable("gui.tacz_sewv.zones.legend.beacon_nozone"),
+            Component.translatable("gui.tacz_sewv.zones.legend.neutral")
+    };
+    private static final int[] LEGEND_COLORS = {PRIORITY_RGB, MANUAL_NOZONE_RGB, BEACON_NOZONE_RGB, -1};
+
     private SpawnZonePainter() {}
 
     private static int rgbOf(byte kind) {
@@ -27,21 +38,56 @@ public final class SpawnZonePainter {
         };
     }
 
-    public static void drawZones(GuiGraphics g, MapProjection p, String dimension) {
+    /** Visible chunk bounds come from the caller, since a projection cannot be inverted. */
+    public static void drawZones(GuiGraphics g, MapProjection p, String dimension, int minCx, int maxCx, int minCz,
+            int maxCz) {
         ZoneViewClient.Snapshot s = ZoneViewClient.snapshot();
         if (!s.dimension().equals(dimension)) return;
+        ZoneViewClient.Run[] runs = s.runs();
+        int from = firstRow(runs, minCz);
         g.drawManaged(() -> {
-            for (ZoneViewClient.Run r : s.runs()) {
-                int[] a = p.toScreen(r.x0() << 4, r.cz() << 4);
-                int[] b = p.toScreen((r.x1() + 1) << 4, (r.cz() + 1) << 4);
-                int x0 = Math.min(a[0], b[0]), x1 = Math.max(a[0], b[0]);
-                int y0 = Math.min(a[1], b[1]), y1 = Math.max(a[1], b[1]);
-                if (x1 == x0) x1++;
-                if (y1 == y0) y1++;
-                if (!p.intersects(x0, y0, x1, y1)) continue;
-                g.fill(x0, y0, x1, y1, FILL_ALPHA | rgbOf(r.kind()));
+            for (int i = from; i < runs.length; i++) {
+                ZoneViewClient.Run r = runs[i];
+                if (r.cz() > maxCz) break;
+                if (r.x1() < minCx || r.x0() > maxCx) continue;
+                fillChunks(g, p, Math.max(r.x0(), minCx), Math.min(r.x1(), maxCx), r.cz(), r.cz(),
+                        FILL_ALPHA | rgbOf(r.kind()));
             }
             for (ZoneViewClient.Beacon b : s.beacons()) drawBeacon(g, p, b);
+        });
+    }
+
+    /** Index of the first run on row {@code cz} or later. Runs are sorted by row, then x. */
+    private static int firstRow(ZoneViewClient.Run[] runs, int cz) {
+        int lo = 0, hi = runs.length;
+        while (lo < hi) {
+            int mid = (lo + hi) >>> 1;
+            if (runs[mid].cz() < cz) lo = mid + 1;
+            else hi = mid;
+        }
+        return lo;
+    }
+
+    private static void fillChunks(GuiGraphics g, MapProjection p, int cx0, int cx1, int cz0, int cz1, int argb) {
+        int[] a = p.toScreen(cx0 << 4, cz0 << 4);
+        int[] b = p.toScreen((cx1 + 1) << 4, (cz1 + 1) << 4);
+        int x0 = Math.min(a[0], b[0]), x1 = Math.max(a[0], b[0]);
+        int y0 = Math.min(a[1], b[1]), y1 = Math.max(a[1], b[1]);
+        if (x1 == x0) x1++;
+        if (y1 == y0) y1++;
+        g.fill(x0, y0, x1, y1, argb);
+    }
+
+    /** The stroke being drawn, before the server has it: brush colour, brighter than a saved zone. */
+    public static void drawStroke(GuiGraphics g, MapProjection p, LongCollection chunks, byte kind, boolean erase) {
+        if (chunks.isEmpty()) return;
+        int argb = erase ? 0x90FFFFFF : 0xA0000000 | rgbOf(kind);
+        g.drawManaged(() -> {
+            for (LongIterator it = chunks.iterator(); it.hasNext(); ) {
+                long k = it.nextLong();
+                int cx = ZoneGeometry.x(k), cz = ZoneGeometry.z(k);
+                fillChunks(g, p, cx, cx, cz, cz, argb);
+            }
         });
     }
 
@@ -63,23 +109,18 @@ public final class SpawnZonePainter {
     }
 
     /** Legend box in the bottom-left corner, plus the zone of the chunk under the cursor. */
-    public static void drawLegend(GuiGraphics g, Font font, int screenH, int hoverBlockX, int hoverBlockZ,
+    public static void drawLegend(GuiGraphics g, Font font, int left, int screenH, int hoverBlockX, int hoverBlockZ,
             String dimension) {
-        Component[] labels = {
-                Component.translatable("gui.tacz_sewv.zones.legend.priority"),
-                Component.translatable("gui.tacz_sewv.zones.legend.manual_nozone"),
-                Component.translatable("gui.tacz_sewv.zones.legend.beacon_nozone"),
-                Component.translatable("gui.tacz_sewv.zones.legend.neutral")
-        };
-        int[] colors = {PRIORITY_RGB, MANUAL_NOZONE_RGB, BEACON_NOZONE_RGB, -1};
-        Component title = Component.translatable("gui.tacz_sewv.zones.legend.title");
+        Component[] labels = LEGEND_LABELS;
+        int[] colors = LEGEND_COLORS;
+        Component title = LEGEND_TITLE;
         Component hover = hoverLine(hoverBlockX, hoverBlockZ, dimension);
         int w = font.width(title);
         for (Component l : labels) w = Math.max(w, font.width(l) + 14);
         w = Math.max(w, font.width(hover)) + 8;
         int rows = labels.length + 2;
         int h = rows * 11 + 6;
-        int x = 6, y = screenH - h - 30;
+        int x = left, y = screenH - h - 30;
         g.fill(x, y, x + w, y + h, 0xB0000000);
         g.drawString(font, title, x + 4, y + 4, 0xFFFFFF);
         for (int i = 0; i < labels.length; i++) {

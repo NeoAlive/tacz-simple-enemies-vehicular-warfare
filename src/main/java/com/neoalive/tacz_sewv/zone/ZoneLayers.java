@@ -57,6 +57,11 @@ public final class ZoneLayers {
         return this.beaconCover.get(chunk) > 0;
     }
 
+    /** No zone of either layer: every chunk is neutral. */
+    public boolean isEmpty() {
+        return this.manual.isEmpty() && this.beaconCover.isEmpty();
+    }
+
     public int revision() {
         return this.revision;
     }
@@ -92,6 +97,10 @@ public final class ZoneLayers {
 
     public Beacon beacon(long pos) {
         return this.beacons.get(pos);
+    }
+
+    public int beaconCount() {
+        return this.beacons.size();
     }
 
     public Iterable<Beacon> beacons() {

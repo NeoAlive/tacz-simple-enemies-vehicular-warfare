@@ -78,19 +78,37 @@ public final class SpawnZonesSelfCheck {
         int i = 0;
         for (int x = -10; x < 10; x++) for (int z = -10; z < 10; z++) cands[i++] = ZoneGeometry.pack(x, z);
         for (double roll = 0; roll < 1; roll += 0.013) {
-            long k = ZoneGeometry.pickInRing(cands, 0, 0, 40, 90, roll);
+            long k = ZoneGeometry.pickInRing(cands, 0, 0, 40, 90, k2 -> true, roll);
             assert k != Long.MIN_VALUE;
             double d = Math.sqrt(ZoneGeometry.distSqToChunkCentre(0, 0, k));
             assert d >= 40 && d <= 90 : "picked outside ring: " + d;
         }
-        assert ZoneGeometry.pickInRing(cands, 0, 0, 1000, 2000, 0.5) == Long.MIN_VALUE;
-        assert ZoneGeometry.pickInRing(new long[0], 0, 0, 0, 100, 0.5) == Long.MIN_VALUE;
+        assert ZoneGeometry.pickInRing(cands, 0, 0, 1000, 2000, k2 -> true, 0.5) == Long.MIN_VALUE;
+        for (double roll = 0; roll < 1; roll += 0.05) {
+            long k = ZoneGeometry.pickInRing(cands, 0, 0, 0, 200, k2 -> ZoneGeometry.x(k2) >= 3, roll);
+            assert ZoneGeometry.x(k) >= 3 : "filter ignored";
+        }
+        assert ZoneGeometry.pickInRing(cands, 0, 0, 0, 200, k2 -> false, 0.5) == Long.MIN_VALUE;
+        assert ZoneGeometry.pickInRing(new long[0], 0, 0, 0, 100, k2 -> true, 0.5) == Long.MIN_VALUE;
 
         // nearest allowed chunk
         long near = ZoneGeometry.nearestAllowed(0, 0, 3, k -> ZoneGeometry.x(k) >= 2);
         assert near != Long.MIN_VALUE && ZoneGeometry.x(near) == 2;
         assert ZoneGeometry.nearestAllowed(0, 0, 1, k -> ZoneGeometry.x(k) >= 2) == Long.MIN_VALUE;
         assert ZoneGeometry.nearestAllowed(4, 4, 0, k -> true) == ZoneGeometry.pack(4, 4);
+
+        // client run merge: sorted by row then x, same-kind neighbours merged, signs respected
+        var kinds = new it.unimi.dsi.fastutil.longs.Long2ByteOpenHashMap();
+        for (int x = -3; x <= 2; x++) kinds.put(ZoneGeometry.pack(x, -1), (byte) 1);
+        kinds.put(ZoneGeometry.pack(3, -1), (byte) 2);
+        kinds.put(ZoneGeometry.pack(5, -1), (byte) 2);
+        kinds.put(ZoneGeometry.pack(0, 4), (byte) 3);
+        var runs = com.neoalive.tacz_sewv.client.zone.ZoneViewClient.runs(kinds);
+        assert runs.length == 4 : "runs " + runs.length;
+        assert runs[0].cz() == -1 && runs[0].x0() == -3 && runs[0].x1() == 2 && runs[0].kind() == 1;
+        assert runs[1].x0() == 3 && runs[1].x1() == 3 && runs[1].kind() == 2 : "kind change splits a run";
+        assert runs[2].x0() == 5 : "gap splits a run";
+        assert runs[3].cz() == 4;
 
         System.out.println("SpawnZonesSelfCheck: OK");
     }

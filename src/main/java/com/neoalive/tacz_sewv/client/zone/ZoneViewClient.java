@@ -49,12 +49,14 @@ public final class ZoneViewClient {
         if (!active) return;
         active = false;
         snapshot = EMPTY;
+        ZoneDrawTool.reset();
         if (Minecraft.getInstance().getConnection() != null) {
             NetworkHandler.CHANNEL.sendToServer(new com.neoalive.tacz_sewv.network.PacketZoneView(false));
         }
     }
 
     public static void clear() {
+        ZoneDrawTool.reset();
         active = false;
         snapshot = EMPTY;
     }
@@ -74,24 +76,33 @@ public final class ZoneViewClient {
         snapshot = new Snapshot(p.dimension, kinds, runs(kinds), beacons);
     }
 
-    static Run[] runs(Long2ByteOpenHashMap kinds) {
-        long[] keys = kinds.keySet().toLongArray();
-        Long[] sorted = Arrays.stream(keys).boxed().toArray(Long[]::new);
-        Arrays.sort(sorted, (a, b) -> {
-            int za = ZoneGeometry.z(a), zb = ZoneGeometry.z(b);
-            if (za != zb) return Integer.compare(za, zb);
-            return Integer.compare(ZoneGeometry.x(a), ZoneGeometry.x(b));
-        });
+    /** Signed-sortable key: row in the high half, x biased in the low half so it sorts signed too. */
+    private static long rowMajor(int cx, int cz) {
+        return ((long) cz << 32) | ((cx & 0xFFFFFFFFL) ^ 0x80000000L);
+    }
+
+    private static int rowOf(long order) {
+        return (int) (order >> 32);
+    }
+
+    private static int colOf(long order) {
+        return (int) ((order & 0xFFFFFFFFL) ^ 0x80000000L);
+    }
+
+    /** Chunks merged into horizontal same-kind runs, sorted by row then x. */
+    public static Run[] runs(Long2ByteOpenHashMap kinds) {
+        long[] order = new long[kinds.size()];
+        int n = 0;
+        for (long k : kinds.keySet()) order[n++] = rowMajor(ZoneGeometry.x(k), ZoneGeometry.z(k));
+        Arrays.sort(order);
         java.util.ArrayList<Run> out = new java.util.ArrayList<>();
         int i = 0;
-        while (i < sorted.length) {
-            long k = sorted[i];
-            int cz = ZoneGeometry.z(k), x0 = ZoneGeometry.x(k), x1 = x0;
-            byte kind = kinds.get(k);
+        while (i < order.length) {
+            int cz = rowOf(order[i]), x0 = colOf(order[i]), x1 = x0;
+            byte kind = kinds.get(ZoneGeometry.pack(x0, cz));
             int j = i + 1;
-            while (j < sorted.length) {
-                long n = sorted[j];
-                if (ZoneGeometry.z(n) != cz || ZoneGeometry.x(n) != x1 + 1 || kinds.get(n) != kind) break;
+            while (j < order.length && rowOf(order[j]) == cz && colOf(order[j]) == x1 + 1
+                    && kinds.get(ZoneGeometry.pack(x1 + 1, cz)) == kind) {
                 x1++;
                 j++;
             }

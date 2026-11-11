@@ -56,23 +56,23 @@ public final class ZoneGeometry {
     }
 
     /**
-     * Uniform pick among candidate chunks whose centre lies within [min, max] blocks of the origin.
+     * Uniform pick among candidate chunks whose centre lies within [min, max] blocks of the origin
+     * and that pass {@code filter}. One pass; the filter only runs on chunks inside the ring.
      * Returns {@code Long.MIN_VALUE} when none qualify. {@code roll} is in [0, 1).
      */
-    public static long pickInRing(long[] candidates, double ox, double oz, double min, double max, double roll) {
+    public static long pickInRing(long[] candidates, double ox, double oz, double min, double max,
+            LongPredicate filter, double roll) {
         double minSq = min * min, maxSq = max * max;
+        long[] hits = new long[Math.min(candidates.length, 256)];
         int count = 0;
         for (long k : candidates) {
             double d = distSqToChunkCentre(ox, oz, k);
-            if (d >= minSq && d <= maxSq) count++;
+            if (d < minSq || d > maxSq || !filter.test(k)) continue;
+            if (count == hits.length) hits = java.util.Arrays.copyOf(hits, count * 2);
+            hits[count++] = k;
         }
         if (count == 0) return Long.MIN_VALUE;
-        int target = Math.min(count - 1, (int) (roll * count));
-        for (long k : candidates) {
-            double d = distSqToChunkCentre(ox, oz, k);
-            if (d >= minSq && d <= maxSq && target-- == 0) return k;
-        }
-        return Long.MIN_VALUE;
+        return hits[Math.min(count - 1, (int) (roll * count))];
     }
 
     /**

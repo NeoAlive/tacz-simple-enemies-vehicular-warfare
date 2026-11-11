@@ -160,7 +160,8 @@ public class NetworkHandler {
     // 109: PacketVehicleFormation's anchor mode may be UNIT (a formation laid on an elected unit).
     // 110: PacketSideRelations (S->C) carries the player's diplomacy toward SEM sides ru and us.
     // 111: PacketZoneView (C->S) + PacketSpawnZoneState (S->C) for the operator spawn zone map.
-    private static final String PROTOCOL_VERSION = "111";
+    // 112: PacketZoneEdit (C->S), operator brush strokes on the zone map.
+    private static final String PROTOCOL_VERSION = "112";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),
@@ -806,6 +807,13 @@ public class NetworkHandler {
                 PacketSpawnZoneState::encode,
                 PacketSpawnZoneState::new,
                 PacketSpawnZoneState::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketZoneEdit.class,
+                PacketZoneEdit::encode,
+                PacketZoneEdit::new,
+                PacketZoneEdit::handle
         );
     }
 }

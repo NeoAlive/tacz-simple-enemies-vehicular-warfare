@@ -2204,5 +2204,14 @@
   "gui.tacz_sewv.zone_beacon.upkeep": "Upkeep %s FE/t",
   "gui.tacz_sewv.zone_beacon.active": "Active: no spawns in range",
   "gui.tacz_sewv.zone_beacon.inactive": "Inactive: needs power",
-  "gui.tacz_sewv.zone_beacon.energy": "%s / %s FE"
+  "gui.tacz_sewv.zone_beacon.energy": "%s / %s FE",
+  "key.tacz_sewv.open_zone_map": "Open Spawn Zone Map",
+  "gui.tacz_sewv.zones.op_only": "Only operators can open the spawn zone map.",
+  "gui.tacz_sewv.zones.draw.priority": "Prioritization",
+  "gui.tacz_sewv.zones.draw.nozone": "No-zone",
+  "gui.tacz_sewv.zones.draw.erase": "Erase",
+  "gui.tacz_sewv.zones.draw.size": "Brush %s",
+  "gui.tacz_sewv.zones.draw.painted": "%s chunks marked.",
+  "gui.tacz_sewv.zones.draw.erased": "%s chunks cleared.",
+  "gui.tacz_sewv.zones.draw.capped": "Stroke capped at %s chunks."
 }

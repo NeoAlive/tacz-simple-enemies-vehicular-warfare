@@ -1357,7 +1357,7 @@
   "config.tacz_sewv.grenadeMaxSmoke": "Max Smoke Grenades Per Unit",
   "config.tacz_sewv.grenadeMaxSmoke.tooltip": "Lifetime NBT cap of M18 smoke grenades one unit may throw. 0 disables that type.",
   "config.tacz_sewv.aiAimSpreadDegrees": "AI Aim Spread Degrees",
-  "config.tacz_sewv.aiAimSpreadDegrees.tooltip": "AI aim style: realistic (misses), scaled, or accurate (rare misses). aiAimAccuracy realistic realistic scaled accurate Extra aim wobble in degrees for realistic/scaled modes.",
+  "config.tacz_sewv.aiAimSpreadDegrees.tooltip": "Extra aim wobble in degrees for realistic/scaled modes.",
   "config.tacz_sewv.aiFireAssistConeDeg": "AI Fire Assist Cone Deg",
   "config.tacz_sewv.aiFireAssistConeDeg.tooltip": "How many degrees off-target an AI crew may still pull the trigger. Wider = more missed shots but less sitting silent. Existing configs keep their old value until you edit them.",
   "config.tacz_sewv.aiFireCooldownTicks": "AI Fire Cooldown Ticks",

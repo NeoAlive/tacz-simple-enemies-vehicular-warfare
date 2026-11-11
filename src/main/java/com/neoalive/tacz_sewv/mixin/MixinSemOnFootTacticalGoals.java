@@ -8,10 +8,12 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
+import com.neoalive.tacz_sewv.entity.ai.support.CoverHoldOrders;
 import com.neoalive.tacz_sewv.entity.ai.support.FollowLeash;
 import com.neoalive.tacz_sewv.entity.ai.support.VehicleCrew;
 
@@ -40,15 +42,22 @@ public abstract class MixinSemOnFootTacticalGoals {
 
     @Inject(method = "canUse", at = @At("HEAD"), cancellable = true)
     private void tacz_sewv$blockCombatMove(CallbackInfoReturnable<Boolean> cir) {
-        if (VehicleCrew.suppressOnFootAi(this.unit) || FollowLeash.ownsMove(this.unit)) {
-            cir.setReturnValue(false);
-        }
+        if (tacz_sewv$blocked()) cir.setReturnValue(false);
     }
 
     @Inject(method = "canContinueToUse", at = @At("HEAD"), cancellable = true)
     private void tacz_sewv$stopCombatMove(CallbackInfoReturnable<Boolean> cir) {
-        if (VehicleCrew.suppressOnFootAi(this.unit) || FollowLeash.ownsMove(this.unit)) {
-            cir.setReturnValue(false);
-        }
+        if (tacz_sewv$blocked()) cir.setReturnValue(false);
+    }
+
+    /**
+     * A Cover and Hold order has already picked the cover (SEM's own finder, from the order), so SEM may
+     * not go looking for another or flank off it. The one SEM goal it keeps is the peek, once holding.
+     */
+    @Unique
+    private boolean tacz_sewv$blocked() {
+        if (VehicleCrew.suppressOnFootAi(this.unit) || FollowLeash.ownsMove(this.unit)) return true;
+        if (this.unit.getVehicle() != null || !CoverHoldOrders.has(this.unit)) return false;
+        return !((Object) this instanceof PeekFromCoverGoal && CoverHoldOrders.holding(this.unit));
     }
 }

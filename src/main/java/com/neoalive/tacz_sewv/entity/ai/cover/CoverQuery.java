@@ -359,6 +359,56 @@ public final class CoverQuery {
         return new BattlePick(new Vec3(best[0], best[2], best[1]), alternate, best[4] > 0);
     }
 
+    private static final double[] HOLD_RINGS = {0.0, 6.0, 12.0, 18.0};
+    private static final int HOLD_BEARINGS = 12;
+
+    /**
+     * Cover and Hold for a hull: the least exposed spot near an ordered point, against a threat point
+     * downrange of it. Rings around the anchor, scored on the same table reads as everything else here
+     * (exposure, plus keyhole quality so the turret can still work), less a little for travel.
+     * {@code claimed} holds spots already given to hulls ordered together; a candidate closer than the
+     * hull's width plus 4 to one of them is skipped, so a platoon does not stack on one hollow.
+     * Table reads only: no raycast, never loads a chunk.
+     *
+     * @return null when no candidate column is loaded and drivable
+     */
+    @Nullable
+    public static Vec3 suggestHoldCover(ServerLevel level, VehicleEntity hull, double anchorX, double anchorZ,
+                                        double threatX, double threatZ, List<Vec3> claimed) {
+        double gap = hull.getBbWidth() + 4.0;
+        double bestScore = Double.NEGATIVE_INFINITY;
+        Vec3 best = null;
+        for (double r : HOLD_RINGS) {
+            int bearings = r == 0.0 ? 1 : HOLD_BEARINGS;
+            for (int b = 0; b < bearings; b++) {
+                double ang = 2.0 * Math.PI * b / HOLD_BEARINGS;
+                double px = anchorX + Math.cos(ang) * r;
+                double pz = anchorZ + Math.sin(ang) * r;
+                double ground = surfaceY(level, px, pz);
+                if (Double.isNaN(ground) || Math.abs(ground - hull.getY()) > BP_MAX_RISE) continue;
+                if (tooClose(claimed, px, pz, gap)) continue;
+                double exp = exposure(level, px, pz, threatX, threatZ);
+                double travel = Math.sqrt((px - hull.getX()) * (px - hull.getX()) + (pz - hull.getZ()) * (pz - hull.getZ()));
+                double score = (1.0 - exp) * 10.0 + keyholeQuality(level, px, pz, threatX, threatZ) * 4.0
+                        + (exp < 0.55 ? 3.0 : 0.0) - travel * 0.1;
+                if (score > bestScore) {
+                    bestScore = score;
+                    best = new Vec3(px, ground, pz);
+                }
+            }
+        }
+        return best;
+    }
+
+    private static boolean tooClose(List<Vec3> claimed, double x, double z, double gap) {
+        for (Vec3 c : claimed) {
+            double dx = c.x - x;
+            double dz = c.z - z;
+            if (dx * dx + dz * dz < gap * gap) return true;
+        }
+        return false;
+    }
+
     /** Surface Y at a column, NaN when its chunk is not loaded or the surface is a fluid. Never loads a chunk. */
     private static double surfaceY(ServerLevel level, double x, double z) {
         int bx = Mth.floor(x);

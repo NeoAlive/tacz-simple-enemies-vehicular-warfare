@@ -123,6 +123,7 @@ public abstract class MixinPacketIssueOrder {
         }
         EntrenchSupport.clear(pmc);
         com.neoalive.tacz_sewv.entity.ai.support.SuppressOrders.clear(pmc);
+        com.neoalive.tacz_sewv.entity.ai.support.CoverHoldOrders.clear(pmc);
         com.neoalive.tacz_sewv.command.quick.GearSearchTracker.release(pmc);
         // Any player SEM order cancels an in-flight REACH promote (FREE_FIRE included).
         GuardSupport.clearReach(pmc);

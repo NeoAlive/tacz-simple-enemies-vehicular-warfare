@@ -20,12 +20,14 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.server.ServerLifecycleHooks;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
+import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
+import com.neoalive.tacz_sewv.entity.ai.support.CoverHoldOrders;
 import com.neoalive.tacz_sewv.entity.ai.support.VehicleFormation;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketOrderQueueState;
@@ -120,6 +122,17 @@ public final class OrderQueue {
         }
     }
 
+    /** Whether any unit of the entry still holds a Cover and Hold; a crew's lives on its driver. */
+    private static boolean anyCoverHold(ServerPlayer player, Entry e) {
+        for (int id : e.units) {
+            if (!(player.level().getEntity(id) instanceof PmcUnitEntity pmc) || !pmc.isAlive()) continue;
+            Entity taker = pmc.getVehicle() instanceof VehicleEntity hull && hull.getFirstPassenger() != null
+                    ? hull.getFirstPassenger() : pmc;
+            if (taker instanceof AbstractUnit unit && CoverHoldOrders.has(unit)) return true;
+        }
+        return false;
+    }
+
     private static void sync(ServerPlayer player, State s) {
         List<String> labels = new ArrayList<>(s.entries.size());
         for (Entry e : s.entries) labels.add(e.label);
@@ -135,6 +148,8 @@ public final class OrderQueue {
     private static boolean done(ServerPlayer player, Entry e) {
         if (QuickCommandRegistry.isSwapRole(e.pipelineId)) return true;
         if (QuickCommandRegistry.isSearchGear(e.pipelineId)) return !GearSearchTracker.isActive(player.getUUID());
+        // A timed hold completes when the last unit is released; a forever hold waits for a skip.
+        if (QuickCommandRegistry.ID_QUICK_COVER_HOLD.equals(e.pipelineId)) return !anyCoverHold(player, e);
         switch (e.pipelineId) {
             case QuickCommandRegistry.ID_QUICK_DISMOUNT:
             case QuickCommandRegistry.ID_BAIL_OUT:

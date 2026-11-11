@@ -114,5 +114,13 @@ public final class RadialInputStateSelfCheck {
         assert OrderScales.get(alt) >= alt.min && OrderScales.get(alt) <= alt.max : "initial in range";
         assert OrderScales.forPipeline("quick_takeoff") == alt : "takeoff carries altitude";
         assert OrderScales.forPipeline("quick_hold") == null : "plain orders carry none";
+        OrderScales.Scale hold = OrderScales.Scale.HOLD;
+        assert OrderScales.forPipeline("quick_cover_hold") == hold : "cover and hold carries a hold time";
+        assert OrderScales.get(hold) == 0 : "hold defaults to forever";
+        assert OrderScales.stepped(hold, 0, 1, false) == 10 : "forever steps up to 10 s";
+        assert OrderScales.stepped(hold, 10, -1, false) == 0 : "and back down to forever";
+        assert OrderScales.stepped(hold, 0, 1, true) == 40 : "shift steps 40 s";
+        assert OrderScales.stepped(hold, 120, 1, true) == 120 : "capped at 120 s";
+        assert OrderScales.stepped(hold, 0, -1, false) == 0 : "nothing below forever";
     }
 }

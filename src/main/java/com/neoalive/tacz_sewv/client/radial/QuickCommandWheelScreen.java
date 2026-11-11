@@ -600,11 +600,14 @@ public final class QuickCommandWheelScreen extends Screen {
         }
 
         // Entrench resolves the aimed block server-side (trench networks are server data); Suppress
-        // puts its fire on it.
+        // puts its fire on it; Cover and Hold takes cover near it.
+        boolean coverHold = QuickCommandRegistry.ID_QUICK_COVER_HOLD.equals(pipelineId);
         BlockPos aimBlock = QuickCommandRegistry.ID_QUICK_ENTRENCH.equals(pipelineId)
-                || QuickCommandRegistry.ID_QUICK_SUPPRESS.equals(pipelineId) ? this.aim.block() : null;
+                || QuickCommandRegistry.ID_QUICK_SUPPRESS.equals(pipelineId) || coverHold ? this.aim.block() : null;
+        String sendId = coverHold
+                ? QuickCommandRegistry.coverHoldId(OrderScales.get(OrderScales.Scale.HOLD)) : pipelineId;
         NetworkHandler.CHANNEL.sendToServer(
-                new PacketQuickCommand(pipelineId, units, WheelScope.explicit(), aimBlock));
+                new PacketQuickCommand(sendId, units, WheelScope.explicit(), aimBlock));
         return true;
     }
 
@@ -865,6 +868,17 @@ public final class QuickCommandWheelScreen extends Screen {
         }
         OrderScales.Scale scale = OrderScales.forPipeline(pipelineId);
         if (scale == null) throw new IllegalArgumentException(pipelineId);
+        if (scale == OrderScales.Scale.HOLD) {
+            int seconds = OrderScales.get(scale);
+            String value = seconds <= 0
+                    ? I18n.get("gui.tacz_sewv.wheel.scale.forever")
+                    : I18n.get("gui.tacz_sewv.wheel.scale.seconds", seconds);
+            String forever = I18n.get("gui.tacz_sewv.wheel.scale.forever");
+            String longest = I18n.get("gui.tacz_sewv.wheel.scale.seconds", scale.max);
+            return new ScaleCardDraw.Card(I18n.get("gui.tacz_sewv.wheel.scale.hold"), value,
+                    forever.length() > longest.length() ? forever : longest,
+                    I18n.get("gui.tacz_sewv.wheel.scale.tag.hold"), scale.fraction(seconds), true);
+        }
         boolean altitude = scale == OrderScales.Scale.ALTITUDE;
         String title = altitude
                 ? I18n.get("gui.tacz_sewv.wheel.scale.altitude")

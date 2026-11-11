@@ -78,7 +78,7 @@ public final class QuickCancelPipeline implements QuickCommandPipeline {
             capture.sewv$clearCaptureOrder();
         }
         FobSupport.clearRoutePending(pmc);
-
+        com.neoalive.tacz_sewv.entity.ai.support.CoverHoldOrders.clear(pmc);
 
         IVehicleBoarder boarder = (IVehicleBoarder) pmc;
         boarder.tacz_sewv$setBoarding(false);

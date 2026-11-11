@@ -1,11 +1,13 @@
 package com.neoalive.tacz_sewv.mixin;
 
+import net.minecraft.world.entity.LivingEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.goals.TacticalManagerGoal;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.util.SoldierState;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Constant;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -14,6 +16,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.EasyTuning;
+import com.neoalive.tacz_sewv.entity.ai.support.CoverHoldOrders;
 import com.neoalive.tacz_sewv.entity.ai.support.FollowLeash;
 import com.neoalive.tacz_sewv.entity.ai.support.VehicleCrew;
 
@@ -39,6 +42,11 @@ public abstract class MixinTacticalManagerGoal {
 
     @Inject(method = "tick", at = @At("HEAD"), cancellable = true)
     private void tacz_sewv$honourOrderedMove(CallbackInfo ci) {
+        if (this.unit.getVehicle() == null && CoverHoldOrders.has(this.unit)) {
+            tacz_sewv$coverHoldState();
+            ci.cancel();
+            return;
+        }
         if (!FollowLeash.ownsMove(this.unit) && !VehicleCrew.suppressOnFootAi(this.unit)) return;
 
         this.unit.releaseMovementLock();
@@ -51,6 +59,28 @@ public abstract class MixinTacticalManagerGoal {
             this.unit.setSoldierState(SoldierState.IDLE);
         }
         ci.cancel();
+    }
+
+    /**
+     * Cover and Hold owns the state while its order stands. SEM would otherwise time HOLD_COVER out
+     * into a flank, or reset it to IDLE the moment there is no target. Holding with a target out of
+     * sight is HOLD_COVER, so SEM's peek works from the cover block; in sight it is ENGAGE, and the
+     * MOVE goals that would act on that are kept out by the order.
+     */
+    @Unique
+    private void tacz_sewv$coverHoldState() {
+        this.unit.releaseMovementLock();
+        LivingEntity t = this.unit.getTarget();
+        SoldierState want;
+        if (t == null || !t.isAlive()) {
+            want = CoverHoldOrders.holding(this.unit) && this.unit.getCoverBlock() != null
+                    ? SoldierState.HOLD_COVER : SoldierState.IDLE;
+        } else if (CoverHoldOrders.holding(this.unit) && !this.unit.hasLineOfSight(t)) {
+            want = this.unit.getCoverBlock() != null ? SoldierState.HOLD_COVER : SoldierState.ENGAGE;
+        } else {
+            want = SoldierState.ENGAGE;
+        }
+        if (this.unit.getSoldierState() != want) this.unit.setSoldierState(want);
     }
 
     /**

@@ -41,6 +41,7 @@ import com.neoalive.tacz_sewv.entity.ai.sensor.AwarenessCues;
 import com.neoalive.tacz_sewv.entity.ai.support.AirLod;
 import com.neoalive.tacz_sewv.entity.ai.support.ArtillerySupport;
 import com.neoalive.tacz_sewv.entity.ai.support.BailOutSupport;
+import com.neoalive.tacz_sewv.entity.ai.support.CoverHoldOrders;
 import com.neoalive.tacz_sewv.entity.ai.support.DismountSequence;
 import com.neoalive.tacz_sewv.entity.ai.support.DroneSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.FireMissionSupport;
@@ -118,6 +119,10 @@ public class DriveVehicleGoal extends Goal {
     private boolean taskDriving;
     /** Game time the run-start smoke volley's decoy hold ends; {@link Long#MIN_VALUE} = none open. */
     private long smokeUntil = Long.MIN_VALUE;
+    /** Game ticks a Cover and Hold drive may go without closing on its spot before it holds where it is. */
+    private static final long COVER_STALL_TICKS = 1200;
+    private double coverBestDistSq = Double.MAX_VALUE;
+    private long coverProgressTick = Long.MIN_VALUE;
     /** Long enough for SBW to register the held decoy input and fire one volley. */
     private static final long RUN_SMOKE_TICKS = 10;
     /** Blocks past the hull's half-width at which a posture waypoint counts as reached. */
@@ -192,6 +197,7 @@ public class DriveVehicleGoal extends Goal {
         if (TowRecoverySupport.hasTowOrder(this.unit)) return true;
         if (seekCoverWantsDrive()) return true;
         if (SuppressOrders.active(this.unit, this.unit.level().getGameTime()) != null) return true;
+        if (CoverHoldOrders.has(this.unit)) return true;
         return getTargetPos() != null; // only drive if there's somewhere to go
     }
 
@@ -210,6 +216,7 @@ public class DriveVehicleGoal extends Goal {
                         || TowRecoverySupport.hasTowOrder(this.unit)
                         || seekCoverWantsDrive()
                         || SuppressOrders.active(this.unit, this.unit.level().getGameTime()) != null
+                        || CoverHoldOrders.has(this.unit)
                         || getTargetPos() != null);
     }
 
@@ -321,6 +328,8 @@ public class DriveVehicleGoal extends Goal {
         // The player's Suppress Area order outranks the crew's own posture and plan, short of
         // self-defence (see SuppressOrders).
         if (orderedSuppressTick()) return;
+        // Cover and Hold: drive to the ordered cover and stay on it (see CoverHoldOrders).
+        if (coverHoldTick(target)) return;
 
         // Posture hard steers on the main tick so area-hold / lost-target still honour them.
         if (trySteerSeekCover()) return;
@@ -466,6 +475,54 @@ public class DriveVehicleGoal extends Goal {
         if (now >= this.smokeUntil) this.vehicle.setDecoyInputDown(false);
         this.driver.stop();
         this.driver.clearRecovery(); // holding on purpose — not stuck
+        return true;
+    }
+
+    /**
+     * The player's Cover and Hold order: drive to the spot picked by {@code CoverQuery.suggestHoldCover}, then
+     * hold it with the front armour on the target (or downrange, with none) while the turret works. On the way
+     * only self-defence hands the tick back to the plan. A hull that stops closing on its spot for
+     * {@link #COVER_STALL_TICKS} holds where it is. Every branch issues input.
+     */
+    private boolean coverHoldTick(@javax.annotation.Nullable LivingEntity target) {
+        long now = this.unit.level().getGameTime();
+        CoverHoldOrders.Order order = CoverHoldOrders.active(this.unit, now);
+        if (order == null || order.spot() == null) {
+            this.coverProgressTick = Long.MIN_VALUE;
+            return false;
+        }
+        if (!order.holding() && SuppressOrders.selfDefence(this.unit, SuppressOrders.CREW_SELF_DEFENCE)) return false;
+        if (target != null) {
+            selectWeaponForTarget(this.vehicle.getSeatIndex(this.unit), target);
+            fireAssistIfSpecial(target);
+        }
+        // This early return skips the per-tick decoy release below.
+        if (now >= this.smokeUntil) this.vehicle.setDecoyInputDown(false);
+
+        Vec3 spot = Vec3.atBottomCenterOf(order.spot());
+        double dx = spot.x - this.vehicle.getX();
+        double dz = spot.z - this.vehicle.getZ();
+        double distSq = dx * dx + dz * dz;
+        if (!parkedOn(spot, distSq, BattlePosition.arriveRadius(this.vehicle))) {
+            if (!order.holding()) {
+                if (this.coverProgressTick == Long.MIN_VALUE || distSq < this.coverBestDistSq - 4.0) {
+                    this.coverBestDistSq = distSq;
+                    this.coverProgressTick = now;
+                } else if (now - this.coverProgressTick > COVER_STALL_TICKS) {
+                    CoverHoldOrders.setSpot(this.unit, this.vehicle.blockPosition(), true);
+                    CoverHoldOrders.arrive(this.unit, now);
+                    this.driver.stop();
+                    return true;
+                }
+            }
+            this.driver.navigateTo(order.spot(), this.vehicle.distanceToSqr(spot));
+            return true;
+        }
+        CoverHoldOrders.arrive(this.unit, now);
+        Vec3 look = target != null ? target.position() : order.threat();
+        Vec3 facing = new Vec3(look.x - this.vehicle.getX(), 0.0, look.z - this.vehicle.getZ());
+        this.driver.holdStation(facing.lengthSqr() > 1.0E-4 ? facing.normalize() : null);
+        this.driver.clearRecovery(); // on station on purpose, not stuck
         return true;
     }
 

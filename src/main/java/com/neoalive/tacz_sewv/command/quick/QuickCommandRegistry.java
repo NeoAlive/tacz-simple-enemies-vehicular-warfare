@@ -11,6 +11,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 
 import com.neoalive.tacz_sewv.client.radial.WedgeEntry;
 import com.neoalive.tacz_sewv.compat.PlayerReviveCompat;
+import com.neoalive.tacz_sewv.entity.ai.support.CoverHoldOrders;
 import com.neoalive.tacz_sewv.entity.ai.support.FormationShape;
 import com.neoalive.tacz_sewv.entity.ai.support.RoleKit;
 import com.neoalive.tacz_sewv.item.PlaneAttackMode;
@@ -51,6 +52,8 @@ public final class QuickCommandRegistry {
     public static final String ID_QUICK_ATTACK = "quick_attack";
     public static final String ID_QUICK_MOVE = "quick_move";
     public static final String ID_QUICK_SUPPRESS = "quick_suppress";
+    /** Wheel-only leaf; the hold time picked with Ctrl+scroll turns it into a per-value id. */
+    public static final String ID_QUICK_COVER_HOLD = "quick_cover_hold";
     public static final String ID_PLATOON_JOIN = "platoon_join";
     public static final String ID_PLATOON_EXIT = "platoon_exit";
     public static final String ID_PLATOON_AUTO_ORDERS = "platoon_auto_orders";
@@ -118,6 +121,9 @@ public final class QuickCommandRegistry {
         register(ID_QUICK_ROUTE_FOB, new QuickRouteFobPipeline());
         register(ID_REVIVE_CALL, new QuickReviveCallPipeline());
         register(ID_QUICK_SUPPRESS, new QuickSuppressPipeline());
+        for (int s = 0; s <= CoverHoldOrders.MAX_HOLD_SECONDS; s += CoverHoldOrders.HOLD_STEP_SECONDS) {
+            register(coverHoldId(s), new QuickCoverHoldPipeline(s));
+        }
         for (RoleKit.Kit kit : SEARCH_KITS) register(searchGearId(kit), new QuickSearchGearPipeline(kit));
         for (RoleKit.Kit kit : SWAP_KITS) register(swapRoleId(kit), new QuickSwapRolePipeline(kit));
         // Formation leaves are client-committed via PacketVehicleFormation (not PacketQuickCommand).
@@ -164,6 +170,7 @@ public final class QuickCommandRegistry {
                         leaf(ID_QUICK_EVAC, "\u21E7", 0x5AB8A0),
                         leaf(ID_QUICK_SEARCH, "\u25CE", 0x5AB8A0),
                         leaf(ID_QUICK_PATROL, "\u27F3", 0x5AB8A0),
+                        leaf(ID_QUICK_COVER_HOLD, "\u26E8", 0x5AB8A0),
                         leaf(ID_DISMISS, "\u2715", 0x5AB8A0))),
                 category("formation", "\u25C8", 0xA06BD4, List.of(
                         leaf(ID_FORM_WEDGE, "\u25B2", 0xA06BD4),
@@ -232,6 +239,11 @@ public final class QuickCommandRegistry {
 
     public static String swapRoleId(RoleKit.Kit kit) {
         return ID_QUICK_SWAP_ROLE + "_" + kit.key();
+    }
+
+    /** The registered id for a Cover and Hold of {@code seconds} (0 = until the next order). */
+    public static String coverHoldId(int seconds) {
+        return ID_QUICK_COVER_HOLD + "_" + seconds;
     }
 
     public static boolean isSearchGear(String pipelineId) {

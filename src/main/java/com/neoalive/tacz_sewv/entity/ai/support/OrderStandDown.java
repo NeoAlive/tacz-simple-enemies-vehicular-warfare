@@ -41,6 +41,7 @@ public final class OrderStandDown {
         }
         ((IPathwayInfantry) pmc).sewv$clearPathway();
         SuppressOrders.clear(pmc);
+        CoverHoldOrders.clear(pmc);
         com.neoalive.tacz_sewv.command.quick.GearSearchTracker.release(pmc);
     }
 
@@ -60,6 +61,7 @@ public final class OrderStandDown {
         if (GuardSupport.isReaching(pmc) || TowRecoverySupport.hasTowOrder(pmc)) return true;
         if (pmc instanceof ICaptureOrder capture && capture.sewv$hasCaptureOrder()) return true;
         if (((IPathwayInfantry) pmc).sewv$hasPathway()) return true;
+        if (CoverHoldOrders.has(pmc)) return true;
         if (com.neoalive.tacz_sewv.command.quick.GearSearchTracker.isSearching(pmc)) return true;
         IVehicleBoarder boarder = (IVehicleBoarder) pmc;
         if (boarder.tacz_sewv$isBoarding() || boarder.tacz_sewv$getMountTargetId() >= 0) return true;
@@ -71,6 +73,7 @@ public final class OrderStandDown {
         FormationSubjects.onDowned(pmc);
         pmc.setTarget(null);
         SuppressOrders.clear(pmc);
+        CoverHoldOrders.clear(pmc);
         com.neoalive.tacz_sewv.command.quick.GearSearchTracker.release(pmc);
         pmc.setOrder(OrderType.CEASE_FIRE);
 
@@ -114,6 +117,7 @@ public final class OrderStandDown {
     public static void clearForVehicleBail(PmcUnitEntity pmc) {
         pmc.setTarget(null);
         SuppressOrders.clear(pmc);
+        CoverHoldOrders.clear(pmc);
         ((IEscort) pmc).tacz_sewv$setEscortTargetId(-1);
         PatrolSupport.clearSweepMembership(pmc, "BailOutSupport");
         TerritorySupport.dropPost(pmc);

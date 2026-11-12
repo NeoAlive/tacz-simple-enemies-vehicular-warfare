@@ -197,6 +197,18 @@ public final class ModSounds {
             // END GENERATED CREW POOLS
     );
 
+    /**
+     * Handheld-radio ambient traffic, keyed by prefix ({@code radio_chatter_<lang>}). Read through
+     * {@link #chatter(String)}. The block between the markers is written by
+     * {@code tools/crew_audio/chatter.py}. Do not hand-edit it.
+     */
+    private static final Map<String, SoundPool> CHATTER = crewPools(
+            // BEGIN GENERATED CHATTER POOLS
+            pool("radio_chatter_en", 20),
+            pool("radio_chatter_ru", 20)
+            // END GENERATED CHATTER POOLS
+    );
+
     // PMC handheld-radio ordnance acks (faction-neutral pilot pools).
     public static final SoundPool PILOT_AGM = pool("pilot_agm", 2);
     public static final SoundPool PILOT_BOMB = pool("pilot_bomb", 2);
@@ -249,6 +261,11 @@ public final class ModSounds {
     /** The crew pool with this file prefix, or null when none ships. */
     public static SoundPool crew(String prefix) {
         return CREW.get(prefix);
+    }
+
+    /** The radio chatter pool for this language ({@code en}, {@code ru}), or null when none ships. */
+    public static SoundPool chatter(String lang) {
+        return CHATTER.get("radio_chatter_" + lang);
     }
 
     /**

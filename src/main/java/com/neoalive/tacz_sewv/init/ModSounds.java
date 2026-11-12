@@ -209,6 +209,10 @@ public final class ModSounds {
             // END GENERATED CHATTER POOLS
     );
 
+    /** Handheld radio press-to-talk clicks and squelch tails: notification cues and voice key-up/key-down. */
+    public static final SoundPool RADIO_CLICK = pool("radio_click", 10);
+    public static final SoundPool RADIO_SQUELCH = pool("radio_squelch", 12);
+
     // PMC handheld-radio ordnance acks (faction-neutral pilot pools).
     public static final SoundPool PILOT_AGM = pool("pilot_agm", 2);
     public static final SoundPool PILOT_BOMB = pool("pilot_bomb", 2);

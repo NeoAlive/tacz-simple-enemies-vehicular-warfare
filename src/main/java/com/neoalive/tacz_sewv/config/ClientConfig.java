@@ -37,6 +37,10 @@ public final class ClientConfig {
     public static final ForgeConfigSpec.BooleanValue NOTIFICATIONS_ENABLED;
     public static final ForgeConfigSpec.IntValue NOTIFICATION_SCREEN_SECONDS;
     public static final ForgeConfigSpec.IntValue NOTIFICATION_MAX_VISIBLE;
+    public static final ForgeConfigSpec.BooleanValue RADIO_NOTIFICATION_SOUND;
+    public static final ForgeConfigSpec.BooleanValue RADIO_CHATTER;
+    public static final ForgeConfigSpec.BooleanValue RADIO_VOICE_EFFECT;
+    public static final ForgeConfigSpec.BooleanValue RADIO_VOICE_CLICKS;
     public static final ForgeConfigSpec.BooleanValue HELMET_GRAYSCALE;
     public static final ForgeConfigSpec.BooleanValue SHOW_LAG_TIP;
 
@@ -108,6 +112,18 @@ public final class ClientConfig {
         NOTIFICATION_MAX_VISIBLE = builder
                 .comment("How many HUD notification tickets may show stacked at once (extras wait in a backlog).")
                 .defineInRange("notificationMaxVisible", 3, 1, 8);
+        RADIO_NOTIFICATION_SOUND = builder
+                .comment("Play a radio click or squelch with each HUD notification.")
+                .define("radioNotificationSound", true);
+        RADIO_CHATTER = builder
+                .comment("Play random ambient radio traffic while you carry a handheld radio.")
+                .define("radioChatter", true);
+        RADIO_VOICE_EFFECT = builder
+                .comment("Run voice heard over a handheld radio (Simple Voice Chat) through the radio effect.")
+                .define("radioVoiceEffect", true);
+        RADIO_VOICE_CLICKS = builder
+                .comment("Play press-to-talk clicks at the start and end of radio voice transmissions.")
+                .define("radioVoiceClicks", true);
         HELMET_GRAYSCALE = builder
                 .comment("Desaturate only the PMC MICH DogTag UV to low-contrast grey (logo alpha kept).")
                 .define("helmetGrayscale", true);

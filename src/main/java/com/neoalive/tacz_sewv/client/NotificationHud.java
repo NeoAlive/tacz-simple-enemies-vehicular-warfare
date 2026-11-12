@@ -81,8 +81,9 @@ public final class NotificationHud {
         promote();
     }
 
-    public static void push(Component title, Component body, NotificationKind kind) {
-        if (!ClientConfig.flag(ClientConfig.NOTIFICATIONS_ENABLED)) return;
+    /** @return whether the toast was accepted (shown or queued) */
+    public static boolean push(Component title, Component body, NotificationKind kind) {
+        if (!ClientConfig.flag(ClientConfig.NOTIFICATIONS_ENABLED)) return false;
         if (title == null) title = Component.empty();
         if (body == null) body = Component.empty();
         if (kind == null) kind = NotificationKind.GENERIC;
@@ -91,7 +92,10 @@ public final class NotificationHud {
             slots.add(Slot.enter(item));
         } else if (backlog.size() < MAX_BACKLOG) {
             backlog.addLast(item);
+        } else {
+            return false;
         }
+        return true;
     }
 
     /**

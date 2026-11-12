@@ -109,6 +109,27 @@ public class HandheldRadioItem extends Item {
         return ItemStack.EMPTY;
     }
 
+    /** First carried radio matching the test, hands first. EMPTY when none. */
+    public static ItemStack findCarried(Player player, java.util.function.Predicate<ItemStack> test) {
+        if (isRadio(player.getMainHandItem()) && test.test(player.getMainHandItem())) return player.getMainHandItem();
+        if (isRadio(player.getOffhandItem()) && test.test(player.getOffhandItem())) return player.getOffhandItem();
+        for (ItemStack stack : player.getInventory().items) {
+            if (isRadio(stack) && test.test(stack)) return stack;
+        }
+        return ItemStack.EMPTY;
+    }
+
+    /** The radio in the main hand, else the off hand. EMPTY when neither holds one. */
+    public static ItemStack findHeld(Player player) {
+        if (isRadio(player.getMainHandItem())) return player.getMainHandItem();
+        if (isRadio(player.getOffhandItem())) return player.getOffhandItem();
+        return ItemStack.EMPTY;
+    }
+
+    public static boolean isRadio(ItemStack stack) {
+        return stack.is(ModItems.HANDHELD_RADIO.get());
+    }
+
     /** May this player call support at all: a radio somewhere on them, or creative mode. */
     public static boolean canCall(Player player) {
         return player.isCreative() || !findCarried(player).isEmpty();
@@ -156,7 +177,7 @@ public class HandheldRadioItem extends Item {
     public void appendHoverText(ItemStack stack, @Nullable Level level, List<Component> tooltip, TooltipFlag flag) {
         tooltip.add(Component.translatable("tooltip.tacz_sewv.handheld_radio.use").withStyle(ChatFormatting.GRAY));
         tooltip.add(Component.translatable("tooltip.tacz_sewv.handheld_radio.standdown").withStyle(ChatFormatting.GRAY));
-        tooltip.add(Component.translatable("tooltip.tacz_sewv.handheld_radio.zoom").withStyle(ChatFormatting.GRAY));
+        tooltip.add(Component.translatable("tooltip.tacz_sewv.handheld_radio.comms").withStyle(ChatFormatting.GRAY));
         tooltip.add(Component.translatable("tooltip.tacz_sewv.handheld_radio.unit").withStyle(ChatFormatting.GRAY));
         // Search-tree rebuild can call this before COMMON config is baked; .get() throws then.
         double range = SewvConfig.SPEC.isLoaded()

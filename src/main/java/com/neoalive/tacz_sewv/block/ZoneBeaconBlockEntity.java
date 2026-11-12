@@ -51,6 +51,7 @@ import com.neoalive.tacz_sewv.init.ModSounds;
 import com.neoalive.tacz_sewv.inventory.ZoneBeaconMenu;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketRadarContacts;
+import com.neoalive.tacz_sewv.notify.HudNotify;
 import com.neoalive.tacz_sewv.zone.SpawnZoneData;
 import com.neoalive.tacz_sewv.zone.ZoneGeometry;
 
@@ -128,6 +129,9 @@ public class ZoneBeaconBlockEntity extends BlockEntity implements MenuProvider {
     private Vec3 aim;
     /** Entity id of the last spotted hostile, so the contact ping only sounds on a new one. */
     private int lastTarget = -1;
+    /** Radar edge for the owner's contact report, and its game-time cooldown. Transient. */
+    private boolean hadContacts;
+    private long nextContactNotify;
 
     private final ContainerData data = new ContainerData() {
         @Override
@@ -241,6 +245,8 @@ public class ZoneBeaconBlockEntity extends BlockEntity implements MenuProvider {
             sendContacts(level);
         }
         if (was != this.powered) {
+            ServerPlayer owner = onlineOwner(level);
+            if (owner != null) HudNotify.fpasPower(owner, this.powered, this.worldPosition);
             publish(level);
             setChanged();
             this.sinceSave = 0;
@@ -248,6 +254,13 @@ public class ZoneBeaconBlockEntity extends BlockEntity implements MenuProvider {
             setChanged();
             this.sinceSave = 0;
         }
+    }
+
+    private static final long CONTACT_NOTIFY_COOLDOWN = 30L * 20L;
+
+    @Nullable
+    private ServerPlayer onlineOwner(ServerLevel level) {
+        return this.owner == null ? null : level.getServer().getPlayerList().getPlayer(this.owner);
     }
 
     /**
@@ -290,7 +303,19 @@ public class ZoneBeaconBlockEntity extends BlockEntity implements MenuProvider {
         this.contacts = List.copyOf(found.size() > MAX_CONTACTS ? found.subList(0, MAX_CONTACTS) : found);
         if (this.contacts.isEmpty()) {
             this.lastTarget = -1;
+            this.hadContacts = false;
             return;
+        }
+        if (!this.hadContacts) {
+            this.hadContacts = true;
+            long now = level.getGameTime();
+            ServerPlayer owner = onlineOwner(level);
+            if (owner != null && now >= this.nextContactNotify) {
+                this.nextContactNotify = now + CONTACT_NOTIFY_COOLDOWN;
+                RadarContact near = this.contacts.get(0);
+                HudNotify.fpasContact(owner, this.contacts.size(), near.cls(),
+                        (int) Math.sqrt(from.distanceToSqr(near.x(), near.y(), near.z())), this.worldPosition);
+            }
         }
         Entity t = level.getEntity(this.contacts.get(0).targetId());
         Entity spotted = t == null ? null : t.getVehicle() != null ? t.getVehicle() : t;

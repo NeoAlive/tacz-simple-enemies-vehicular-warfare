@@ -42,10 +42,66 @@ public final class RadioSettings {
     }
 
     public static void write(ItemStack stack, State state) {
-        CompoundTag tag = new CompoundTag();
+        CompoundTag tag = stack.getOrCreateTag().getCompound(TAG);
         tag.putInt("frequency", state.frequency().ordinal());
         tag.putInt("delay", state.delaySeconds());
         tag.putInt("plane", state.planeMode().ordinal());
+        stack.getOrCreateTag().put(TAG, tag);
+    }
+
+    public static final int NET_MIN = 1;
+    public static final int NET_MAX = 9;
+
+    /** Comms half of the radio: what it receives and which voice net it is tuned to. */
+    public record Comms(boolean alerts, boolean chatter, boolean voice, int net) {
+
+        public static Comms defaults() {
+            return new Comms(true, true, true, NET_MIN);
+        }
+
+        public Comms withAlerts(boolean v) {
+            return new Comms(v, chatter, voice, net);
+        }
+
+        public Comms withChatter(boolean v) {
+            return new Comms(alerts, v, voice, net);
+        }
+
+        public Comms withVoice(boolean v) {
+            return new Comms(alerts, chatter, v, net);
+        }
+
+        public Comms withNet(int n) {
+            return new Comms(alerts, chatter, voice, clampNet(n));
+        }
+
+        /** Next net, wrapping 9 back to 1. */
+        public Comms stepNet(int direction) {
+            int span = NET_MAX - NET_MIN + 1;
+            return withNet(NET_MIN + Math.floorMod(net - NET_MIN + direction, span));
+        }
+    }
+
+    public static int clampNet(int n) {
+        return Math.max(NET_MIN, Math.min(NET_MAX, n));
+    }
+
+    public static Comms readComms(ItemStack stack) {
+        if (!stack.hasTag() || !stack.getTag().contains(TAG)) return Comms.defaults();
+        CompoundTag tag = stack.getTag().getCompound(TAG);
+        return new Comms(
+                !tag.contains("notify") || tag.getBoolean("notify"),
+                !tag.contains("chatter") || tag.getBoolean("chatter"),
+                !tag.contains("voice") || tag.getBoolean("voice"),
+                tag.contains("net") ? clampNet(tag.getInt("net")) : NET_MIN);
+    }
+
+    public static void writeComms(ItemStack stack, Comms comms) {
+        CompoundTag tag = stack.getOrCreateTag().getCompound(TAG);
+        tag.putBoolean("notify", comms.alerts());
+        tag.putBoolean("chatter", comms.chatter());
+        tag.putBoolean("voice", comms.voice());
+        tag.putInt("net", comms.net());
         stack.getOrCreateTag().put(TAG, tag);
     }
 

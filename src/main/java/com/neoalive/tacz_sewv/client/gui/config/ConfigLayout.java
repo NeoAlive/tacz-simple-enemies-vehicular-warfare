@@ -68,7 +68,7 @@ public final class ConfigLayout {
         rule("crew_ai", "infantry_weapons", "atWeapon", "atAir", "atSecond", "atBackup", "atEngage", "sbw");
         rule("crew_ai", "medics", "medic", "pmcRevive", "pmcDowned", "healthMobility");
         rule("crew_ai", "support", "engineer", "commanderSidearm", "drone", "combatEngineer", "supportDedupe",
-                "supportCall", "factionOrganicComms");
+                "supportCall", "factionOrganicComms", "notificationsRequireRadio", "radioVoice");
         rule("crew_ai", "boarding", "autoBoard", "tow", "autoManMortar", "autoEntrench");
         rule("crew_ai", "awareness", "vehicleTarget", "contactBoard", "wideScan", "combatantIndex",
                 "awarenessCues", "individualTactics", "battlePosition", "utilityRefresh");

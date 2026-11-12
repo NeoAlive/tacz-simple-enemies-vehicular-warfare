@@ -53,14 +53,20 @@ public final class SideRelations {
     public static Relation toward(MinecraftServer server, @Nullable UUID id, @Nullable String name, String side) {
         if (server == null || id == null) return null;
         if (name == null) name = profileName(server, id);
-        List<Subject> self = new ArrayList<>(2);
-        if (name != null) self.add(Subject.player(name));
-        String faction = OpenPacCompat.factionName(server, id);
-        if (faction != null) self.add(Subject.faction(faction));
+        List<Subject> self = subjectsOf(server, id, name);
         if (self.isEmpty()) return null;
         ServerLevel overworld = server.getLevel(Level.OVERWORLD);
         if (overworld == null) return null;
         return DiplomacyData.get(overworld).resolve(self, List.of(Subject.side(side)));
+    }
+
+    /** A player's diplomacy subjects: their name, and their OpenPAC party when they have one. */
+    public static List<Subject> subjectsOf(MinecraftServer server, UUID id, @Nullable String name) {
+        List<Subject> self = new ArrayList<>(2);
+        if (name != null) self.add(Subject.player(name));
+        String faction = OpenPacCompat.factionName(server, id);
+        if (faction != null) self.add(Subject.faction(faction));
+        return self;
     }
 
     @Nullable

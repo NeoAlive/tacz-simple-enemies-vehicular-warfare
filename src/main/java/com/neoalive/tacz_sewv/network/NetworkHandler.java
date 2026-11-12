@@ -162,7 +162,9 @@ public class NetworkHandler {
     // 111: PacketZoneView (C->S) + PacketSpawnZoneState (S->C) for the operator spawn zone map.
     // 112: PacketZoneEdit (C->S), operator brush strokes on the zone map.
     // 113: PacketRadarContacts (S->C), FPAS MTI contacts for the open panel.
-    private static final String PROTOCOL_VERSION = "113";
+    // 114: PacketHudNotification carries an urgent flag; NotificationKind.FPAS; PacketRadioSettings (C->S)
+    //      + PacketRadioFlags (S->C) for the handheld radio comms toggles.
+    private static final String PROTOCOL_VERSION = "114";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),
@@ -815,6 +817,20 @@ public class NetworkHandler {
                 PacketRadarContacts::encode,
                 PacketRadarContacts::new,
                 PacketRadarContacts::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketRadioSettings.class,
+                PacketRadioSettings::encode,
+                PacketRadioSettings::new,
+                PacketRadioSettings::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketRadioFlags.class,
+                PacketRadioFlags::encode,
+                PacketRadioFlags::new,
+                PacketRadioFlags::handle
         );
         CHANNEL.registerMessage(
                 nextId(),

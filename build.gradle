@@ -717,6 +717,26 @@ tasks.register('selfCheckMiscPacks', JavaExec) {
     jvmArgs '-ea'
 }
 
+tasks.register('selfCheckRadioDsp', JavaExec) {
+    group = 'verification'
+    description = 'Runs the realtime radio voice DSP and Voice Chat isolation self-check.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
+    mainClass = 'com.neoalive.tacz_sewv.audio.RadioDspSelfCheck'
+    workingDir = project.projectDir
+    jvmArgs '-ea'
+}
+
+tasks.register('radioDspRender', JavaExec) {
+    group = 'verification'
+    description = 'Runs a wav through the radio voice DSP: -Pin=voice.wav -Pout=radio.wav'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
+    mainClass = 'com.neoalive.tacz_sewv.audio.RadioDspRender'
+    workingDir = project.projectDir
+    args = [project.findProperty('in') ?: '', project.findProperty('out') ?: '']
+}
+
 tasks.register('selfCheckLv', JavaExec) {
     group = 'verification'
     description = 'Runs the Limitless Vehicles steering-translation and isolation self-check.'
@@ -765,7 +785,7 @@ tasks.register('selfCheckLang', JavaExec) {
 tasks.register('selfCheck') {
     group = 'verification'
     description = 'Runs all headless AI self-checks.'
-    dependsOn 'selfCheckArmor', 'selfCheckArtillery', 'selfCheckReducedCharge', 'selfCheckShieldRay', 'selfCheckCamo', 'selfCheckLoadout', 'selfCheckVehiclePacks', 'selfCheckMiscPacks', 'selfCheckUtility', 'selfCheckEasyMode', 'selfCheckRadial', 'selfCheckSignal', 'selfCheckCoverHold', 'selfCheckWeapons', 'selfCheckGrouping', 'selfCheckElection', 'selfCheckInfluence', 'selfCheckPlay', 'selfCheckFormation', 'selfCheckPlayerFormation', 'selfCheckInfantryFormation', 'selfCheckMarch', 'selfCheckSeam', 'selfCheckHeli', 'selfCheckHeliArmament', 'selfCheckPlane', 'selfCheckContactBoard', 'selfCheckWideScan', 'selfCheckPathBudget', 'selfCheckLofCache', 'selfCheckChunkTickets', 'selfCheckUnitLod', 'selfCheckTaskedDestination', 'selfCheckDismount', 'selfCheckTactics', 'selfCheckCues', 'selfCheckSuppression', 'selfCheckAcquisition', 'selfCheckEngineGates', 'selfCheckSounds', 'selfCheckRadioQueue', 'selfCheckCrewSkins', 'selfCheckAirport', 'selfCheckGround', 'selfCheckOrca', 'selfCheckCover', 'selfCheckBattlePosition', 'selfCheckBallistics', 'selfCheckIdle', 'selfCheckInvasion', 'selfCheckConfig', 'selfCheckPathway', 'selfCheckStructures', 'selfCheckTerritory', 'selfCheckDiplomacy', 'selfCheckVehicleAccess', 'selfCheckLv', 'selfCheckMinimap', 'selfCheckVehicleClientLod', 'selfCheckTaczCube', 'selfCheckLang'
+    dependsOn 'selfCheckArmor', 'selfCheckArtillery', 'selfCheckReducedCharge', 'selfCheckShieldRay', 'selfCheckCamo', 'selfCheckLoadout', 'selfCheckVehiclePacks', 'selfCheckMiscPacks', 'selfCheckUtility', 'selfCheckEasyMode', 'selfCheckRadial', 'selfCheckSignal', 'selfCheckCoverHold', 'selfCheckWeapons', 'selfCheckGrouping', 'selfCheckElection', 'selfCheckInfluence', 'selfCheckPlay', 'selfCheckFormation', 'selfCheckPlayerFormation', 'selfCheckInfantryFormation', 'selfCheckMarch', 'selfCheckSeam', 'selfCheckHeli', 'selfCheckHeliArmament', 'selfCheckPlane', 'selfCheckContactBoard', 'selfCheckWideScan', 'selfCheckPathBudget', 'selfCheckLofCache', 'selfCheckChunkTickets', 'selfCheckUnitLod', 'selfCheckTaskedDestination', 'selfCheckDismount', 'selfCheckTactics', 'selfCheckCues', 'selfCheckSuppression', 'selfCheckAcquisition', 'selfCheckEngineGates', 'selfCheckSounds', 'selfCheckRadioQueue', 'selfCheckCrewSkins', 'selfCheckAirport', 'selfCheckGround', 'selfCheckOrca', 'selfCheckCover', 'selfCheckBattlePosition', 'selfCheckBallistics', 'selfCheckIdle', 'selfCheckInvasion', 'selfCheckConfig', 'selfCheckPathway', 'selfCheckStructures', 'selfCheckTerritory', 'selfCheckDiplomacy', 'selfCheckVehicleAccess', 'selfCheckLv', 'selfCheckRadioDsp', 'selfCheckMinimap', 'selfCheckVehicleClientLod', 'selfCheckTaczCube', 'selfCheckLang'
 }
 
 mixin {
@@ -937,6 +957,12 @@ dependencies {
     compileOnly fg.deobf("blank:komodo:1.0")
     if (!project.hasProperty('noKomodo')) {
         runtimeOnly fg.deobf("blank:komodo:1.0")
+    }
+    // Soft: Simple Voice Chat (libs/voicechat.jar, the Forge 1.20.1 release). Only compat/voicechat/ names
+    // its types, and Voice Chat finds the plugin by its own annotation scan. Opt in with -PwithVoicechat.
+    compileOnly fg.deobf("blank:voicechat:1.0")
+    if (project.hasProperty('withVoicechat')) {
+        runtimeOnly fg.deobf("blank:voicechat:1.0")
     }
     // Soft: Coltan (SBW→GemRender bridge) + GemRender. Sticky paint / armor register through
     // reflection (ColtanSkinBridge, ColtanArmorBridge) so a clean checkout without libs/coltan.jar

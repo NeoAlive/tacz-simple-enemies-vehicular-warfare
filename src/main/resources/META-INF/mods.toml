@@ -143,6 +143,14 @@ config="tacz_sewv.gemrender.mixins.json"
     ordering="AFTER"
     side="CLIENT"
 
+# Soft compat: Simple Voice Chat, handheld radio voice nets.
+[[dependencies.tacz_sewv]]
+    modId="voicechat"
+    mandatory=false
+    versionRange="[0,)"
+    ordering="NONE"
+    side="BOTH"
+
 # Soft compat: Limitless Vehicles — crews drive and gun its wheeled, tracked and boat hulls
 # (compat/lv). Everything LV-typed sits behind LvCompat; no mixins into LV.
 [[dependencies.tacz_sewv]]

@@ -12,11 +12,11 @@ import javax.annotation.Nullable;
 public enum NotificationKind {
 
     /** PMC unit downed — player attention. */
-    PMC_DOWNED(0xFF7F1D1D, "\u271D"),
+    PMC_DOWNED(0xFF7F1D1D, "\u271D", true),
     /** PMC unit killed — player attention. */
-    PMC_KILLED(0xFF7F1D1D, "\u2620"),
+    PMC_KILLED(0xFF7F1D1D, "\u2620", true),
     /** Owned PMC hull destroyed — player attention. */
-    VEHICLE_DESTROYED(0xFF7F1D1D, "\u2620"),
+    VEHICLE_DESTROYED(0xFF7F1D1D, "\u2620", true),
     /** Owned unit / emplacement out of ammo. */
     PMC_AMMO(0xFF6B7280, "\u25CE"),
     /** Owned hull low on energy. */
@@ -30,7 +30,9 @@ public enum NotificationKind {
     /** Player-threatening world event nearby. */
     EVENT_PVE(0xFFDC2626, "\u2691"),
     /** Debug / uncategorised. */
-    GENERIC(0xFF6B7280, "\u25C6");
+    GENERIC(0xFF6B7280, "\u25C6"),
+    /** FPAS power and radar reports to its owner. */
+    FPAS(0xFFB45309, "\u25C9");
 
     private static final Set<String> EVE_EVENTS = Set.of(
             "convoy", "large_combat", "naval_battle", "far_combat", "military_patrol", "overflight");
@@ -39,10 +41,21 @@ public enum NotificationKind {
 
     private final int accentArgb;
     private final String icon;
+    private final boolean urgent;
 
     NotificationKind(int accentArgb, String icon) {
+        this(accentArgb, icon, false);
+    }
+
+    NotificationKind(int accentArgb, String icon, boolean urgent) {
         this.accentArgb = accentArgb;
         this.icon = icon;
+        this.urgent = urgent;
+    }
+
+    /** Default radio cue: squelch when urgent, click otherwise. A packet may override it. */
+    public boolean urgent() {
+        return this.urgent;
     }
 
     /** Solid header fill (ARGB). */

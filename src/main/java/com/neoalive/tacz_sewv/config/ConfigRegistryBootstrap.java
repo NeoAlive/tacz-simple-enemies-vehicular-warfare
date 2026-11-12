@@ -77,6 +77,14 @@ final class ConfigRegistryBootstrap {
                 ClientConfig.NOTIFICATION_SCREEN_SECONDS, ClientConfig.NOTIFICATION_SCREEN_SECONDS::set);
         b.intRange(ConfigScope.CLIENT, "overlay", "notificationMaxVisible", 1, 8,
                 ClientConfig.NOTIFICATION_MAX_VISIBLE, ClientConfig.NOTIFICATION_MAX_VISIBLE::set);
+        b.bool(ConfigScope.CLIENT, "overlay", "radioNotificationSound",
+                ClientConfig.RADIO_NOTIFICATION_SOUND, ClientConfig.RADIO_NOTIFICATION_SOUND::set);
+        b.bool(ConfigScope.CLIENT, "overlay", "radioChatter",
+                ClientConfig.RADIO_CHATTER, ClientConfig.RADIO_CHATTER::set);
+        b.bool(ConfigScope.CLIENT, "overlay", "radioVoiceEffect",
+                ClientConfig.RADIO_VOICE_EFFECT, ClientConfig.RADIO_VOICE_EFFECT::set);
+        b.bool(ConfigScope.CLIENT, "overlay", "radioVoiceClicks",
+                ClientConfig.RADIO_VOICE_CLICKS, ClientConfig.RADIO_VOICE_CLICKS::set);
         b.bool(ConfigScope.CLIENT, "overlay", "helmetGrayscale",
                 ClientConfig.HELMET_GRAYSCALE, ClientConfig.HELMET_GRAYSCALE::set);
         b.bool(ConfigScope.CLIENT, "overlay", "showLagTip",
@@ -708,6 +716,10 @@ final class ConfigRegistryBootstrap {
                 SewvConfig.UTILITY_REFRESH_INTERVAL_TICKS, SewvConfig.UTILITY_REFRESH_INTERVAL_TICKS::set);
         b.bool(ConfigScope.SERVER, "crew_ai", "factionOrganicComms",
                 SewvConfig.FACTION_ORGANIC_COMMS, SewvConfig.FACTION_ORGANIC_COMMS::set);
+        b.bool(ConfigScope.SERVER, "crew_ai", "notificationsRequireRadio",
+                SewvConfig.NOTIFICATIONS_REQUIRE_RADIO, SewvConfig.NOTIFICATIONS_REQUIRE_RADIO::set);
+        b.bool(ConfigScope.SERVER, "crew_ai", "radioVoiceEnabled",
+                SewvConfig.RADIO_VOICE_ENABLED, SewvConfig.RADIO_VOICE_ENABLED::set);
         b.intRange(ConfigScope.SERVER, "crew_ai", "supportCallIntervalTicks", 20, 2400,
                 SewvConfig.SUPPORT_CALL_INTERVAL_TICKS, SewvConfig.SUPPORT_CALL_INTERVAL_TICKS::set);
         b.bool(ConfigScope.SERVER, "crew_ai", "awarenessCuesEnabled",

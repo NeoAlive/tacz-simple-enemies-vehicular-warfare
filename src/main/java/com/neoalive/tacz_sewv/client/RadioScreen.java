@@ -50,9 +50,10 @@ public class RadioScreen extends Screen {
     private static final int STRIPE_TARGET = 0x4DC9A15A; // AREA amber — designation
     private static final int STRIPE_AIR = 0x4DB57ED1;    // AIR purple — plane doctrine
     private static final int STRIPE_ACTION = 0x4D8FAA6B; // CREW green — commit
+    private static final int STRIPE_COMMS = 0x4D4FD1C5;  // teal — what the radio receives
 
     private enum Action {
-        CYCLE_FREQ, CYCLE_DELAY, SET_PLANE, CANCEL, CALL
+        CYCLE_FREQ, CYCLE_DELAY, SET_PLANE, TOGGLE_NOTIFY, TOGGLE_CHATTER, TOGGLE_VOICE, CYCLE_NET, CANCEL, CALL
     }
 
     private record Btn(Action action, String label, int x, int y, int w, int h,
@@ -61,6 +62,8 @@ public class RadioScreen extends Screen {
     private record Section(int stripe, int y0, int y1, String headerKey) {}
 
     private RadioSettings.State settings;
+    private RadioSettings.Comms comms = RadioSettings.Comms.defaults();
+    private int builtKey = -1;
     private int panelLeft;
     private int panelTop;
     private int panelW;
@@ -80,6 +83,7 @@ public class RadioScreen extends Screen {
         if (stack.isEmpty()) return;
         RadioScreen screen = new RadioScreen();
         screen.settings = RadioSettings.read(stack);
+        screen.comms = RadioSettings.readComms(stack);
         mc.setScreen(screen);
     }
 
@@ -139,6 +143,31 @@ public class RadioScreen extends Screen {
             y += SECTION_GAP;
         }
 
+        // --- COMMS ---
+        secTop = y;
+        y += HEADER_H;
+        int half = (innerW - CELL_GAP) / 2;
+        boolean gated = RadioFlagsClient.requireRadio();
+        String notifyLabel = gated
+                ? I18n.get(this.comms.alerts() ? "gui.tacz_sewv.radio.notify.on" : "gui.tacz_sewv.radio.notify.off")
+                : I18n.get("gui.tacz_sewv.radio.notify.always");
+        this.buttons.add(new Btn(Action.TOGGLE_NOTIFY, notifyLabel,
+                x0, y, half, CELL_H, gated, gated && this.comms.alerts(), null));
+        this.buttons.add(new Btn(Action.TOGGLE_CHATTER,
+                I18n.get(this.comms.chatter() ? "gui.tacz_sewv.radio.chatter.on" : "gui.tacz_sewv.radio.chatter.off"),
+                x0 + half + CELL_GAP, y, half, CELL_H, true, this.comms.chatter(), null));
+        y += CELL_H + CELL_GAP;
+        if (RadioFlagsClient.voice()) {
+            this.buttons.add(new Btn(Action.TOGGLE_VOICE,
+                    I18n.get(this.comms.voice() ? "gui.tacz_sewv.radio.voice.on" : "gui.tacz_sewv.radio.voice.off"),
+                    x0, y, half, CELL_H, true, this.comms.voice(), null));
+            this.buttons.add(new Btn(Action.CYCLE_NET, I18n.get("gui.tacz_sewv.radio.net", this.comms.net()),
+                    x0 + half + CELL_GAP, y, half, CELL_H, this.comms.voice(), false, null));
+            y += CELL_H + CELL_GAP;
+        }
+        this.sections.add(new Section(STRIPE_COMMS, secTop, y - CELL_GAP, "gui.tacz_sewv.radio.comms"));
+        y += SECTION_GAP;
+
         // --- ACTIONS ---
         secTop = y;
         y += HEADER_H;
@@ -151,6 +180,7 @@ public class RadioScreen extends Screen {
         this.sections.add(new Section(STRIPE_ACTION, secTop, y, "gui.tacz_sewv.radio.section.action"));
 
         this.panelH = y + PAD;
+        this.builtKey = layoutKey();
         this.panelLeft = (this.width - this.panelW) / 2;
         this.panelTop = (this.height - this.panelH) / 2;
     }
@@ -166,8 +196,8 @@ public class RadioScreen extends Screen {
 
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
-        // Keep centred if frequency row gains/loses the plane section mid-open.
-        if (panelHeightNeeded() != this.panelH) {
+        // Re-layout when a section appears or goes (AIR plane row, voice row after the login sync).
+        if (layoutKey() != this.builtKey) {
             rebuildLayout();
         }
 
@@ -196,11 +226,8 @@ public class RadioScreen extends Screen {
         }
     }
 
-    private int panelHeightNeeded() {
-        int rows = 3 + (this.settings.frequency() == RadioFrequency.AIR ? 1 : 0);
-        // title + each section header + cells + gaps — rebuildLayout is authoritative; this is a
-        // cheap dirty check so we re-layout when AIR toggles.
-        return PAD + 14 + rows * (HEADER_H + CELL_H + CELL_GAP + SECTION_GAP) + PAD;
+    private int layoutKey() {
+        return (this.settings.frequency() == RadioFrequency.AIR ? 1 : 0) | (RadioFlagsClient.voice() ? 2 : 0);
     }
 
     private void renderBtn(GuiGraphics g, Btn btn, int mouseX, int mouseY) {
@@ -264,6 +291,10 @@ public class RadioScreen extends Screen {
                 persist();
                 rebuildLayout();
             }
+            case TOGGLE_NOTIFY -> setComms(this.comms.withAlerts(!this.comms.alerts()));
+            case TOGGLE_CHATTER -> setComms(this.comms.withChatter(!this.comms.chatter()));
+            case TOGGLE_VOICE -> setComms(this.comms.withVoice(!this.comms.voice()));
+            case CYCLE_NET -> setComms(this.comms.stepNet(1));
             case CANCEL -> onClose();
             case CALL -> armCall();
         }
@@ -284,6 +315,33 @@ public class RadioScreen extends Screen {
         if (!stack.isEmpty()) {
             RadioSettings.write(stack, this.settings);
         }
+    }
+
+    private void setComms(RadioSettings.Comms next) {
+        this.comms = next;
+        Minecraft mc = this.minecraft;
+        if (mc != null && mc.player != null) {
+            ItemStack stack = HandheldRadioItem.findCarried(mc.player);
+            if (!stack.isEmpty()) RadioSettings.writeComms(stack, next);
+        }
+        com.neoalive.tacz_sewv.network.NetworkHandler.CHANNEL.sendToServer(
+                new com.neoalive.tacz_sewv.network.PacketRadioSettings(next));
+        rebuildLayout();
+    }
+
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+        for (Btn btn : this.buttons) {
+            if (btn.action() != Action.CYCLE_NET || !btn.enabled()) continue;
+            int bx = this.panelLeft + btn.x();
+            int by = this.panelTop + btn.y();
+            if (mouseX >= bx && mouseX < bx + btn.w() && mouseY >= by && mouseY < by + btn.h()) {
+                clickSound();
+                setComms(this.comms.stepNet(delta > 0 ? 1 : -1));
+                return true;
+            }
+        }
+        return super.mouseScrolled(mouseX, mouseY, delta);
     }
 
     private static void clickSound() {

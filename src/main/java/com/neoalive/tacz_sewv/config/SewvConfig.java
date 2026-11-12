@@ -250,6 +250,8 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue MARCH_STRAGGLE_DISTANCE;
     public static final ForgeConfigSpec.IntValue UTILITY_REFRESH_INTERVAL_TICKS;
     public static final ForgeConfigSpec.BooleanValue FACTION_ORGANIC_COMMS;
+    public static final ForgeConfigSpec.BooleanValue NOTIFICATIONS_REQUIRE_RADIO;
+    public static final ForgeConfigSpec.BooleanValue RADIO_VOICE_ENABLED;
     public static final ForgeConfigSpec.IntValue SUPPORT_CALL_INTERVAL_TICKS;
     public static final ForgeConfigSpec.BooleanValue AWARENESS_CUES_ENABLED;
     public static final ForgeConfigSpec.BooleanValue SUPPRESSION_BUS_ENABLED;
@@ -1100,6 +1102,12 @@ public final class SewvConfig {
                 .defineInRange("utilityRefreshIntervalTicks", 30, 5, 200);
         FACTION_ORGANIC_COMMS = builder.comment("RU/US crews can call mortars/TOWs/air support without holding a radio item.")
                 .define("factionOrganicComms", true);
+        NOTIFICATIONS_REQUIRE_RADIO = builder.comment(
+                        "HUD notifications reach a player only while they carry a handheld radio. Off = everyone gets them.")
+                .define("notificationsRequireRadio", true);
+        RADIO_VOICE_ENABLED = builder.comment(
+                        "With Simple Voice Chat installed, talking with a handheld radio in hand reaches allied radios on the same net.")
+                .define("radioVoiceEnabled", true);
         SUPPORT_CALL_INTERVAL_TICKS = builder.comment("Minimum wait (game ticks) between support call attempts.")
                 .defineInRange("supportCallIntervalTicks", 200, 20, 2400);
         AWARENESS_CUES_ENABLED = builder.comment(

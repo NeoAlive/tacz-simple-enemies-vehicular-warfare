@@ -148,6 +148,15 @@ public class SewvCommand {
                         .then(ZoneCommand.debugRemove())
                         .then(Commands.literal("rappel")
                                 .executes(ctx -> debugRappel(ctx.getSource())))
+                        .then(Commands.literal("voiceTest")
+                                .executes(ctx -> debugVoiceTest(ctx.getSource(),
+                                        com.neoalive.tacz_sewv.compat.voicechat.RadioVoiceLoopback.DEFAULT_DELAY_SECONDS))
+                                .then(Commands.literal("off")
+                                        .executes(ctx -> debugVoiceTest(ctx.getSource(), 0)))
+                                .then(Commands.argument("seconds", IntegerArgumentType.integer(1,
+                                                com.neoalive.tacz_sewv.compat.voicechat.RadioVoiceLoopback.MAX_DELAY_SECONDS))
+                                        .executes(ctx -> debugVoiceTest(ctx.getSource(),
+                                                IntegerArgumentType.getInteger(ctx, "seconds")))))
                         .then(Commands.literal("notificationTest")
                                 .executes(ctx -> debugNotificationTest(ctx.getSource(),
                                         NotificationKind.GENERIC,
@@ -742,6 +751,29 @@ public class SewvCommand {
         }
         PacketHudNotification.sendTo(player, title, body, kind);
         source.sendSuccess(() -> Component.translatable("command.tacz_sewv.debug.notificationTest.ok"), false);
+        return 1;
+    }
+
+    /** Radio voice loopback: the player's own transmissions come back after a delay. 0 turns it off. */
+    private static int debugVoiceTest(CommandSourceStack source, int seconds) {
+        if (!(source.getEntity() instanceof ServerPlayer player)) {
+            source.sendFailure(Component.translatable("command.tacz_sewv.debug.notificationTest.player_only"));
+            return 0;
+        }
+        if (seconds <= 0) {
+            com.neoalive.tacz_sewv.compat.voicechat.RadioVoiceLoopback.disable(player.getUUID());
+            source.sendSuccess(() -> Component.translatable("command.tacz_sewv.debug.voiceTest.off"), false);
+            return 1;
+        }
+        if (!com.neoalive.tacz_sewv.compat.voicechat.VoicechatCompat.serverActive()) {
+            source.sendFailure(Component.translatable("command.tacz_sewv.debug.voiceTest.no_voicechat"));
+            return 0;
+        }
+        com.neoalive.tacz_sewv.compat.voicechat.RadioVoiceLoopback.enable(player.getUUID(), seconds);
+        source.sendSuccess(() -> Component.translatable("command.tacz_sewv.debug.voiceTest.on", seconds), false);
+        if (!com.neoalive.tacz_sewv.notify.RadioNet.voiceEnabled()) {
+            source.sendFailure(Component.translatable("command.tacz_sewv.debug.voiceTest.disabled"));
+        }
         return 1;
     }
 

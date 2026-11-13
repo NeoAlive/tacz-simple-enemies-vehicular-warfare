@@ -1,22 +1,25 @@
 {
   "type": "minecraft:crafting_shaped",
   "pattern": [
-    "ICI",
-    "RLR",
-    "III"
+    "LCL",
+    "PBP",
+    "SSS"
   ],
   "key": {
-    "I": {
-      "item": "minecraft:iron_ingot"
+    "L": {
+      "item": "minecraft:blaze_rod"
     },
     "C": {
       "item": "minecraft:compass"
     },
-    "R": {
-      "item": "minecraft:redstone"
+    "P": {
+      "tag": "forge:plates/copper"
     },
-    "L": {
-      "item": "superbwarfare:cell"
+    "B": {
+      "item": "superbwarfare:battery"
+    },
+    "S": {
+      "tag": "forge:plates/steel"
     }
   },
   "result": {

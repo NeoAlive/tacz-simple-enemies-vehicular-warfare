@@ -2,21 +2,21 @@
   "type": "minecraft:crafting_shaped",
   "pattern": [
     " E ",
-    "QRQ",
-    " I "
+    "PRP",
+    " A "
   ],
   "key": {
     "E": {
       "item": "minecraft:ender_pearl"
     },
-    "Q": {
-      "item": "minecraft:quartz"
+    "P": {
+      "tag": "forge:plates/copper"
     },
     "R": {
       "item": "tacz_sewv:handheld_radio"
     },
-    "I": {
-      "item": "minecraft:iron_ingot"
+    "A": {
+      "item": "minecraft:amethyst_shard"
     }
   },
   "result": {

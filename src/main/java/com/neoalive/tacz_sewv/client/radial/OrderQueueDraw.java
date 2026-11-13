@@ -51,11 +51,6 @@ final class OrderQueueDraw {
                     left + PAD, listTop + PAD + i * rowH, FormationPreviewDraw.scaleAlpha(color, a));
         }
 
-        int hintY = listTop + LIST_H + 4;
-        for (String line : I18n.get("gui.tacz_sewv.queue.hint").split("\n")) {
-            g.drawCenteredString(font, line, left + W / 2, hintY, muted);
-            hintY += font.lineHeight + 1;
-        }
     }
 
     /**

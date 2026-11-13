@@ -86,6 +86,10 @@ public final class QuickCommandWheelScreen extends Screen {
     private static final float HOT_FADE_SPEED = 0.28f;
     private static final float MENU_FADE_IN_SPEED = 0.18f;
     private static final float MENU_FADE_OUT_SPEED = 0.22f;
+    /** How long Ctrl must be held before the details come up. */
+    private static final long DETAIL_HOLD_MS = 200L;
+    /** Length of the details fade, each way. */
+    private static final float DETAIL_FADE_SECONDS = 0.22f;
 
     /**
      * The crosshair when the wheel opened. The view is frozen while the wheel is up, so this is
@@ -109,6 +113,14 @@ public final class QuickCommandWheelScreen extends Screen {
     private boolean wasAllDown = true;
     private boolean wasNoneDown = true;
     private boolean wasLiveDown = true;
+
+    /** When Ctrl went down (ms), or -1 while it is up. */
+    private long ctrlSince = -1L;
+    /** Ctrl was used for a Formation scroll this hold: no details until it is released. */
+    private boolean ctrlScrolled;
+    /** Linear 0..1 progress of the details overlay; eased when drawn. */
+    private float detailProgress;
+    private long lastFrameNanos = System.nanoTime();
 
     /** 0..1 highlight strength per wedge — lerps toward the current hot index. */
     private float[] wedgeHot = new float[0];
@@ -348,51 +360,47 @@ public final class QuickCommandWheelScreen extends Screen {
         boolean alt = mc != null && (InputConstants.isKeyDown(window, InputConstants.KEY_LALT)
                 || InputConstants.isKeyDown(window, InputConstants.KEY_RALT));
         int dir = delta > 0.0 ? 1 : -1;
-        // Ctrl+scroll steps the hovered leaf's value — and only that leaf's, so it can never move
-        // a setting the player is not looking at. In a submenu that has values, Ctrl+scroll over
-        // any other leaf is swallowed rather than falling through to the queue skip.
-        if (alt && !ctrl) {
-            String hot = hotPipelineId();
-            if (hot != null && FieldChoice.isMinefieldLeaf(hot)) {
-                FieldChoice.stepShape(dir);
-                playUi(ModSounds.SCALE.get(), scalePitch());
-                return true;
+
+        // Formation keeps its own scheme, Ctrl+scroll included. A Ctrl scroll there is a value
+        // change, not a request for the details, so it keeps the overlay down until Ctrl is let go.
+        if (inFormationSubmenu()) {
+            if (hotFormationShape() == null) return super.mouseScrolled(mouseX, mouseY, delta);
+            if (ctrl) this.ctrlScrolled = true;
+            if (alt) {
+                // Two subjects, so either direction flips it.
+                formationSubject = formationSubject == FormationAnchorMode.UNIT
+                        ? FormationAnchorMode.PLAYER : FormationAnchorMode.UNIT;
+            } else if (ctrl) {
+                formationFilter = formationFilter.cycle(dir);
+            } else {
+                float step = dir * STRETCH_STEP;
+                if (shift) {
+                    formationWidth = IFormationMember.clampStretch(formationWidth + step);
+                } else {
+                    formationLength = IFormationMember.clampStretch(formationLength + step);
+                }
             }
-        }
-        if (ctrl && scaleLeafIn(this.input.currentWedges()) != null) {
-            String hot = hotPipelineId();
-            if (hot != null && stepScale(hot, dir, shift)) {
-                playUi(ModSounds.SCALE.get(), scalePitch());
-            }
-            return true;
-        }
-        // Scroll down skips the running queued order — except in Formation, which owns the wheel.
-        if (!inFormationSubmenu()) {
-            if (delta >= 0.0 || !OrderQueueClient.isOn() || OrderQueueClient.labels().isEmpty()) {
-                return super.mouseScrolled(mouseX, mouseY, delta);
-            }
-            OrderQueueClient.skip();
             playUi(ModSounds.SCALE.get(), scalePitch());
             return true;
         }
-        if (hotFormationShape() == null) {
+
+        // Everywhere else a plain scroll steps the hovered leaf's value, and only that leaf's,
+        // so it can never move a setting the player is not looking at.
+        String hot = hotPipelineId();
+        if (alt && hot != null && FieldChoice.isMinefieldLeaf(hot)) {
+            FieldChoice.stepShape(dir);
+            playUi(ModSounds.SCALE.get(), scalePitch());
+            return true;
+        }
+        if (hot != null && hasScale(hot)) {
+            if (stepScale(hot, dir, shift)) playUi(ModSounds.SCALE.get(), scalePitch());
+            return true;
+        }
+        // Over anything else, scroll down skips the running queued order.
+        if (delta >= 0.0 || !OrderQueueClient.isOn() || OrderQueueClient.labels().isEmpty()) {
             return super.mouseScrolled(mouseX, mouseY, delta);
         }
-
-        if (alt) {
-            // Two subjects, so either direction flips it.
-            formationSubject = formationSubject == FormationAnchorMode.UNIT
-                    ? FormationAnchorMode.PLAYER : FormationAnchorMode.UNIT;
-        } else if (ctrl) {
-            formationFilter = formationFilter.cycle(dir);
-        } else {
-            float step = dir * STRETCH_STEP;
-            if (shift) {
-                formationWidth = IFormationMember.clampStretch(formationWidth + step);
-            } else {
-                formationLength = IFormationMember.clampStretch(formationLength + step);
-            }
-        }
+        OrderQueueClient.skip();
         playUi(ModSounds.SCALE.get(), scalePitch());
         return true;
     }
@@ -851,7 +859,84 @@ public final class QuickCommandWheelScreen extends Screen {
                 TdtSelection.selectedCount(), this.nearbyCount, QuickCommandKeybind.SELECT_ALL,
                 QuickCommandKeybind.SELECT_NONE, QuickCommandKeybind.LIVE_SELECT, HUB_FILL);
 
+        float detail = tickDetail();
+        if (detail > 0.01f) {
+            int hot = this.input.hotIndex();
+            WedgeEntry hotEntry = hot >= 0 && hot < wedges.size() ? wedges.get(hot) : null;
+            DetailOverlayDraw.render(g, this.font, this.width, this.height, detail,
+                    OrderInfo.of(hotEntry, this.input.currentCategory()));
+        }
+        g.pose().pushPose();
+        g.pose().translate(0.0f, 0.0f, 500.0f);
+        WheelLegendDraw.render(g, this.font, this.width, this.height, this.menuAlpha, legendRows(), HUB_FILL);
+        g.pose().popPose();
+
         super.render(g, mouseX, mouseY, partialTick);
+    }
+
+    /** Advances the details fade by real time and returns its eased strength. */
+    private float tickDetail() {
+        long nanos = System.nanoTime();
+        float dt = Math.min(0.1f, (nanos - this.lastFrameNanos) / 1.0e9f);
+        this.lastFrameNanos = nanos;
+        Minecraft mc = this.minecraft;
+        long window = mc != null ? mc.getWindow().getWindow() : 0L;
+        boolean ctrl = mc != null && (InputConstants.isKeyDown(window, InputConstants.KEY_LCONTROL)
+                || InputConstants.isKeyDown(window, InputConstants.KEY_RCONTROL));
+        long now = System.currentTimeMillis();
+        if (ctrl) {
+            if (this.ctrlSince < 0L) this.ctrlSince = now;
+        } else {
+            this.ctrlSince = -1L;
+            this.ctrlScrolled = false;
+        }
+        boolean show = ctrl && !this.ctrlScrolled && now - this.ctrlSince >= DETAIL_HOLD_MS;
+        float step = dt / DETAIL_FADE_SECONDS;
+        this.detailProgress = Mth.clamp(this.detailProgress + (show ? step : -step), 0.0f, 1.0f);
+        return DetailOverlayDraw.ease(this.detailProgress);
+    }
+
+    /** What every input does right now, for the legend. Mirrors {@link #mouseScrolled} and {@link #tick}. */
+    private List<WheelLegendDraw.Row> legendRows() {
+        List<WheelLegendDraw.Row> rows = new ArrayList<>();
+        List<WedgeEntry> wedges = this.input.currentWedges();
+        int hotIndex = this.input.hotIndex();
+        WedgeEntry hot = hotIndex >= 0 && hotIndex < wedges.size() ? wedges.get(hotIndex) : null;
+        String hotId = hot instanceof WedgeEntry.PipelineEntry leaf ? leaf.pipelineId() : null;
+
+        if (hot instanceof WedgeEntry.CategoryEntry) {
+            rows.add(row("lmb", "open"));
+        } else if (hotId != null && QuickCommandRegistry.isSelectLeaf(hotId)) {
+            rows.add(row("lmb", "toggle"));
+        } else if (hotId != null && isEnabled(hotId)) {
+            rows.add(row("lmb", "give"));
+        }
+        rows.add(row("rmb", this.input.depth() > 1 ? "back" : "close"));
+
+        if (inFormationSubmenu() && hotFormationShape() != null) {
+            rows.add(row("scroll", "length"));
+            rows.add(row("shift_scroll", "width"));
+            rows.add(row("ctrl_scroll", "type"));
+            rows.add(row("alt_scroll", "leader"));
+            if (formationSubject != FormationAnchorMode.UNIT) rows.add(row("hold_alt", "stay"));
+        } else if (hotId != null && hasScale(hotId)) {
+            rows.add(new WheelLegendDraw.Row(I18n.get(LEGEND + "key.scroll"),
+                    I18n.get(LEGEND + "change", cardFor(hotId).title())));
+            if (OrderScales.forPipeline(hotId) != null) rows.add(row("shift_scroll", "faster"));
+            if (FieldChoice.isMinefieldLeaf(hotId)) rows.add(row("alt_scroll", "shape"));
+        } else if (OrderQueueClient.isOn() && !OrderQueueClient.labels().isEmpty()) {
+            rows.add(row("scroll_down", "skip"));
+        }
+
+        rows.add(row("tab", OrderQueueClient.isOn() ? "queue_off" : "queue_on"));
+        rows.add(row("hold_ctrl", "details"));
+        return rows;
+    }
+
+    private static final String LEGEND = "gui.tacz_sewv.wheel.legend.";
+
+    private static WheelLegendDraw.Row row(String key, String action) {
+        return new WheelLegendDraw.Row(I18n.get(LEGEND + "key." + key), I18n.get(LEGEND + action));
     }
 
     /**

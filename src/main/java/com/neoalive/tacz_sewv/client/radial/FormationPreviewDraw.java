@@ -122,14 +122,6 @@ final class FormationPreviewDraw {
 
         String caption = I18n.get("gui.tacz_sewv.formation.size", widthStretch, lengthStretch);
         g.drawCenteredString(font, caption, left + PANEL_W / 2, panelTop + PANEL_H - 10, ink);
-
-        // --- Hint (no background) ---
-        String hint = I18n.get("gui.tacz_sewv.formation.hint");
-        int hintY = panelTop + PANEL_H + 4;
-        for (String line : hint.split("\n")) {
-            g.drawCenteredString(font, line, left + PANEL_W / 2, hintY, muted);
-            hintY += font.lineHeight + 1;
-        }
     }
 
     /** One labelled selector strip, the highlight sliding between cells at {@code lerp}. */

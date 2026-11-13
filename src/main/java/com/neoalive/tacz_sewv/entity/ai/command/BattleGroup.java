@@ -147,8 +147,29 @@ public final class BattleGroup {
         return this.currentRoles;
     }
 
+    /** Enemy centroid when the holding points were last laid fresh; NaN = lay them fresh next pass. */
+    private double latchEnemyX = Double.NaN;
+    private double latchEnemyZ = Double.NaN;
+
+    double latchEnemyX() {
+        return this.latchEnemyX;
+    }
+
+    double latchEnemyZ() {
+        return this.latchEnemyZ;
+    }
+
+    void relatch(double enemyX, double enemyZ) {
+        this.latchEnemyX = enemyX;
+        this.latchEnemyZ = enemyZ;
+    }
+
     void commitPlay(PlayId play, Roles roles, long nowTick) {
-        if (play != this.currentPlay) this.lastLeapfrogTick = Long.MIN_VALUE;
+        if (play != this.currentPlay) {
+            this.lastLeapfrogTick = Long.MIN_VALUE;
+            this.latchEnemyX = Double.NaN;
+            this.latchEnemyZ = Double.NaN;
+        }
         this.currentPlay = play;
         this.currentRoles = roles;
         this.playStartedTick = nowTick;
@@ -171,6 +192,8 @@ public final class BattleGroup {
         this.playStartedTick = Long.MIN_VALUE;
         this.lastLeapfrogTick = Long.MIN_VALUE;
         this.hasInfluenceStamp = false;
+        this.latchEnemyX = Double.NaN;
+        this.latchEnemyZ = Double.NaN;
     }
 
     /** Elected commander network id, or empty if election has deferred / never run. */

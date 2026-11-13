@@ -103,8 +103,8 @@ public final class IdleGroupSupport {
     private static volatile Map<Integer, Published> PUBLISHED = new HashMap<>();
     private static volatile Map<Integer, Published> PREVIOUS_PUBLISHED = new HashMap<>();
 
-    /** One unit's cluster as the coordinator dealt it: sorted member ids, and its hold slot (-1 when marching). */
-    private record Published(int[] memberIds, int slot) {}
+    /** One unit's cluster as the coordinator dealt it: sorted member ids, its hold slot (-1 when marching), centre. */
+    private record Published(int[] memberIds, int slot, double centreX, double centreZ) {}
     private static long lastClusterCacheGen = Long.MIN_VALUE;
 
     private record ClusterCacheKey(int leaderUnitId, long refreshGen, ResourceKey<Level> dimension) {}
@@ -144,11 +144,29 @@ public final class IdleGroupSupport {
      * Record one coordinator cluster. {@code memberIds} sorted ascending; {@code slots[i]} is member i's hold
      * slot, or -1 for every member of a marching cluster.
      */
-    public static void publishCluster(int[] memberIds, int[] slots) {
+    public static void publishCluster(int[] memberIds, int[] slots, double centreX, double centreZ) {
         int[] ids = memberIds.clone();
         for (int i = 0; i < ids.length; i++) {
-            PUBLISHED.put(ids[i], new Published(ids, slots[i]));
+            PUBLISHED.put(ids[i], new Published(ids, slots[i], centreX, centreZ));
         }
+    }
+
+    /**
+     * The hold centre to use for cluster {@code ids} whose live centroid is (cx, cz): last pass's centre while the
+     * membership is the same and the centroid has not drifted a ring radius from it, else the centroid. Re-centring
+     * on the live centroid every pass, plus each hull's own scramble, crept the whole ring a block or two a pass.
+     */
+    public static double[] holdCentre(int[] ids, double cx, double cz) {
+        Published p = ids.length == 0 ? null : PREVIOUS_PUBLISHED.get(ids[0]);
+        double[] prev = p == null || !java.util.Arrays.equals(p.memberIds(), ids)
+                ? null : new double[] {p.centreX(), p.centreZ()};
+        return keepCentre(prev, cx, cz, holdRadius(ids.length));
+    }
+
+    /** Pure: keep {@code prev} when within {@code radius} of the live centroid. */
+    static double[] keepCentre(@Nullable double[] prev, double cx, double cz, double radius) {
+        if (prev != null && Math.hypot(prev[0] - cx, prev[1] - cz) <= radius) return prev;
+        return new double[] {cx, cz};
     }
 
     /** The hold slot {@code unitId} held last pass, or -1. */

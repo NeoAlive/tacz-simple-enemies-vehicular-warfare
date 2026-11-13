@@ -24,7 +24,26 @@ public final class TacticsSelfCheck {
         shippedFormations();
         commanderBack();
         coverPoints();
+        latchHolding();
         System.out.println("TacticsSelfCheck OK");
+    }
+
+    private static void latchHolding() {
+        Roles prev = new Roles(new Assignment[] {
+                a(1, Role.BASE_OF_FIRE, null, 61, 100),
+                a(2, Role.MANEUVER, FlankSide.LEFT, -2, 32),
+                a(3, Role.HOLD, null, 10, 10)});
+        Roles fresh = new Roles(new Assignment[] {
+                a(1, Role.BASE_OF_FIRE, null, 66, 75),
+                a(2, Role.MANEUVER, FlankSide.LEFT, 5, 30),
+                a(3, Role.BASE_OF_FIRE, null, 12, 12)});
+        Roles out = TacticPostProcess.latchHolding(prev, fresh);
+        assert find(out, 1).destX == 61 && find(out, 1).destZ == 100 : "base of fire keeps last pass's point";
+        assert find(out, 2).destX == 5 : "a mover keeps refreshing";
+        assert find(out, 3).destX == 12 : "a changed role is laid fresh";
+        assert TacticPostProcess.latchHolding(null, fresh) == fresh : "nothing to latch to on the first pass";
+        Roles same = TacticPostProcess.latchHolding(fresh, fresh);
+        assert same == fresh : "unchanged points allocate nothing";
     }
 
     private static Assignment a(int id, Role role, FlankSide side, double x, double z) {

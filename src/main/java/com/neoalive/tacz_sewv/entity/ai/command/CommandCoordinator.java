@@ -581,6 +581,15 @@ public final class CommandCoordinator {
         }
         double ex = bf.enemyCentroidX;
         double ez = bf.enemyCentroidZ;
+        // Holding points stay put through a play until the enemy has really moved; laid fresh each pass they
+        // jumped 20-40 blocks and had the hulls pivoting on the spot chasing them.
+        if (group.currentPlay() == result.play() && Double.isFinite(group.latchEnemyX())
+                && Math.hypot(ex - group.latchEnemyX(), ez - group.latchEnemyZ())
+                        <= TacticalScale.of(TacticPostProcess.LATCH_REANCHOR)) {
+            roles = TacticPostProcess.latchHolding(group.currentRoles(), roles);
+        } else {
+            group.relatch(ex, ez);
+        }
         // Half the tightest spacing: cover may bend a formation, never fold two slots onto one spot.
         roles = TacticPostProcess.coverPoints(roles,
                 TacticalScale.of(TacticPostProcess.COVER_NEAR), TacticalScale.of(TacticPostProcess.COVER_FAR),
@@ -679,7 +688,7 @@ public final class CommandCoordinator {
                     continue;
                 }
                 BattleField bf = group.battleField();
-                group.influenceMap().rebuildAndDerive(bf, samples, group.faction(), cell, maxCells, margin);
+                group.influenceMap().rebuildAndDerive(bf, samples, group.faction(), cell, maxCells, margin, group.memberIds());
                 // Riflemen weigh a third of a hull: a tank group facing a rifle squad is not "outnumbered".
                 bf.enemyWeight = weights[1];
                 bf.friendlyInfantry = (int) weights[2];
@@ -1030,8 +1039,11 @@ public final class CommandCoordinator {
                 if (IdleMarches.form(level, units, a.faction, now) != null) continue;
             }
 
+            double[] centre = IdleGroupSupport.holdCentre(ids, cx, cz);
+            cx = centre[0];
+            cz = centre[1];
             int[] slots = holdSlots(cluster, cx, cz);
-            IdleGroupSupport.publishCluster(ids, slots);
+            IdleGroupSupport.publishCluster(ids, slots, cx, cz);
             if (SewvDiag.collectiveAiVerbose()) {
                 SewvDiag.command("idle cluster dim={} role={} members={} slots={} centre={},{}",
                         level.dimension().location(), Assignment.Role.IDLE_HOLD, Arrays.toString(ids),

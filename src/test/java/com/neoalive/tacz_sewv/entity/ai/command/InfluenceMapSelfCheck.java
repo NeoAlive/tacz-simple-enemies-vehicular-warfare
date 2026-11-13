@@ -27,8 +27,30 @@ public final class InfluenceMapSelfCheck {
         hugeBoundingBoxStaysUnderCellCap();
         arrayReuseDoesNotGrowPastNeed();
         flankOffsetPerpendicularToAxis();
+        centroidAnchoredOnMembers();
 
         System.out.println("command influence self-check: OK");
+    }
+
+    /** Friendly infantry off to one side counts as strength but does not move the group's centroid. */
+    private static void centroidAnchoredOnMembers() {
+        List<UnitPos> units = new ArrayList<>();
+        units.add(new UnitPos(1, FACTION_US, -5, 0));
+        units.add(new UnitPos(2, FACTION_US, 5, 0));
+        units.add(new UnitPos(90, FACTION_US, 60, 30));
+        units.add(new UnitPos(91, FACTION_US, 64, 30));
+        units.add(new UnitPos(10, FACTION_RU, 0, 80));
+        BattleField anchored = new BattleField();
+        new InfluenceMap().rebuildAndDerive(anchored, units, FACTION_US, CELL, MAX_CELLS, MARGIN, new int[] {1, 2});
+        assert anchored.friendlyCount == 4 : "every friendly still counts, got " + anchored.friendlyCount;
+        assert Math.abs(anchored.friendlyCentroidX) < 1e-9 && Math.abs(anchored.friendlyCentroidZ) < 1e-9
+                : "centroid is the hulls', got " + anchored.friendlyCentroidX + "," + anchored.friendlyCentroidZ;
+        BattleField loose = new BattleField();
+        new InfluenceMap().rebuildAndDerive(loose, units, FACTION_US, CELL, MAX_CELLS, MARGIN);
+        assert loose.friendlyCentroidX > 20 : "unanchored keeps the old all-friendly mean";
+        BattleField missing = new BattleField();
+        new InfluenceMap().rebuildAndDerive(missing, units, FACTION_US, CELL, MAX_CELLS, MARGIN, new int[] {77});
+        assert missing.friendlyCentroidX > 20 : "no anchor present falls back to every friendly";
     }
 
     /** Two opposing clusters → centroids on the correct sides; enemy→us axis points at us. */

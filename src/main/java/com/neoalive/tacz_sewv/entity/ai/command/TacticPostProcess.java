@@ -30,6 +30,35 @@ final class TacticPostProcess {
 
     private TacticPostProcess() {}
 
+    /** Enemy centroid shift, in blocks, past which latched holding points are laid fresh. */
+    static final double LATCH_REANCHOR = 16.0;
+
+    /** Roles whose point is a place to hold, kept between passes. Movers and OVERWATCH bounds refresh. */
+    private static final Set<Assignment.Role> LATCHED = EnumSet.of(Assignment.Role.BASE_OF_FIRE, Assignment.Role.HOLD);
+
+    /**
+     * Keep each BASE_OF_FIRE / HOLD member on the point it held last pass when it still has the same role.
+     * The base-of-fire point is "our centroid plus 8 toward the enemy", so laid fresh every pass it ran ahead
+     * of the hulls and never settled. The caller decides when the picture moved enough to lay them fresh.
+     */
+    static Roles latchHolding(@javax.annotation.Nullable Roles previous, Roles roles) {
+        if (previous == null || roles == null) return roles;
+        Assignment[] out = null;
+        for (int i = 0; i < roles.assignments.length; i++) {
+            Assignment a = roles.assignments[i];
+            if (!LATCHED.contains(a.role)) continue;
+            for (Assignment p : previous.assignments) {
+                if (p.unitId != a.unitId || p.role != a.role) continue;
+                if (!Double.isFinite(p.destX) || !Double.isFinite(p.destZ)) break;
+                if (p.destX == a.destX && p.destZ == a.destZ) break;
+                if (out == null) out = roles.assignments.clone();
+                out[i] = a.withDest(p.destX, p.destZ);
+                break;
+            }
+        }
+        return out == null ? roles : new Roles(out);
+    }
+
     /**
      * Leapfrog (bounding advance / fighting withdrawal): once every mover of the PREVIOUS pass stands on its point,
      * movers and overwatch swap. Destinations are re-taken from {@code fresh} by role, so the new movers get the

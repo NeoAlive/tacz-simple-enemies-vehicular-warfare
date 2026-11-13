@@ -96,10 +96,19 @@ public final class RouteScout {
      * all pick north — and a seed derived from the group's leader keeps the choice deterministic.
      */
     public static double openBearing(Level level, double x, double z, double seed) {
+        return openBearing(level, x, z, seed, new double[0]);
+    }
+
+    /** Headings this close to one that already stalled are skipped. */
+    static final double AVOID_BEARING_RAD = Math.toRadians(50.0);
+
+    /** As above, skipping headings within {@link #AVOID_BEARING_RAD} of any in {@code avoid}, unless all are. */
+    public static double openBearing(Level level, double x, double z, double seed, double[] avoid) {
         double best = seed;
         int bestScore = -1;
         for (int i = 0; i < 8; i++) {
             double b = seed + i * (Math.PI / 4.0);
+            if (avoided(b, avoid)) continue;
             int score = 0;
             if (loaded(level, x, z)) {
                 int lastY = surfaceY(level, x, z);
@@ -121,7 +130,17 @@ public final class RouteScout {
                 best = b;
             }
         }
+        if (bestScore < 0 && avoid.length > 0) return openBearing(level, x, z, seed, new double[0]);
         return best;
+    }
+
+    /** Is heading {@code b} within {@link #AVOID_BEARING_RAD} of any of {@code avoid}? Pure, self-checked. */
+    static boolean avoided(double b, double[] avoid) {
+        for (double a : avoid) {
+            double d = Math.abs(Math.IEEEremainder(b - a, Math.PI * 2.0));
+            if (d < AVOID_BEARING_RAD) return true;
+        }
+        return false;
     }
 
     /** A deterministic angle in {@code [0, 2pi)} from an id. */

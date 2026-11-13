@@ -137,6 +137,21 @@ public final class March {
         return now - this.improvedAt;
     }
 
+    /** Restart the stall clock: the member holding the march up was let go, the rest get a fresh wait. */
+    void resetStall() {
+        this.bestWorst = Double.POSITIVE_INFINITY;
+        this.improvedAt = Long.MIN_VALUE;
+    }
+
+    /**
+     * Should the member holding a waiting march up be let go? Once the wait has made no progress for half the
+     * stall limit and someone else is left to march. A frozen anchor freezes the straggler's lag too, so the
+     * "lost" distance test can never fire for a member stuck from the start: this is what releases it.
+     */
+    static boolean releaseWorst(long stalledFor, int stallTicks, int members) {
+        return members > 1 && stalledFor > stallTicks / 2;
+    }
+
     /** The anchor has reached a route that will not grow. */
     boolean arrived(long now) {
         return this.routeClosed && anchorAt(now) >= this.route.length() - 1.0e-6;

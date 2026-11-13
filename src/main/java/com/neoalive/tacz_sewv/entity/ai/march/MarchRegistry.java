@@ -1,6 +1,7 @@
 package com.neoalive.tacz_sewv.entity.ai.march;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -229,6 +230,7 @@ public final class MarchRegistry {
         // A member that has fallen hopelessly behind (stuck, fighting its own fight) is let go rather than waited
         // for: one rifleman lost 50 blocks back otherwise holds a whole line still until it stalls.
         double worst = 0.0;
+        int worstId = -1;
         List<Integer> lost = new ArrayList<>();
         StringBuilder lags = SewvDiag.collectiveAiVerbose() ? new StringBuilder() : null;
         for (int k = 0; k < march.hulls.length; k++) {
@@ -238,7 +240,10 @@ public final class MarchRegistry {
                 lost.add(u.getId());
                 continue;
             }
-            worst = Math.max(worst, lag / hullLimit);
+            if (lag / hullLimit > worst) {
+                worst = lag / hullLimit;
+                worstId = u.getId();
+            }
             if (lags != null) appendLag(lags, u.getId(), lag, u.getVehicle());
         }
         for (int i = 0; i < march.infantry.length; i++) {
@@ -248,7 +253,10 @@ public final class MarchRegistry {
                 lost.add(u.getId());
                 continue;
             }
-            worst = Math.max(worst, lag / footLimit);
+            if (lag / footLimit > worst) {
+                worst = lag / footLimit;
+                worstId = u.getId();
+            }
             if (lags != null) appendLag(lags, u.getId(), lag, u);
         }
         if (!lost.isEmpty()) {
@@ -258,7 +266,25 @@ public final class MarchRegistry {
         }
         boolean pause = March.shouldPause(march.paused(), worst, RESUME_FRACTION);
         if (pause != march.paused()) march.setPaused(pause, now);
-        if (march.stalledFor(worst, now) > stallTicks()) return "stall";
+        long stalled = march.stalledFor(worst, now);
+        // Idle only: a cohesive line is re-synced from the battle every pass and would just take the member back.
+        if (march.kind == March.Kind.IDLE_TRAVEL && worstId != -1
+                && March.releaseWorst(stalled, stallTicks(), march.hulls.length + march.infantry.length)) {
+            SewvDiag.command("march id={} lets go of {} holding it up", march.id, worstId);
+            IdleMarches.noteStall(level, new int[] {worstId}, march.bearing, now);
+            leave(worstId);
+            if (!MARCHES.containsKey(march.id)) return "no hulls";
+            march.resetStall();
+            return null;
+        }
+        if (stalled > stallTicks()) {
+            if (march.kind == March.Kind.IDLE_TRAVEL) {
+                int[] ids = Arrays.copyOf(march.hulls, march.hulls.length + march.infantry.length);
+                System.arraycopy(march.infantry, 0, ids, march.hulls.length, march.infantry.length);
+                IdleMarches.noteStall(level, ids, march.bearing, now);
+            }
+            return "stall";
+        }
 
         if (!march.routeClosed) {
             double s = march.anchorAt(now);

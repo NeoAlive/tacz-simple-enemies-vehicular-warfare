@@ -25,6 +25,7 @@ import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.CrewFacts;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
+import com.neoalive.tacz_sewv.entity.ai.formation.DrivableGround;
 import com.neoalive.tacz_sewv.entity.ai.formation.SlotMatcher;
 import com.neoalive.tacz_sewv.entity.ai.support.InfantryOrders;
 import com.neoalive.tacz_sewv.entity.ai.support.InfantrySquads;
@@ -50,10 +51,64 @@ public final class IdleMarches {
      */
     private static final Map<ResourceKey<Level>, Map<Integer, Long>> IDLE_SINCE = new HashMap<>();
 
+    /**
+     * Per dimension: unit id → its last stalled march. A stalled march used to re-form 5-10 s later on the same
+     * bearing with the same hulls and stall again, for ever. Now the unit backs off (doubling, capped) and the
+     * next march skips the bearing that failed. Forgotten after a quiet {@link #STALL_FORGET_TICKS}.
+     */
+    private static final Map<ResourceKey<Level>, Map<Integer, Stall>> STALLS = new HashMap<>();
+
+    record Stall(long notBefore, int count, double[] failedBearings) {}
+
+    static final int STALL_BACKOFF_MULT = 4;
+    static final int STALL_BACKOFF_CAP = 2400;
+    static final int STALL_FORGET_TICKS = 2400;
+    private static final int MAX_FAILED_BEARINGS = 3;
+
     private IdleMarches() {}
 
     public static void clear() {
         IDLE_SINCE.clear();
+        STALLS.clear();
+    }
+
+    /** Hold after the {@code count}-th consecutive stall: base x 4, doubling, capped. Pure, self-checked. */
+    static long stallBackoff(int baseHold, int count) {
+        long b = (long) baseHold * STALL_BACKOFF_MULT;
+        for (int i = 1; i < count && b < STALL_BACKOFF_CAP; i++) b *= 2;
+        return Math.min(b, STALL_BACKOFF_CAP);
+    }
+
+    /** Record that {@code ids} were in a march that stalled on {@code bearing}. */
+    public static void noteStall(ServerLevel level, int[] ids, double bearing, long now) {
+        Map<Integer, Stall> stalls = STALLS.computeIfAbsent(level.dimension(), d -> new HashMap<>());
+        for (int id : ids) {
+            Stall prev = live(stalls, id, now);
+            int count = prev == null ? 1 : prev.count + 1;
+            double[] failed = prev == null ? new double[0] : prev.failedBearings;
+            double[] next = Arrays.copyOf(failed, Math.min(failed.length + 1, MAX_FAILED_BEARINGS));
+            if (failed.length >= MAX_FAILED_BEARINGS) System.arraycopy(failed, 1, next, 0, MAX_FAILED_BEARINGS - 1);
+            next[next.length - 1] = bearing;
+            stalls.put(id, new Stall(now + stallBackoff(holdTicks(id), count), count, next));
+            Map<Integer, Long> clocks = clocks(level);
+            clocks.remove(id);
+        }
+    }
+
+    @Nullable
+    private static Stall live(Map<Integer, Stall> stalls, int id, long now) {
+        Stall s = stalls.get(id);
+        if (s != null && now > s.notBefore + STALL_FORGET_TICKS) {
+            stalls.remove(id);
+            return null;
+        }
+        return s;
+    }
+
+    @Nullable
+    private static Stall stallOf(ServerLevel level, int id, long now) {
+        Map<Integer, Stall> stalls = STALLS.get(level.dimension());
+        return stalls == null ? null : live(stalls, id, now);
     }
 
     /** Note {@code ids} as idle at {@code now} (keeps the earliest time). */
@@ -71,7 +126,11 @@ public final class IdleMarches {
     public static boolean ready(ServerLevel level, int[] ids, long now) {
         Map<Integer, Long> clocks = clocks(level);
         long since = Long.MAX_VALUE;
-        for (int id : ids) since = Math.min(since, clocks.getOrDefault(id, now));
+        for (int id : ids) {
+            Stall s = stallOf(level, id, now);
+            if (s != null && now < s.notBefore) return false;
+            since = Math.min(since, clocks.getOrDefault(id, now));
+        }
         return now - since >= holdTicks(ids[0]);
     }
 
@@ -117,8 +176,13 @@ public final class IdleMarches {
     @Nullable
     public static March form(ServerLevel level, List<AbstractUnit> drivers, CrewFacts.Faction faction, long now,
                              double bearing) {
-        if (drivers.isEmpty()) return null;
-        List<AbstractUnit> sorted = new ArrayList<>(drivers);
+        List<AbstractUnit> sorted = new ArrayList<>(drivers.size());
+        for (AbstractUnit u : drivers) {
+            // A hull stuck on a tree cannot take a slot; it would only hold the column still until it stalls.
+            if (u.getVehicle() instanceof VehicleEntity v && DrivableGround.perched(v)) continue;
+            sorted.add(u);
+        }
+        if (sorted.isEmpty()) return null;
         sorted.sort(Comparator.comparingInt(AbstractUnit::getId));
         int n = sorted.size();
         int leader = sorted.get(0).getId();
@@ -135,7 +199,11 @@ public final class IdleMarches {
         cz /= n;
 
         if (Double.isNaN(bearing)) bearing = awayFromHostilePlayer(level, sorted.get(0), cx, cz);
-        if (Double.isNaN(bearing)) bearing = RouteScout.openBearing(level, cx, cz, RouteScout.seedAngle(leader));
+        if (Double.isNaN(bearing)) {
+            Stall stall = stallOf(level, leader, now);
+            bearing = RouteScout.openBearing(level, cx, cz, RouteScout.seedAngle(leader),
+                    stall == null ? new double[0] : stall.failedBearings);
+        }
         double fx = Math.sin(bearing);
         double fz = Math.cos(bearing);
 

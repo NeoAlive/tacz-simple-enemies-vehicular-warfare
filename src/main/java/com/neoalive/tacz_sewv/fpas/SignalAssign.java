@@ -80,6 +80,21 @@ public final class SignalAssign {
         return out;
     }
 
+    /** Fraction of the range a unit stops at, so it is just inside it on arrival. */
+    public static final double STANDOFF_FRACTION = 0.85;
+
+    /**
+     * Where a unit at (ux, uz) stops for a contact at (tx, tz): on its own side, short by the range.
+     * Already in range, it stays where it is.
+     */
+    public static double[] standoff(double ux, double uz, double tx, double tz, double range) {
+        double dx = ux - tx, dz = uz - tz;
+        double d = Math.hypot(dx, dz);
+        double r = range * STANDOFF_FRACTION;
+        if (d <= range) return new double[] {ux, uz};
+        return new double[] {tx + dx / d * r, tz + dz / d * r};
+    }
+
     static double d2(double[] p, double[] q) {
         double dx = p[0] - q[0], dz = p[1] - q[1];
         return dx * dx + dz * dz;

@@ -65,22 +65,19 @@ public final class SignalAssignSelfCheck {
         List<List<Integer>> idle = SignalAssign.assign(pts(0, 0, 100, 0), pts(1, 0, 99, 0), none2);
         assert idle.get(0).isEmpty() && idle.get(1).size() == 2 : idle;
 
-        // firing spots: ring at range, nearest to the shooter first
-        List<double[]> ranked = FiringSpots.rank(-100, 0, 0, 0, 40, List.of());
-        assert ranked.size() == FiringSpots.BEARINGS * 2;
-        double[] first = ranked.get(0);
-        assert first[0] < -30 && Math.abs(first[1]) < 1e-6 : first[0] + "," + first[1];
-        // a claimed spot pushes the next shooter onto another bearing
-        List<double[]> crowded = FiringSpots.rank(-100, 0, 0, 0, 40, List.of(first));
-        assert Math.hypot(crowded.get(0)[0] - first[0], crowded.get(0)[1] - first[1]) >= FiringSpots.SPACING;
-        // pick skips what the world test refuses (say the near side is a cliff)
-        double[] picked = FiringSpots.pick(-100, 0, 0, 0, 40, List.of(), p -> p[0] > 0);
-        assert picked != null && picked[0] > 0;
-        assert FiringSpots.pick(-100, 0, 0, 0, 40, List.of(), p -> false) == null;
-        // legs stay short of the spot until it is within reach
-        double[] leg = FiringSpots.leg(0, 0, 100, 0, 40);
-        assert Math.abs(leg[0] - 40) < 1e-9 && leg[1] == 0;
-        assert FiringSpots.leg(0, 0, 10, 0, 40)[0] == 10;
+        // standoff: a far unit stops on its own side, just inside range
+        double[] west = SignalAssign.standoff(-100, 0, 0, 0, 40);
+        assert Math.abs(west[0] + 40 * SignalAssign.STANDOFF_FRACTION) < 1e-9 && Math.abs(west[1]) < 1e-9
+                : west[0] + "," + west[1];
+        // opposite sides get opposite points
+        double[] east = SignalAssign.standoff(100, 0, 0, 0, 40);
+        assert Math.abs(east[0] + west[0]) < 1e-9;
+        // already in range: stays put
+        double[] near = SignalAssign.standoff(20, 5, 0, 0, 40);
+        assert near[0] == 20 && near[1] == 5;
+        // zero range (aircraft) flies onto the contact
+        double[] onto = SignalAssign.standoff(-100, 0, 3, 4, 0);
+        assert Math.abs(onto[0] - 3) < 1e-9 && Math.abs(onto[1] - 4) < 1e-9;
 
         System.out.println("SignalAssignSelfCheck OK");
     }

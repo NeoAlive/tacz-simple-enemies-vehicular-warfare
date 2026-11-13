@@ -393,7 +393,7 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.BooleanValue SIGNAL_INFANTRY_ENGAGES_VEHICLES;
     public static final ForgeConfigSpec.DoubleValue SIGNAL_ALLY_RADIUS;
     public static final ForgeConfigSpec.DoubleValue SIGNAL_INFANTRY_RANGE;
-    public static final ForgeConfigSpec.IntValue SIGNAL_TARGET_SECONDS;
+    public static final ForgeConfigSpec.IntValue SIGNAL_MOVE_SECONDS;
 
     /** Invasion HUD colours (hex RGB). Team A/B match the left/right bases on the layout. */
     public static final ForgeConfigSpec.BooleanValue UNLIMITED_TEAM_BASES;
@@ -1638,11 +1638,11 @@ public final class SewvConfig {
                         "FPAS Signal orders take every owned unit within this many blocks of a contact.")
                 .defineInRange("signalAllyRadius", 150.0, 16.0, 512.0);
         SIGNAL_INFANTRY_RANGE = builder.comment(
-                        "Range in blocks an on-foot unit fires a Signal target from. Launchers use 1.5x.")
+                        "Blocks short of its contact an on-foot unit stops on a Signal order. Launchers use 1.5x.")
                 .defineInRange("signalInfantryRange", 40.0, 8.0, 96.0);
-        SIGNAL_TARGET_SECONDS = builder.comment(
-                        "Seconds a unit works one Signal target before moving on to its next.")
-                .defineInRange("signalTargetSeconds", 120, 10, 900);
+        SIGNAL_MOVE_SECONDS = builder.comment(
+                        "Seconds a unit may take to reach its Signal point before it gives up and goes free fire.")
+                .defineInRange("signalMoveSeconds", 90, 15, 600);
         builder.pop();
 
         builder.push("invasion");

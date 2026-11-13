@@ -254,7 +254,7 @@ if (EasyMode.vehicleTargetRequireLos()
     }
 
     /** A unit, a player, or anything riding a hull: what a crew may hold a lock on without seeing it. */
-    private static boolean isCombatant(LivingEntity e) {
+    public static boolean isCombatant(LivingEntity e) {
         return e instanceof AbstractUnit || e instanceof Player || e.getVehicle() instanceof VehicleEntity;
     }
 

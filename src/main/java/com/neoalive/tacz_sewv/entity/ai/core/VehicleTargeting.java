@@ -1069,7 +1069,6 @@ public final class VehicleTargeting {
             if (FobSupport.blocksOrders(pmc)) return true;
             if (((ITerritoryPost) pmc).sewv$hasTerritoryPost()) return true;
             if (com.neoalive.tacz_sewv.entity.ai.support.CoverHoldOrders.has(pmc)) return true;
-            if (com.neoalive.tacz_sewv.fpas.SignalTasks.has(pmc)) return true;
             return ((IVehiclePatrol) pmc).sewv$isPatrolling() || pmc.getOrder() != OrderType.FREE_FIRE;
         }
         return false;

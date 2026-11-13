@@ -10,6 +10,8 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
@@ -19,17 +21,19 @@ import com.neoalive.tacz_sewv.command.quick.QuickCommandUnits;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.CrewRadio;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
+import com.neoalive.tacz_sewv.entity.ai.core.VehicleWeapons;
 import com.neoalive.tacz_sewv.entity.ai.sensor.CombatantIndex;
 import com.neoalive.tacz_sewv.entity.ai.support.FormationSubjects;
 import com.neoalive.tacz_sewv.entity.ai.support.MortarSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.OrderStandDown;
 import com.neoalive.tacz_sewv.entity.ai.support.SmallArmsSupport;
+import com.neoalive.tacz_sewv.entity.ai.utility.Facts;
 
 /**
  * "Attack every contact of this class": the player's PMCs near the contacts are paired with them by
- * {@link SignalAssign}, only where the unit can hurt the target, and handed to {@link SignalTasks},
- * which moves them to a firing spot and works their queue. Shared by the FPAS dashboard and the
- * quickwheel Signal leaves.
+ * {@link SignalAssign}, only where the unit can hurt the target, and each is sent to a standoff
+ * point short of its contact. {@link SignalTasks} then hands it back to its own AI on FREE_FIRE.
+ * Shared by the FPAS dashboard and the quickwheel Signal leaves.
  */
 public final class SignalOrders {
 
@@ -82,26 +86,41 @@ public final class SignalOrders {
         for (int i = 0; i < e.length; i++) e[i] = new double[] {enemies.get(i).x(), enemies.get(i).z()};
         List<List<Integer>> plan = SignalAssign.assign(a, e, able);
 
-        Map<PmcUnitEntity, List<SignalTasks.Pending>> tasks = new LinkedHashMap<>();
+        Map<PmcUnitEntity, Vec3> tasks = new LinkedHashMap<>();
         for (int i = 0; i < units.size(); i++) {
             if (plan.get(i).isEmpty()) continue;
-            List<SignalTasks.Pending> list = new ArrayList<>();
-            for (int idx : plan.get(i)) {
-                RadarContact c = enemies.get(idx);
-                list.add(new SignalTasks.Pending(c.targetId(), new Vec3(c.x(), c.y() + 1.0, c.z())));
-            }
+            RadarContact c = enemies.get(plan.get(i).get(0));
             PmcUnitEntity pmc = units.get(i);
+            Vec3 at = pmc.getRootVehicle().position();
+            double[] p = SignalAssign.standoff(at.x, at.z, c.x(), c.z(), standoffRange(pmc, cls));
             OrderStandDown.clearForNewOrder(pmc, "SignalOrders");
             // A split engagement has no formation: each unit goes its own way.
             FormationSubjects.release(pmc);
             if (pmc.getVehicle() instanceof VehicleEntity hull && hull.getFirstPassenger() == pmc) {
                 CrewRadio.play(hull, CrewRadio.Line.ORDER_DISPATCH);
             }
-            tasks.put(pmc, list);
+            tasks.put(pmc, new Vec3(p[0], groundY(pmc.level(), p[0], p[1], c.y()), p[1]));
         }
-        SignalTasks.begin(player.getUUID(), live, tasks);
+        SignalTasks.begin(player.getUUID(), tasks);
         say(player, Component.translatable("message.tacz_sewv.signal.done", tasks.size(), enemies.size(),
                 clsName(cls), units.size() - capable), ChatFormatting.GREEN);
+    }
+
+    /** How far short of the contact a unit stops. Aircraft fly onto it and fight from their own runs. */
+    static double standoffRange(PmcUnitEntity pmc, RadarContact.Cls cls) {
+        if (SignalTasks.aircrew(pmc)) return 0.0;
+        if (pmc.getVehicle() instanceof VehicleEntity) {
+            return Facts.preferredRange(cls == RadarContact.Cls.INFANTRY
+                    ? VehicleWeapons.TargetCategory.FACTION_UNIT : VehicleWeapons.TargetCategory.VEHICLE);
+        }
+        double r = SewvConfig.SIGNAL_INFANTRY_RANGE.get();
+        return SmallArmsSupport.holdsAntiArmor(pmc) ? r * 1.5 : r;
+    }
+
+    private static double groundY(Level level, double x, double z, double fallback) {
+        int bx = (int) Math.floor(x), bz = (int) Math.floor(z);
+        if (!level.hasChunk(bx >> 4, bz >> 4)) return fallback;
+        return level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, bx, bz);
     }
 
     /**

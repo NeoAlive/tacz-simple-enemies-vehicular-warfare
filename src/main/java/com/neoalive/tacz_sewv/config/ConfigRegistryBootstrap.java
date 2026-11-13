@@ -1003,8 +1003,8 @@ final class ConfigRegistryBootstrap {
                 SewvConfig.SIGNAL_ALLY_RADIUS, SewvConfig.SIGNAL_ALLY_RADIUS::set);
         b.doubleRange(ConfigScope.SERVER, "spawn_zones", "signalInfantryRange", 8.0, 96.0,
                 SewvConfig.SIGNAL_INFANTRY_RANGE, SewvConfig.SIGNAL_INFANTRY_RANGE::set);
-        b.intRange(ConfigScope.SERVER, "spawn_zones", "signalTargetSeconds", 10, 900,
-                SewvConfig.SIGNAL_TARGET_SECONDS, SewvConfig.SIGNAL_TARGET_SECONDS::set);
+        b.intRange(ConfigScope.SERVER, "spawn_zones", "signalMoveSeconds", 15, 600,
+                SewvConfig.SIGNAL_MOVE_SECONDS, SewvConfig.SIGNAL_MOVE_SECONDS::set);
     }
 
     private static void registerInvasion(ConfigRegistry.Builder b) {

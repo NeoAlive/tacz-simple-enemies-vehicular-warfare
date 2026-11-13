@@ -370,6 +370,13 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue QUICK_LAND_RADIUS;
     public static final ForgeConfigSpec.DoubleValue QUICK_GEAR_SEARCH_RADIUS;
     public static final ForgeConfigSpec.IntValue QUICK_GEAR_SEARCH_TIMEOUT_TICKS;
+    public static final ForgeConfigSpec.IntValue MINEFIELD_MAX_MINES;
+    public static final ForgeConfigSpec.DoubleValue MINEFIELD_MAX_RANGE;
+    public static final ForgeConfigSpec.DoubleValue MINEFIELD_STANDOFF;
+    public static final ForgeConfigSpec.DoubleValue MINEFIELD_THREAT_RADIUS;
+    public static final ForgeConfigSpec.DoubleValue MINEFIELD_MOVE_SPEED;
+    public static final ForgeConfigSpec.IntValue MINEFIELD_PLANT_TICKS;
+    public static final ForgeConfigSpec.IntValue MINEFIELD_TIMEOUT_TICKS;
     /**
      * Max ids the server sends in admin-editor add-catalogs (guns / attachments / armor /
      * vehicles / target types). Overflow is truncated, never a disconnect.
@@ -1569,6 +1576,31 @@ public final class SewvConfig {
                         "Absolute game-time budget (ticks) for Search equipment walks before the MOVE is",
                         "dropped back to FREE_FIRE.")
                 .defineInRange("quickGearSearchTimeoutTicks", 600, 40, 2400);
+        MINEFIELD_MAX_MINES = builder.comment(
+                        "Most mines one Deploy Minefield order lays, across every engineer it reaches.")
+                .defineInRange("minefieldMaxMines", 16, 1, 48);
+        MINEFIELD_MAX_RANGE = builder.comment(
+                        "How far (blocks) from the player the aimed block may be for Deploy Minefield to",
+                        "lay around it; further away, the field goes around the engineers instead.")
+                .defineInRange("minefieldMaxRange", 48.0, 8.0, 128.0);
+        MINEFIELD_STANDOFF = builder.comment(
+                        "How far (blocks) a minefield is pushed out toward the nearest known enemy",
+                        "(never more than half the way there).")
+                .defineInRange("minefieldStandoff", 8.0, 0.0, 32.0);
+        MINEFIELD_THREAT_RADIUS = builder.comment(
+                        "How far (blocks) Deploy Minefield and Deploy Equipment look for the enemy they",
+                        "should face. Read off the combatant index, nobody is targeted.")
+                .defineInRange("minefieldThreatRadius", 128.0, 16.0, 256.0);
+        MINEFIELD_MOVE_SPEED = builder.comment(
+                        "Navigation speed multiplier for engineers moving between mine slots.")
+                .defineInRange("minefieldMoveSpeed", 1.4, 1.0, 2.0);
+        MINEFIELD_PLANT_TICKS = builder.comment(
+                        "Game ticks an engineer kneels at a slot before the mine is down.")
+                .defineInRange("minefieldPlantTicks", 20, 5, 100);
+        MINEFIELD_TIMEOUT_TICKS = builder.comment(
+                        "Absolute game-time budget (ticks) for a whole Deploy Minefield order; mines not",
+                        "laid by then stay in the engineers' pockets.")
+                .defineInRange("minefieldTimeoutTicks", 1800, 200, 6000);
         EDITOR_CATALOG_MAX = builder.comment(
                         "Max registry ids sent in /sewv pool (and similar) add-catalogs.",
                         "If a pack has more guns/armor/vehicles than this, the rest are omitted from",

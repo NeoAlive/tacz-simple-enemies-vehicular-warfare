@@ -52,6 +52,12 @@ public class WorldVehiclePools extends SavedData {
             "superbwarfare:hand_grenade",
             "superbwarfare:rgo_grenade",
             "superbwarfare:m18_smoke_grenade");
+    /** Mines combat engineers lay (item ids; how each is placed comes from the mine kinds datapack). */
+    private static final List<String> DEFAULT_MINES = List.of(
+            "superbwarfare:tm_62",
+            "superbwarfare:blu_43_mine",
+            "superbwarfare:claymore_mine",
+            "superbwarfare:edd");
 
     private static Map<TankFaction, Map<Category, List<String>>> legacyPools;
     private static boolean legacyPoolsLoaded;
@@ -63,7 +69,12 @@ public class WorldVehiclePools extends SavedData {
      * them. Order is the wire order of the pool-editor packets: append, never reorder.
      */
     public enum Category {
-        GROUND, SURFACE, PLANE, ROTOR, TOW, MORTAR, GRENADE;
+        GROUND, SURFACE, PLANE, ROTOR, TOW, MORTAR, GRENADE, MINE;
+
+        /** Pools that hold item ids rather than entity types. */
+        public boolean isItemPool() {
+            return this == GRENADE || this == MINE;
+        }
 
         /** The NBT/lang key this category was saved under before the ship→surface / heli→rotor rename. */
         @javax.annotation.Nullable
@@ -260,6 +271,7 @@ public class WorldVehiclePools extends SavedData {
             case TOW -> DEFAULT_TOW;
             case MORTAR -> DEFAULT_MORTAR;
             case GRENADE -> DEFAULT_GRENADES;
+            case MINE -> DEFAULT_MINES;
         };
     }
 

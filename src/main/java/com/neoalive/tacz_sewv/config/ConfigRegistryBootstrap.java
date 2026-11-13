@@ -957,6 +957,20 @@ final class ConfigRegistryBootstrap {
                 SewvConfig.QUICK_GEAR_SEARCH_RADIUS, SewvConfig.QUICK_GEAR_SEARCH_RADIUS::set);
         b.intRange(ConfigScope.SERVER, "boarding", "quickGearSearchTimeoutTicks", 40, 2400,
                 SewvConfig.QUICK_GEAR_SEARCH_TIMEOUT_TICKS, SewvConfig.QUICK_GEAR_SEARCH_TIMEOUT_TICKS::set);
+        b.intRange(ConfigScope.SERVER, "boarding", "minefieldMaxMines", 1, 48,
+                SewvConfig.MINEFIELD_MAX_MINES, SewvConfig.MINEFIELD_MAX_MINES::set);
+        b.doubleRange(ConfigScope.SERVER, "boarding", "minefieldMaxRange", 8.0, 128.0,
+                SewvConfig.MINEFIELD_MAX_RANGE, SewvConfig.MINEFIELD_MAX_RANGE::set);
+        b.doubleRange(ConfigScope.SERVER, "boarding", "minefieldStandoff", 0.0, 32.0,
+                SewvConfig.MINEFIELD_STANDOFF, SewvConfig.MINEFIELD_STANDOFF::set);
+        b.doubleRange(ConfigScope.SERVER, "boarding", "minefieldThreatRadius", 16.0, 256.0,
+                SewvConfig.MINEFIELD_THREAT_RADIUS, SewvConfig.MINEFIELD_THREAT_RADIUS::set);
+        b.doubleRange(ConfigScope.SERVER, "boarding", "minefieldMoveSpeed", 1.0, 2.0,
+                SewvConfig.MINEFIELD_MOVE_SPEED, SewvConfig.MINEFIELD_MOVE_SPEED::set);
+        b.intRange(ConfigScope.SERVER, "boarding", "minefieldPlantTicks", 5, 100,
+                SewvConfig.MINEFIELD_PLANT_TICKS, SewvConfig.MINEFIELD_PLANT_TICKS::set);
+        b.intRange(ConfigScope.SERVER, "boarding", "minefieldTimeoutTicks", 200, 6000,
+                SewvConfig.MINEFIELD_TIMEOUT_TICKS, SewvConfig.MINEFIELD_TIMEOUT_TICKS::set);
     }
 
     private static void registerMapIntel(ConfigRegistry.Builder b) {

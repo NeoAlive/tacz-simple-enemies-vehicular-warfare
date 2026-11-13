@@ -168,7 +168,8 @@ public class PoolEditorScreen extends Screen {
     /** Client scan merged with the server snapshot from the open packet. */
     private void reloadCatalog() {
         this.activeCatalogList = this.category == Category.GRENADE
-                ? GrenadePoolCatalog.ids() : VehiclePoolCatalog.mergedWith(this.catalog);
+                ? GrenadePoolCatalog.ids()
+                : this.category == Category.MINE ? GrenadePoolCatalog.mineIds() : VehiclePoolCatalog.mergedWith(this.catalog);
     }
 
     private String labelOf(String id) {
@@ -184,7 +185,7 @@ public class PoolEditorScreen extends Screen {
         if (rl == null) {
             return new Info("?", "-", SheetTable.BAD, Component.translatable("gui.tacz_sewv.pool.note.badid"));
         }
-        if (this.category == Category.GRENADE) {
+        if (this.category.isItemPool()) {
             if (!ForgeRegistries.ITEMS.containsKey(rl)) return unregistered();
             Item item = ForgeRegistries.ITEMS.getValue(rl);
             return new Info(item == null ? "?" : item.getDescription().getString(), "-", SheetTable.LIVE, null);
@@ -382,7 +383,7 @@ public class PoolEditorScreen extends Screen {
     @Override
     public void tick() {
         super.tick();
-        if (this.category == Category.GRENADE || !this.activeCatalogList.isEmpty()) return;
+        if (this.category.isItemPool() || !this.activeCatalogList.isEmpty()) return;
         if (++this.catalogRetryTicks % 40 != 0) return;
         VehiclePoolCatalog.rebuildIfEmpty();
         reloadCatalog();
@@ -601,7 +602,7 @@ public class PoolEditorScreen extends Screen {
     }
 
     private void renderCandidates(GuiGraphics g) {
-        boolean pending = this.category != Category.GRENADE && this.activeCatalogList.isEmpty();
+        boolean pending = !this.category.isItemPool() && this.activeCatalogList.isEmpty();
         if (pending) {
             g.drawString(this.font, Component.translatable(this.catalog.isEmpty()
                     ? "gui.tacz_sewv.pool.catalog_empty" : "gui.tacz_sewv.pool.catalog_loading"),

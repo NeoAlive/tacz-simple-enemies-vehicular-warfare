@@ -147,6 +147,8 @@ public final class OrderQueue {
      */
     private static boolean done(ServerPlayer player, Entry e) {
         if (QuickCommandRegistry.isSwapRole(e.pipelineId)) return true;
+        if (QuickCommandRegistry.isDeployEquipment(e.pipelineId)) return true;
+        if (QuickCommandRegistry.isMinefield(e.pipelineId)) return !MinefieldTracker.isActive(player.getUUID());
         if (QuickCommandRegistry.isSearchGear(e.pipelineId)) return !GearSearchTracker.isActive(player.getUUID());
         // A timed hold completes when the last unit is released; a forever hold waits for a skip.
         if (QuickCommandRegistry.ID_QUICK_COVER_HOLD.equals(e.pipelineId)) return !anyCoverHold(player, e);

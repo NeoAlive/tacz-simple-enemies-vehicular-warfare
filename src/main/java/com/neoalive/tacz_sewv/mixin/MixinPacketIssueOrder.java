@@ -126,6 +126,7 @@ public abstract class MixinPacketIssueOrder {
         com.neoalive.tacz_sewv.fpas.SignalTasks.clear(pmc);
         com.neoalive.tacz_sewv.entity.ai.support.CoverHoldOrders.clear(pmc);
         com.neoalive.tacz_sewv.command.quick.GearSearchTracker.release(pmc);
+        com.neoalive.tacz_sewv.command.quick.MinefieldTracker.release(pmc);
         // Any player SEM order cancels an in-flight REACH promote (FREE_FIRE included).
         GuardSupport.clearReach(pmc);
         // EscortGoal is priority 1 MOVE and ignores the SEM order — an uncleared VIP steals

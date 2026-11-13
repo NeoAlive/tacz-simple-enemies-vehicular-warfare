@@ -186,6 +186,8 @@ public class TaczSewv {
         event.addListener(new com.neoalive.tacz_sewv.ballistics.TranslationTable.Loader());
         // See com.neoalive.tacz_sewv.entity.ai.suppression.SuppressionTable.
         event.addListener(new com.neoalive.tacz_sewv.entity.ai.suppression.SuppressionTable.Loader());
+        // How each MINE pool item is laid; see com.neoalive.tacz_sewv.entity.ai.support.mines.MineKinds.
+        event.addListener(new com.neoalive.tacz_sewv.entity.ai.support.mines.MineKinds.Loader());
         // See com.neoalive.tacz_sewv.crew.NamePools.
         event.addListener(new com.neoalive.tacz_sewv.crew.NamePools.Loader());
         event.addListener(new com.neoalive.tacz_sewv.crew.LogoPoolIndex.Loader());

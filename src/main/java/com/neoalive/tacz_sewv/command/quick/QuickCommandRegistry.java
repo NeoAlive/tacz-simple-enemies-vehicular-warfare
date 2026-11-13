@@ -44,6 +44,10 @@ public final class QuickCommandRegistry {
     public static final List<RoleKit.Kit> SEARCH_KITS =
             List.of(RoleKit.Kit.MEDIC, RoleKit.Kit.ENGINEER, RoleKit.Kit.COMBAT_ENGINEER);
     public static final List<RoleKit.Kit> SWAP_KITS = List.of(RoleKit.Kit.values());
+    /** Wheel-only leaf; Ctrl+scroll picks whether the unit also crews it ({@link #deployEquipmentId}). */
+    public static final String ID_QUICK_DEPLOY_EQUIPMENT = "quick_deploy_equipment";
+    /** Wheel-only leaf; the mine and shape picked on the wheel ride the id ({@code QuickMinefieldPipeline#id}). */
+    public static final String ID_QUICK_MINEFIELD = "quick_minefield";
     public static final String ID_QUICK_CANCEL = "quick_cancel";
     public static final String ID_QUICK_FOLLOW = "quick_follow";
     public static final String ID_QUICK_DISMOUNT = "quick_dismount";
@@ -132,6 +136,8 @@ public final class QuickCommandRegistry {
         register(ID_QUICK_ROUTE_FOB, new QuickRouteFobPipeline());
         register(ID_REVIVE_CALL, new QuickReviveCallPipeline());
         register(ID_QUICK_SUPPRESS, new QuickSuppressPipeline());
+        register(deployEquipmentId(true), new QuickDeployEquipmentPipeline(true));
+        register(deployEquipmentId(false), new QuickDeployEquipmentPipeline(false));
         for (RadarContact.Cls cls : RadarContact.Cls.values()) register(signalId(cls), new QuickSignalPipeline(cls));
         for (int s = 0; s <= CoverHoldOrders.MAX_HOLD_SECONDS; s += CoverHoldOrders.HOLD_STEP_SECONDS) {
             register(coverHoldId(s), new QuickCoverHoldPipeline(s));
@@ -169,7 +175,9 @@ public final class QuickCommandRegistry {
                         leaf(ID_QUICK_REFILL, "\u21BB", 0x6BA84A),
                         leaf(ID_QUICK_ROUTE_FOB, "\u2302", 0x6BA84A),
                         leaf(ID_QUICK_SEARCH_GEAR, "\u2315", 0x6BA84A),
-                        leaf(ID_QUICK_SWAP_ROLE, "\u21C6", 0x6BA84A))),
+                        leaf(ID_QUICK_SWAP_ROLE, "\u21C6", 0x6BA84A),
+                        leaf(ID_QUICK_DEPLOY_EQUIPMENT, "\u2692", 0x6BA84A),
+                        leaf(ID_QUICK_MINEFIELD, "\u2622", 0x6BA84A))),
                 category("air", "\u2708", 0x4AB8E8, List.of(
                         leaf(ID_QUICK_TAKEOFF, "\u2191", 0x4AB8E8),
                         leaf(ID_QUICK_LANDING, "\u2193", 0x4AB8E8),
@@ -246,7 +254,8 @@ public final class QuickCommandRegistry {
 
     @Nullable
     public static QuickCommandPipeline get(String id) {
-        return BY_ID.get(id);
+        QuickCommandPipeline p = BY_ID.get(id);
+        return p != null ? p : QuickMinefieldPipeline.parse(id);
     }
 
     public static List<WedgeEntry> rootWedges() {
@@ -287,6 +296,19 @@ public final class QuickCommandRegistry {
         return ID_QUICK_COVER_HOLD + "_" + seconds;
     }
 
+    /** The registered id for Deploy Equipment, crewed by the placing unit or just set down. */
+    public static String deployEquipmentId(boolean man) {
+        return ID_QUICK_DEPLOY_EQUIPMENT + (man ? "_man" : "_place");
+    }
+
+    public static boolean isDeployEquipment(String pipelineId) {
+        return pipelineId.startsWith(ID_QUICK_DEPLOY_EQUIPMENT);
+    }
+
+    public static boolean isMinefield(String pipelineId) {
+        return pipelineId.startsWith(ID_QUICK_MINEFIELD);
+    }
+
     public static boolean isSearchGear(String pipelineId) {
         return pipelineId.startsWith(ID_QUICK_SEARCH_GEAR);
     }
@@ -299,6 +321,8 @@ public final class QuickCommandRegistry {
     public static boolean requiresOnFoot(String pipelineId) {
         return isSearchGear(pipelineId)
                 || isSwapRole(pipelineId)
+                || isDeployEquipment(pipelineId)
+                || isMinefield(pipelineId)
                 || ID_QUICK_BOARD.equals(pipelineId)
                 || ID_QUICK_ENTRENCH.equals(pipelineId)
                 || ID_QUICK_REFILL.equals(pipelineId)

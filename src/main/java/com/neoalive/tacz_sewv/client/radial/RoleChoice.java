@@ -98,6 +98,9 @@ public final class RoleChoice {
 
     /** Wedge label for a role leaf ("Swap To: Medic"), or the entry's own label. */
     public static String label(WedgeEntry entry) {
+        if (entry instanceof WedgeEntry.PipelineEntry leaf && FieldChoice.isChoiceLeaf(leaf.pipelineId())) {
+            return FieldChoice.label(leaf.pipelineId());
+        }
         if (entry instanceof WedgeEntry.PipelineEntry leaf && isRoleLeaf(leaf.pipelineId())) {
             return I18n.get(QuickCommandRegistry.labelKey(leaf.pipelineId()) + ".picked",
                     I18n.get(current(leaf.pipelineId()).labelKey()));
@@ -106,6 +109,9 @@ public final class RoleChoice {
     }
 
     public static String icon(WedgeEntry entry) {
+        if (entry instanceof WedgeEntry.PipelineEntry leaf && FieldChoice.isChoiceLeaf(leaf.pipelineId())) {
+            return FieldChoice.icon(leaf.pipelineId(), entry.icon());
+        }
         if (entry instanceof WedgeEntry.PipelineEntry leaf && isRoleLeaf(leaf.pipelineId())) {
             return current(leaf.pipelineId()).glyph;
         }
@@ -114,6 +120,7 @@ public final class RoleChoice {
 
     /** The id the server registers for the leaf's current role; any other id passes through. */
     public static String concreteId(String pipelineId) {
+        if (FieldChoice.isChoiceLeaf(pipelineId)) return FieldChoice.concreteId(pipelineId);
         if (QuickCommandRegistry.ID_QUICK_SEARCH_GEAR.equals(pipelineId)) {
             return QuickCommandRegistry.searchGearId(current(pipelineId));
         }

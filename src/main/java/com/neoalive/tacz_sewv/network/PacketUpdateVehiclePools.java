@@ -63,6 +63,7 @@ public class PacketUpdateVehiclePools {
                 }
             }
             player.displayClientMessage(Component.translatable("message.tacz_sewv.pool.saved"), true);
+            for (ServerPlayer p : player.server.getPlayerList().getPlayers()) PacketMinePool.sendTo(p);
         });
         ctx.get().setPacketHandled(true);
     }

@@ -164,7 +164,8 @@ public class NetworkHandler {
     // 113: PacketRadarContacts (S->C), FPAS MTI contacts for the open panel.
     // 114: PacketHudNotification carries an urgent flag; NotificationKind.FPAS; PacketRadioSettings (C->S)
     //      + PacketRadioFlags (S->C) for the handheld radio comms toggles.
-    private static final String PROTOCOL_VERSION = "115";
+    // 116: WorldVehiclePools.Category.MINE in pool editor packets; PacketMinePool (S->C).
+    private static final String PROTOCOL_VERSION = "116";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),
@@ -782,6 +783,13 @@ public class NetworkHandler {
                 PacketOrderQueueState::encode,
                 PacketOrderQueueState::new,
                 PacketOrderQueueState::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketMinePool.class,
+                PacketMinePool::encode,
+                PacketMinePool::new,
+                PacketMinePool::handle
         );
         CHANNEL.registerMessage(
                 nextId(),

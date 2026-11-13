@@ -21,6 +21,9 @@ public class PlayerJoinHandler {
     public static void onPlayerLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
         Player player = event.getEntity();
         if (player.level().isClientSide) return;
+        if (player instanceof net.minecraft.server.level.ServerPlayer sp) {
+            com.neoalive.tacz_sewv.network.PacketMinePool.sendTo(sp);
+        }
 
         UUID playerUuid = player.getUUID();
         PlayerDoctrineData data = PlayerDoctrineData.get(player.level());

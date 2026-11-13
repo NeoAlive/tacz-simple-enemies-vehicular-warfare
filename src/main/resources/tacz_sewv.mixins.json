@@ -7,6 +7,10 @@
   "plugin": "com.neoalive.tacz_sewv.mixin.SbwVersionMixinPlugin",
   "mixins": [
     "MixinAbstractUnit",
+    "MixinTm62FriendlyFilter",
+    "MixinBlu43FriendlyFilter",
+    "MixinEddFriendlyFilter",
+    "MixinClaymoreFriendlyFilter",
     "MixinForgeConfigSpec",
     "MixinUnitFactionTags",
     "MixinUnitVoicelines",

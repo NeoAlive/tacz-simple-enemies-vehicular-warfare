@@ -351,6 +351,14 @@ public final class QuickCommandWheelScreen extends Screen {
         // Ctrl+scroll steps the hovered leaf's value — and only that leaf's, so it can never move
         // a setting the player is not looking at. In a submenu that has values, Ctrl+scroll over
         // any other leaf is swallowed rather than falling through to the queue skip.
+        if (alt && !ctrl) {
+            String hot = hotPipelineId();
+            if (hot != null && FieldChoice.isMinefieldLeaf(hot)) {
+                FieldChoice.stepShape(dir);
+                playUi(ModSounds.SCALE.get(), scalePitch());
+                return true;
+            }
+        }
         if (ctrl && scaleLeafIn(this.input.currentWedges()) != null) {
             String hot = hotPipelineId();
             if (hot != null && stepScale(hot, dir, shift)) {
@@ -392,6 +400,7 @@ public final class QuickCommandWheelScreen extends Screen {
     /** @return whether a value moved */
     private static boolean stepScale(String pipelineId, int dir, boolean coarse) {
         if (RoleChoice.isRoleLeaf(pipelineId)) return RoleChoice.step(pipelineId, dir);
+        if (FieldChoice.isChoiceLeaf(pipelineId)) return FieldChoice.step(pipelineId, dir);
         if (QuickCommandRegistry.ID_SUPPORT_MORTAR.equals(pipelineId)) {
             int next = RadioSettings.stepDelay(supportDelay, dir);
             boolean moved = next != supportDelay;
@@ -405,6 +414,7 @@ public final class QuickCommandWheelScreen extends Screen {
     private static boolean hasScale(String pipelineId) {
         return QuickCommandRegistry.ID_SUPPORT_MORTAR.equals(pipelineId)
                 || RoleChoice.isRoleLeaf(pipelineId)
+                || FieldChoice.isChoiceLeaf(pipelineId)
                 || OrderScales.forPipeline(pipelineId) != null;
     }
 
@@ -619,7 +629,8 @@ public final class QuickCommandWheelScreen extends Screen {
         // puts its fire on it; Cover and Hold takes cover near it.
         boolean coverHold = QuickCommandRegistry.ID_QUICK_COVER_HOLD.equals(pipelineId);
         BlockPos aimBlock = QuickCommandRegistry.ID_QUICK_ENTRENCH.equals(pipelineId)
-                || QuickCommandRegistry.ID_QUICK_SUPPRESS.equals(pipelineId) || coverHold ? this.aim.block() : null;
+                || QuickCommandRegistry.ID_QUICK_SUPPRESS.equals(pipelineId) || coverHold
+                || QuickCommandRegistry.isMinefield(pipelineId) ? this.aim.block() : null;
         String sendId = coverHold
                 ? QuickCommandRegistry.coverHoldId(OrderScales.get(OrderScales.Scale.HOLD)) : pipelineId;
         NetworkHandler.CHANNEL.sendToServer(
@@ -862,6 +873,20 @@ public final class QuickCommandWheelScreen extends Screen {
     }
 
     private static ScaleCardDraw.Card cardFor(String pipelineId) {
+        if (QuickCommandRegistry.ID_QUICK_DEPLOY_EQUIPMENT.equals(pipelineId)) {
+            String man = I18n.get("gui.tacz_sewv.wheel.scale.deploy.man");
+            String place = I18n.get("gui.tacz_sewv.wheel.scale.deploy.place");
+            return new ScaleCardDraw.Card(I18n.get("gui.tacz_sewv.wheel.scale.deploy"),
+                    I18n.get(FieldChoice.manValueKey()), man.length() > place.length() ? man : place,
+                    I18n.get("gui.tacz_sewv.wheel.scale.tag." + pipelineId),
+                    FieldChoice.manNow() ? 1.0f : 0.0f, FieldChoice.manNow());
+        }
+        if (FieldChoice.isMinefieldLeaf(pipelineId)) {
+            return new ScaleCardDraw.Card(I18n.get("gui.tacz_sewv.wheel.scale.mine"), FieldChoice.mineName(),
+                    FieldChoice.widestMineName(),
+                    I18n.get("gui.tacz_sewv.wheel.scale.tag." + pipelineId, FieldChoice.shapeName()),
+                    FieldChoice.mineFraction(), true);
+        }
         if (RoleChoice.isRoleLeaf(pipelineId)) {
             String widest = "";
             for (var kit : RoleChoice.options(pipelineId)) {

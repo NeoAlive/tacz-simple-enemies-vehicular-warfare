@@ -7,13 +7,17 @@ import java.util.TreeSet;
 
 import com.atsuishio.superbwarfare.item.HandGrenade;
 import com.atsuishio.superbwarfare.item.RgoGrenade;
+import com.atsuishio.superbwarfare.item.projectile.Blu43MineItem;
+import com.atsuishio.superbwarfare.item.projectile.ClaymoreMineItem;
+import com.atsuishio.superbwarfare.item.projectile.EDDItem;
 import com.atsuishio.superbwarfare.item.projectile.M18SmokeGrenadeItem;
+import com.atsuishio.superbwarfare.item.projectile.Tm62Item;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
 
 /**
- * Item-id autocomplete for {@link com.neoalive.tacz_sewv.util.WorldVehiclePools.Category#GRENADE}.
+ * Item-id autocomplete for the GRENADE and MINE pools.
  * Vehicle catalogs are entity types; grenade pools store item ids.
  */
 public final class GrenadePoolCatalog {
@@ -23,7 +27,14 @@ public final class GrenadePoolCatalog {
             "superbwarfare:rgo_grenade",
             "superbwarfare:m18_smoke_grenade");
 
+    private static final List<String> MINE_BUILTIN = List.of(
+            "superbwarfare:tm_62",
+            "superbwarfare:blu_43_mine",
+            "superbwarfare:claymore_mine",
+            "superbwarfare:edd");
+
     private static volatile List<String> ids = List.of();
+    private static volatile List<String> mineIds = List.of();
     private static volatile boolean ready = false;
 
     private GrenadePoolCatalog() {}
@@ -36,6 +47,12 @@ public final class GrenadePoolCatalog {
     public static List<String> ids() {
         ensureLoaded();
         return ids;
+    }
+
+    /** Item-id autocomplete for the MINE pool: SBW's mine items. Addon mines are typed in by id. */
+    public static List<String> mineIds() {
+        ensureLoaded();
+        return mineIds;
     }
 
     /** Fixed defaults plus any registered SBW throwable grenade items. */
@@ -55,6 +72,20 @@ public final class GrenadePoolCatalog {
             // Registry may still be empty on first open; builtins alone still work.
         }
         ids = List.copyOf(set);
+        TreeSet<String> mines = new TreeSet<>(MINE_BUILTIN);
+        try {
+            for (Item item : BuiltInRegistries.ITEM) {
+                if (!(item instanceof Tm62Item) && !(item instanceof Blu43MineItem)
+                        && !(item instanceof ClaymoreMineItem) && !(item instanceof EDDItem)) {
+                    continue;
+                }
+                ResourceLocation key = BuiltInRegistries.ITEM.getKey(item);
+                if (key != null) mines.add(key.toString());
+            }
+        } catch (Throwable ignored) {
+            // Same as above: the builtins still work.
+        }
+        mineIds = List.copyOf(mines);
         ready = true;
     }
 

@@ -330,10 +330,15 @@ public final class CoverVisibilityCache {
         cache.grids.remove(ck);
     }
 
-    /** Force-enqueue a chunk for bake (tests / first touch). */
+    /**
+     * Warm a chunk: queue it only if it has no grid yet. A ready grid is kept; only a real block change
+     * invalidates it. Dropping it here made every posture pass rebake the hull's own chunk.
+     */
     public static void requestBake(ServerLevel level, int blockX, int blockZ) {
         LevelCache cache = CACHES.computeIfAbsent(level, l -> new LevelCache());
-        enqueueDirty(cache, chunkKey(blockX, blockZ));
+        long ck = chunkKey(blockX, blockZ);
+        if (cache.grids.containsKey(ck) || cache.dirtySet.contains(ck)) return;
+        enqueueDirty(cache, ck);
     }
 
     @Nullable

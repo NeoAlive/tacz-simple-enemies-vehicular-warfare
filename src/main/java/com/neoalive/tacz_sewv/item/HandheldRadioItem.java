@@ -119,13 +119,6 @@ public class HandheldRadioItem extends Item {
         return ItemStack.EMPTY;
     }
 
-    /** The radio in the main hand, else the off hand. EMPTY when neither holds one. */
-    public static ItemStack findHeld(Player player) {
-        if (isRadio(player.getMainHandItem())) return player.getMainHandItem();
-        if (isRadio(player.getOffhandItem())) return player.getOffhandItem();
-        return ItemStack.EMPTY;
-    }
-
     public static boolean isRadio(ItemStack stack) {
         return stack.is(ModItems.HANDHELD_RADIO.get());
     }

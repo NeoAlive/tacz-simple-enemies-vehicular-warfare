@@ -29,8 +29,8 @@ import com.neoalive.tacz_sewv.notify.RadioNet;
  * Chat delivers mic packets on its own thread, which must never read an inventory or a level, so the relay
  * only ever looks a speaker up here.
  *
- * <p>A speaker transmits with a radio in either hand, voice on. A listener receives with a carried radio,
- * voice on, on the same net, and is an ally: same scoreboard team or a diplomacy ALLY. Listeners inside
+ * <p>A carried radio with voice on both transmits and receives on its net. A listener hears a speaker on the
+ * same net, and is an ally: same scoreboard team or a diplomacy ALLY. Listeners inside
  * Voice Chat's proximity distance are left out, since they already hear the speaker directly.
  */
 @Mod.EventBusSubscriber(modid = TaczSewv.MODID)
@@ -49,7 +49,7 @@ public final class RadioVoiceNet {
         return r == null ? List.of() : r;
     }
 
-    /** Holds a radio with voice on, whether or not anyone is listening. */
+    /** Carries a radio with voice on, whether or not anyone is listening. */
     public static boolean isTransmitting(UUID speaker) {
         return transmitting.contains(speaker);
     }
@@ -75,46 +75,28 @@ public final class RadioVoiceNet {
 
     private record Station(ServerPlayer player, int net, List<DiplomacyData.Subject> subjects) {}
 
-    private record Tuned(ServerPlayer player, int txNet, int rxNet) {}
-
     private static Map<UUID, List<UUID>> rebuild(MinecraftServer server, double proximity, Set<UUID> tx) {
-        List<Tuned> tuned = new ArrayList<>();
-        boolean anyTalker = false;
+        List<Station> stations = new ArrayList<>();
         for (ServerPlayer p : server.getPlayerList().getPlayers()) {
             if (p.isSpectator()) continue;
-            ItemStack held = HandheldRadioItem.findHeld(p);
-            RadioSettings.Comms heldComms = held.isEmpty() ? null : RadioSettings.readComms(held);
-            int txNet = heldComms != null && heldComms.voice() ? heldComms.net() : -1;
-            int rxNet = -1;
-            if (txNet > 0 && heldComms != null) {
-                rxNet = txNet;
-            } else {
-                ItemStack carried = HandheldRadioItem.findCarried(p, s -> RadioSettings.readComms(s).voice());
-                if (!carried.isEmpty()) rxNet = RadioSettings.readComms(carried).net();
-            }
-            if (txNet < 0 && rxNet < 0) continue;
-            if (txNet > 0) {
-                anyTalker = true;
-                tx.add(p.getUUID());
-            }
-            tuned.add(new Tuned(p, txNet, rxNet));
+            ItemStack radio = HandheldRadioItem.findCarried(p, s -> RadioSettings.readComms(s).voice());
+            if (radio.isEmpty()) continue;
+            tx.add(p.getUUID());
+            stations.add(new Station(p, RadioSettings.readComms(radio).net(), null));
         }
-        if (!anyTalker || tuned.size() < 2) return Map.of();
-
-        List<Station> talkers = new ArrayList<>();
-        List<Station> listeners = new ArrayList<>();
-        for (Tuned t : tuned) {
-            List<DiplomacyData.Subject> subjects = SideRelations.subjectsOf(server, t.player.getUUID(), t.player.getScoreboardName());
-            if (t.txNet > 0) talkers.add(new Station(t.player, t.txNet, subjects));
-            if (t.rxNet > 0) listeners.add(new Station(t.player, t.rxNet, subjects));
+        if (stations.size() < 2) return Map.of();
+        for (int i = 0; i < stations.size(); i++) {
+            ServerPlayer p = stations.get(i).player;
+            stations.set(i, new Station(p, stations.get(i).net,
+                    SideRelations.subjectsOf(server, p.getUUID(), p.getScoreboardName())));
         }
         ServerLevel overworld = server.getLevel(Level.OVERWORLD);
         DiplomacyData diplomacy = overworld == null ? null : DiplomacyData.get(overworld);
         double proxSq = proximity * proximity;
         Map<UUID, List<UUID>> out = new HashMap<>();
-        for (Station t : talkers) {
+        for (Station t : stations) {
             List<UUID> rx = new ArrayList<>();
-            for (Station l : listeners) {
+            for (Station l : stations) {
                 if (l.player == t.player || l.net != t.net) continue;
                 if (l.player.level() == t.player.level() && l.player.distanceToSqr(t.player) <= proxSq) continue;
                 if (!allied(t, l, diplomacy)) continue;

@@ -112,11 +112,8 @@ public final class RadioVoiceHud {
         long now = System.nanoTime();
         String tx = null;
         if (now - lastTx < TX_NANOS && RadioFlagsClient.voice()) {
-            ItemStack held = HandheldRadioItem.findHeld(mc.player);
-            if (!held.isEmpty()) {
-                RadioSettings.Comms comms = RadioSettings.readComms(held);
-                if (comms.voice()) tx = I18n.get("hud.tacz_sewv.radio.tx", comms.net());
-            }
+            ItemStack radio = HandheldRadioItem.findCarried(mc.player, s -> RadioSettings.readComms(s).voice());
+            if (!radio.isEmpty()) tx = I18n.get("hud.tacz_sewv.radio.tx", RadioSettings.readComms(radio).net());
         }
         Map.Entry<UUID, Entry> newest = null;
         for (Map.Entry<UUID, Entry> e : STREAMS.entrySet()) {

@@ -21,6 +21,7 @@ import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.debug.PathingPerf;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
+import com.neoalive.tacz_sewv.entity.ai.formation.DrivableGround;
 import com.neoalive.tacz_sewv.entity.ai.maneuver.Maneuver;
 import com.neoalive.tacz_sewv.entity.ai.maneuver.ManeuverPlanner;
 import com.neoalive.tacz_sewv.entity.ai.maneuver.SweepCheck;
@@ -481,6 +482,7 @@ public final class VehicleDriver {
                 return;
             }
         } else if (updateStuck()) {
+            if (settleFromPerch()) return;
             if (this.sbw != null) TowRecoverySupport.onStuckThresholdReached(this.sbw);
             this.unstickTicksLeft = UNSTICK_DURATION;
             this.stuckTicks = 0;
@@ -829,6 +831,33 @@ public final class VehicleDriver {
      * while being told to drive. Rotation counts as progress, so a legitimate (even slow)
      * turn-in-place is never flagged — only a hull truly pinned on terrain.
      */
+    /**
+     * A hull stuck on top of a tree has no input that brings it down: every way off reads as a wall, and a
+     * reverse only grinds the canopy. Put it on the nearest clear drivable column instead, with the
+     * spawner's own collision-checked search. Never with a player aboard.
+     */
+    private boolean settleFromPerch() {
+        VehicleEntity hull = this.sbw;
+        if (hull == null || !(hull.level() instanceof net.minecraft.server.level.ServerLevel level)) return false;
+        if (!DrivableGround.perched(hull)) return false;
+        for (Entity p : hull.getPassengers()) {
+            if (p instanceof net.minecraft.world.entity.player.Player) return false;
+        }
+        BlockPos to = com.neoalive.tacz_sewv.spawn.TankSpawner.findClearSpawn(level, hull.blockPosition(), hull.getType());
+        if (to == null) return false;
+        Vec3 from = hull.position();
+        hull.setDeltaMovement(Vec3.ZERO);
+        hull.teleportTo(to.getX() + 0.5, to.getY(), to.getZ() + 0.5);
+        this.stuckTicks = 0;
+        this.lastStuckPos = null;
+        this.currentPath = null;
+        this.pathRecalcCooldown = 0;
+        SewvDiag.pathingEvent("perch settle unit={}#{} vehicle={}#{} from={} to={}",
+                this.unit.getClass().getSimpleName(), this.unit.getId(),
+                hull.getName().getString(), hull.getId(), BlockPos.containing(from), to);
+        return true;
+    }
+
     private boolean updateStuck() {
         Vec3 pos = this.vehicle.position();
         float yaw = this.vehicle.getYRot();

@@ -562,8 +562,7 @@ public class DriveVehicleGoal extends Goal {
                 this.driver.stop();
                 this.driver.clearRecovery(); // waiting for the column — not stuck
             } else {
-                BlockPos dest = BlockPos.containing(slot.x(),
-                        GroundSnap.groundY(this.unit.level(), slot.x(), slot.z(), this.vehicle.getY()), slot.z());
+                BlockPos dest = GroundSnap.hullSlot(this.unit.level(), slot.x(), slot.z(), this.vehicle.getY());
                 this.driver.navigateTo(dest, this.vehicle.distanceToSqr(Vec3.atBottomCenterOf(dest)));
             }
             return true;
@@ -573,7 +572,7 @@ public class DriveVehicleGoal extends Goal {
                 * Math.max(MARCH_PACE_MIN, Math.min(MARCH_PACE_MAX, 1.0 + lag / slot.spacing())));
         double cx = slot.x() + slot.fx() * MARCH_CARROT;
         double cz = slot.z() + slot.fz() * MARCH_CARROT;
-        BlockPos carrot = BlockPos.containing(cx, GroundSnap.groundY(this.unit.level(), cx, cz, this.vehicle.getY()), cz);
+        BlockPos carrot = GroundSnap.hullSlot(this.unit.level(), cx, cz, this.vehicle.getY());
         this.driver.navigateTo(carrot, this.vehicle.distanceToSqr(Vec3.atBottomCenterOf(carrot)));
         return true;
     }

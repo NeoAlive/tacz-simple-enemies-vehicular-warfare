@@ -48,6 +48,7 @@ import com.neoalive.tacz_sewv.compat.VvpAmmoCompat;
 import com.neoalive.tacz_sewv.compat.lv.LvCompat;
 import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.entity.ai.formation.DrivableGround;
 import com.neoalive.tacz_sewv.init.ModGameRules;
 import com.neoalive.tacz_sewv.skin.VehicleSkinSupport;
 import com.neoalive.tacz_sewv.util.VehicleEngineLoot;
@@ -1057,6 +1058,11 @@ public final class TankSpawner {
                     if (!level.hasChunk(x >> 4, z >> 4)) continue;
                     if (!SpawnZones.allowsChunk(level, x >> 4, z >> 4)) {
                         zone = true;
+                        continue;
+                    }
+                    // The heightmap counts a trunk top as ground; a hull spawned there is stranded on the tree.
+                    if (!DrivableGround.drivable(level, x, z)) {
+                        blocked = true;
                         continue;
                     }
                     int gy = groundY(level, x, z, pos.getY()) + 1; // +1 lift: hull drops onto the surface

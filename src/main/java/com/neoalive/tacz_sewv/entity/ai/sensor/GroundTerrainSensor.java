@@ -22,6 +22,7 @@ import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.debug.PathingPerf;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
+import com.neoalive.tacz_sewv.entity.ai.formation.DrivableGround;
 import com.neoalive.tacz_sewv.entity.ai.navigation.GroundMobility;
 import com.neoalive.tacz_sewv.entity.ai.navigation.VehicleOrca;
 import com.neoalive.tacz_sewv.entity.ai.navigation.VehiclePeerSpacing;
@@ -521,6 +522,11 @@ public final class GroundTerrainSensor extends TerrainSensor {
         }
         out.hard = Math.max(out.hard, water);
 
+        if (col.treeWall) {
+            out.hard = 1.0F;
+            out.reason = "tree";
+            return true;
+        }
         if (col.floorY == GroundMobility.NO_FLOOR) {
             w.crossedDrop = true;
             return false;
@@ -809,12 +815,17 @@ public final class GroundTerrainSensor extends TerrainSensor {
             var shape = state.getCollisionShape(level, pos);
             if (!shape.isEmpty()) {
                 col.floorY = y + shape.max(Direction.Axis.Y);
-                if (EnhancedFallingTreesCompat.available() && SewvConfig.VEHICLE_TREE_FELLING_ENABLED.get()
-                        && EnhancedFallingTreesFeller.isFellable(level, pos, state)) {
-                    // Logs only — leaves must keep normal stepDanger. Soft-treating foliage let
-                    // hulls climb the canopy (leaf collision as stairs) instead of felling the
-                    // trunk; pathing used to remap leaves to WALKABLE for the same reason.
-                    col.tree = true;
+                if (EnhancedFallingTreesCompat.available() && SewvConfig.VEHICLE_TREE_FELLING_ENABLED.get()) {
+                    if (EnhancedFallingTreesFeller.isFellable(level, pos, state)) {
+                        // Logs only — leaves must keep normal stepDanger. Soft-treating foliage let
+                        // hulls climb the canopy (leaf collision as stairs) instead of felling the
+                        // trunk; pathing used to remap leaves to WALKABLE for the same reason.
+                        col.tree = true;
+                    }
+                } else if (DrivableGround.treeBlock(state, false)) {
+                    // Nothing fells it, so it is a wall. A canopy a block or two up read as a climbable
+                    // step, and a hull that took it ended up perched on the tree with no way down.
+                    col.treeWall = true;
                 }
                 return col;
             }
@@ -926,6 +937,8 @@ public final class GroundTerrainSensor extends TerrainSensor {
         /** Wall block is a fellable tree log — probeLine treats it as a soft hazard, not a hard
          * step block. See {@link #probeColumn}. */
         boolean tree;
+        /** Wall block is a log or leaves with no felling to clear it: a hard hazard. */
+        boolean treeWall;
     }
 
 }

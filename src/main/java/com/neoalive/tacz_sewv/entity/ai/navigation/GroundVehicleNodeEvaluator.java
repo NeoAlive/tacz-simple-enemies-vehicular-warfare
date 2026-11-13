@@ -32,6 +32,7 @@ import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.debug.PathingPerf;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.entity.ai.core.HullProfile;
+import com.neoalive.tacz_sewv.entity.ai.formation.DrivableGround;
 import com.neoalive.tacz_sewv.entity.ai.utility.TacticalPosture;
 
 /**
@@ -502,6 +503,11 @@ public class GroundVehicleNodeEvaluator extends WalkNodeEvaluator {
             }
             if (below == BlockPathTypes.DAMAGE_CAUTIOUS) {
                 blockpathtypes = BlockPathTypes.DAMAGE_CAUTIOUS;
+            }
+            // A canopy or trunk top is not ground for a hull: a route across it is how hulls ended up perched.
+            if (blockpathtypes == BlockPathTypes.WALKABLE
+                    && DrivableGround.treeBlock(level.getBlockState(pos), this.treeFellingActive)) {
+                blockpathtypes = BlockPathTypes.BLOCKED;
             }
         }
         return blockpathtypes;

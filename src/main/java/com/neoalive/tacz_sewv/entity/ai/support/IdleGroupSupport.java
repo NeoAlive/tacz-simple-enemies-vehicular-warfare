@@ -80,6 +80,7 @@ public final class IdleGroupSupport {
     private static final String GROUND_Y_X_KEY = "tacz_sewv:idle_ground_y_x";
     private static final String GROUND_Y_Z_KEY = "tacz_sewv:idle_ground_y_z";
     private static final String GROUND_Y_VAL_KEY = "tacz_sewv:idle_ground_y_val";
+    private static final String GROUND_Y_SLOT_KEY = "tacz_sewv:idle_ground_slot";
     private static final String CONTACT_PEER_KEY = "tacz_sewv:idle_contact_peer";
     private static final String CONTACT_PLAYER_KEY = "tacz_sewv:idle_contact_player";
     private static final String CONTACT_VEHICLE_KEY = "tacz_sewv:idle_contact_vehicle";
@@ -490,6 +491,7 @@ public final class IdleGroupSupport {
         data.remove(GROUND_Y_X_KEY);
         data.remove(GROUND_Y_Z_KEY);
         data.remove(GROUND_Y_VAL_KEY);
+        data.remove(GROUND_Y_SLOT_KEY);
         data.remove(CONTACT_PEER_KEY);
         data.remove(CONTACT_PLAYER_KEY);
         data.remove(CONTACT_VEHICLE_KEY);
@@ -570,8 +572,7 @@ public final class IdleGroupSupport {
                 formationRadiusMin(), formationRadiusMax(), sx, sz);
         double x = snap.centerX + off.x;
         double z = snap.centerZ + off.z;
-        double y = cachedGroundY(hull, x, z, snap.centerY);
-        return BlockPos.containing(x, y, z);
+        return cachedHullSlot(hull, x, z, snap.centerY);
     }
 
     private static Snapshot resolveSnapshot(AbstractUnit unit, VehicleEntity hull, @Nullable Facts facts,
@@ -590,22 +591,23 @@ public final class IdleGroupSupport {
         return GroundSnap.groundY(level, x, z, anchorY);
     }
 
-    /** Heightmap probe cached on the hull until destination XZ cell changes. */
-    private static double cachedGroundY(VehicleEntity hull, double x, double z, double anchorY) {
+    /** Hold slot snapped off trees and water ({@link GroundSnap#hullSlot}), cached on the hull per XZ cell. */
+    private static BlockPos cachedHullSlot(VehicleEntity hull, double x, double z, double anchorY) {
         int cellX = Mth.floor(x);
         int cellZ = Mth.floor(z);
         CompoundTag data = hull.getPersistentData();
-        if (data.contains(GROUND_Y_X_KEY)
+        if (data.contains(GROUND_Y_X_KEY) && data.contains(GROUND_Y_SLOT_KEY)
                 && data.getInt(GROUND_Y_X_KEY) == cellX
                 && data.getInt(GROUND_Y_Z_KEY) == cellZ) {
             GROUND_Y_CACHE_HITS.increment();
-            return data.getDouble(GROUND_Y_VAL_KEY);
+            return BlockPos.of(data.getLong(GROUND_Y_SLOT_KEY));
         }
-        double y = groundY(hull.level(), x, z, anchorY);
+        GROUND_Y_PROBES.increment();
+        BlockPos slot = GroundSnap.hullSlot(hull.level(), x, z, anchorY);
         data.putInt(GROUND_Y_X_KEY, cellX);
         data.putInt(GROUND_Y_Z_KEY, cellZ);
-        data.putDouble(GROUND_Y_VAL_KEY, y);
-        return y;
+        data.putLong(GROUND_Y_SLOT_KEY, slot.asLong());
+        return slot;
     }
 
     private static long refreshGeneration(Level level) {

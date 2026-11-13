@@ -23,6 +23,8 @@ public final class GroundMobilitySelfCheck {
         interpolateLeansTowardHigherNeighbor();
         blendIsHalfway();
         VehiclePathObstacles.selfCheck();
+        drivableNearestRing();
+        drivablePullStaysOnSide();
 
         System.out.println("ground mobility self-check: OK");
     }
@@ -146,6 +148,26 @@ public final class GroundMobilitySelfCheck {
         GroundMobility.blendMaps(prev, cur);
         assertClose(0.5F, cur[0], "blend 1→0");
         assertClose(0.0F, cur[1], "blend untouched");
+    }
+
+    private static void drivableNearestRing() {
+        // Sea everywhere except a strip at x >= 10.
+        com.neoalive.tacz_sewv.entity.ai.formation.DrivableGround.Column col = (x, z) -> x >= 10;
+        int[] p = com.neoalive.tacz_sewv.entity.ai.formation.DrivableGround.nearest(col, 4, 0, 24);
+        assert p != null && p[0] == 10 && p[1] == 0 : "nearest is straight across, got " + java.util.Arrays.toString(p);
+        assert com.neoalive.tacz_sewv.entity.ai.formation.DrivableGround.nearest(col, 4, 0, 3) == null : "out of radius";
+        int[] self = com.neoalive.tacz_sewv.entity.ai.formation.DrivableGround.nearest(col, 12, 5, 4);
+        assert self[0] == 12 && self[1] == 5 : "a drivable point is kept";
+    }
+
+    private static void drivablePullStaysOnSide() {
+        // Flank mark offshore at x=-20, enemy at x=40, land from x=0.
+        com.neoalive.tacz_sewv.entity.ai.formation.DrivableGround.Column col = (x, z) -> x >= 0;
+        double[] p = com.neoalive.tacz_sewv.entity.ai.formation.DrivableGround.pullTowards(col, -20, 7, 40, 7, 4.0);
+        assert p != null && p[0] >= 0 && p[0] < 4 : "first land toward the enemy, got " + java.util.Arrays.toString(p);
+        assert p[1] == 7 : "pull keeps the line";
+        assert com.neoalive.tacz_sewv.entity.ai.formation.DrivableGround.pullTowards((x, z) -> false, 0, 0, 10, 0, 4.0) == null
+                : "all sea answers null";
     }
 
     private static void assertClose(float expected, float actual, String label) {

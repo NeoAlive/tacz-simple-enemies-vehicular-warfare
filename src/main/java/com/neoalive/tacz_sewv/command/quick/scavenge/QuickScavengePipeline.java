@@ -48,7 +48,7 @@ public final class QuickScavengePipeline implements QuickCommandPipeline {
                 run.full++;
                 continue;
             }
-            ScavengeSource first = ScavengeTracker.firstSource(run, wants, stage);
+            ScavengeSources.Pick first = ScavengeTracker.firstSource(run, wants, stage);
             if (first == null) {
                 run.empty++;
                 continue;

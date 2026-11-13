@@ -12,7 +12,8 @@ public final class ScavengeSelfCheck {
         check(ScavengeStage.values()[0] == ScavengeStage.AMMO, "ammo first");
         check(ScavengeRules.next(ScavengeStage.AMMO) == ScavengeStage.EMPLACEMENT, "emplacements second");
         check(ScavengeRules.next(ScavengeStage.EMPLACEMENT) == ScavengeStage.UTILITY, "utilities third");
-        check(ScavengeRules.next(ScavengeStage.UTILITY) == null, "utilities last");
+        check(ScavengeRules.next(ScavengeStage.UTILITY) == ScavengeStage.ARMOR, "armor fourth");
+        check(ScavengeRules.next(ScavengeStage.ARMOR) == null, "armor last");
 
         // Caps count what the unit already carries.
         check(ScavengeRules.remaining(4, 0) == 4, "empty pockets take the cap");
@@ -26,9 +27,17 @@ public final class ScavengeSelfCheck {
         check(!ScavengeRules.pocketsFull(new int[] {64, 1, 15}, new int[] {64, 1, 16}), "a short stack is room");
         check(ScavengeRules.pocketsFull(new int[0], new int[0]), "no pockets is full");
 
-        // A crowd costs distance, so a second unit prefers a free source a little further away.
-        check(ScavengeRules.rank(10.0, 1) > ScavengeRules.rank(20.0, 0), "crowded near loses to free far");
-        check(ScavengeRules.rank(10.0, 0) < ScavengeRules.rank(20.0, 0), "nearer wins when both free");
+        // Availability: a unit plans only what nobody else of the run has reserved.
+        check(ScavengeRules.planned(60, 100, 0) == 60, "wants less than there is");
+        check(ScavengeRules.planned(60, 100, 60) == 40, "takes what is left");
+        check(ScavengeRules.planned(60, 100, 100) == 0, "nothing left means no walk");
+        check(ScavengeRules.planned(0, 100, 0) == 0, "not wanted means no walk");
+
+        // Armor swaps only for a piece no worse in either and better in one.
+        check(ScavengeRules.dominates(8, 300, 6, 300), "more protection, same durability");
+        check(ScavengeRules.dominates(6, 400, 6, 300), "same protection, more durability");
+        check(!ScavengeRules.dominates(8, 200, 6, 300), "more protection but worn out");
+        check(!ScavengeRules.dominates(6, 300, 6, 300), "identical is no swap");
 
         // Airplane Mode truth table.
         check(PlaneRole.AUTO.allows(true) && PlaneRole.AUTO.allows(false), "auto takes everything");

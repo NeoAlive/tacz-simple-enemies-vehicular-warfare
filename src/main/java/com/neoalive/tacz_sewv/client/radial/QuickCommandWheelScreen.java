@@ -446,7 +446,6 @@ public final class QuickCommandWheelScreen extends Screen {
         if (QuickAirClient.isAirClientAction(pipelineId)) return QuickAirClient.isEnabled(pipelineId);
         return switch (pipelineId) {
             case QuickCommandRegistry.ID_BOARD_PASSENGER -> this.aim.entity() != null;
-            case QuickCommandRegistry.ID_PLANE_ROLE -> !QuickAirClient.planePilots().isEmpty();
             case QuickCommandRegistry.ID_REACH_GUARD -> reachGuardKnown();
             // Releases waiters into the player's own hull, so it means nothing on foot.
             case QuickCommandRegistry.ID_BOARD_QUEUED -> this.minecraft != null && this.minecraft.player != null
@@ -595,11 +594,10 @@ public final class QuickCommandWheelScreen extends Screen {
         }
 
         // Airplane Mode goes to fixed-wing pilots only, whatever else is in scope.
+        // With nobody in scope the server applies it to every plane the player owns.
         if (QuickCommandRegistry.isPlaneRole(pipelineId)) {
-            List<Integer> pilots = QuickAirClient.planePilots();
-            if (pilots.isEmpty()) return false;
-            NetworkHandler.CHANNEL.sendToServer(
-                    new PacketQuickCommand(pipelineId, pilots, WheelScope.explicit(), null));
+            NetworkHandler.CHANNEL.sendToServer(new PacketQuickCommand(pipelineId,
+                    QuickAirClient.planePilots(), WheelScope.explicit(), null));
             return true;
         }
 

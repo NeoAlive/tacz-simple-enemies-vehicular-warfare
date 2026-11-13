@@ -969,6 +969,8 @@ final class ConfigRegistryBootstrap {
                 SewvConfig.SCAVENGE_REPAIR_TOOL_CAP, SewvConfig.SCAVENGE_REPAIR_TOOL_CAP::set);
         b.intRange(ConfigScope.SERVER, "boarding", "scavengeRadioCap", 0, 4,
                 SewvConfig.SCAVENGE_RADIO_CAP, SewvConfig.SCAVENGE_RADIO_CAP::set);
+        b.bool(ConfigScope.SERVER, "boarding", "scavengeArmor",
+                SewvConfig.SCAVENGE_ARMOR, SewvConfig.SCAVENGE_ARMOR::set);
         b.doubleRange(ConfigScope.SERVER, "boarding", "quickLandRadius", 8.0, 256.0,
                 SewvConfig.QUICK_LAND_RADIUS, SewvConfig.QUICK_LAND_RADIUS::set);
         b.doubleRange(ConfigScope.SERVER, "boarding", "quickGearSearchRadius", 4.0, 128.0,

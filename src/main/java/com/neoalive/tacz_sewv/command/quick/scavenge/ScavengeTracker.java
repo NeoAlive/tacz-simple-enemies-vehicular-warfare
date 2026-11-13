@@ -53,7 +53,7 @@ public final class ScavengeTracker {
         final UUID playerId;
         final ScavengeSources.Context ctx;
         final List<Leg> legs = new ArrayList<>();
-        final Map<Object, Integer> claims = new HashMap<>();
+        final Reservations reserved = new Reservations();
         final ScavengeTally tally = new ScavengeTally();
         long deadline;
         int full;
@@ -64,13 +64,12 @@ public final class ScavengeTracker {
             this.ctx = ctx;
         }
 
-        void claim(ScavengeSource src) {
-            this.claims.merge(src.key(), 1, Integer::sum);
+        void claim(Leg leg) {
+            if (leg.source != null) this.reserved.add(leg.source.key(), leg.plan);
         }
 
-        void unclaim(@Nullable ScavengeSource src) {
-            if (src == null) return;
-            this.claims.computeIfPresent(src.key(), (k, v) -> v <= 1 ? null : v - 1);
+        void unclaim(Leg leg) {
+            if (leg.source != null) this.reserved.remove(leg.source.key(), leg.plan);
         }
     }
 
@@ -79,6 +78,7 @@ public final class ScavengeTracker {
         ScavengeStage stage = ScavengeStage.AMMO;
         @Nullable
         ScavengeSource source;
+        Map<String, Integer> plan = Map.of();
         long sourceSince;
         final Set<Object> tried = new HashSet<>();
         int taken;
@@ -94,7 +94,7 @@ public final class ScavengeTracker {
     }
 
     /** Adds the unit with its first source already chosen. */
-    static void addLeg(Run run, PmcUnitEntity pmc, ScavengeStage stage, ScavengeSource first, long now) {
+    static void addLeg(Run run, PmcUnitEntity pmc, ScavengeStage stage, ScavengeSources.Pick first, long now) {
         Leg leg = new Leg(pmc.getId());
         leg.stage = stage;
         run.legs.add(leg);
@@ -108,10 +108,10 @@ public final class ScavengeTracker {
 
     /** First source of the earliest stage that has one, or null when the unit has nothing to do. */
     @Nullable
-    static ScavengeSource firstSource(Run run, ScavengeWants wants, ScavengeStage[] stageOut) {
+    static ScavengeSources.Pick firstSource(Run run, ScavengeWants wants, ScavengeStage[] stageOut) {
         double radius = SewvConfig.SCAVENGE_RADIUS.get();
         for (ScavengeStage stage : ScavengeStage.values()) {
-            ScavengeSource src = ScavengeSources.find(run.ctx, wants, stage, radius, run.claims, Set.of());
+            ScavengeSources.Pick src = ScavengeSources.find(run.ctx, wants, stage, radius, run.reserved, Set.of());
             if (src != null) {
                 stageOut[0] = stage;
                 return src;
@@ -217,7 +217,7 @@ public final class ScavengeTracker {
             finish(run, leg);
             return;
         }
-        int got = ScavengeSources.take(run.ctx, wants, leg.stage, src, run.tally);
+        int got = ScavengeSources.take(run.ctx, wants, leg.stage, src, leg.plan, run.tally);
         leg.taken += got;
         if (got > 0 && leg.stage == ScavengeStage.AMMO) HudNotify.clearAmmoOut(pmc);
         // Whatever the source still holds for this stage, this unit cannot use it.
@@ -232,8 +232,9 @@ public final class ScavengeTracker {
 
     /** Next source in this stage, else the first stage after it that has one, else done. */
     private static void next(Run run, Leg leg, PmcUnitEntity pmc, long now) {
-        run.unclaim(leg.source);
+        run.unclaim(leg);
         leg.source = null;
+        leg.plan = Map.of();
         ServerLevel level = run.ctx.level();
         ScavengeWants wants = ScavengeWants.of(level, pmc);
         if (wants == null || wants.pocketsFull()) {
@@ -245,7 +246,7 @@ public final class ScavengeTracker {
         for (ScavengeStage stage = leg.stage; stage != null; stage = ScavengeRules.next(stage)) {
             // A source already worked in an earlier stage may still hold what this one wants.
             Set<Object> tried = stage == leg.stage ? leg.tried : Set.of();
-            ScavengeSource src = ScavengeSources.find(run.ctx, wants, stage, radius, run.claims, tried);
+            ScavengeSources.Pick src = ScavengeSources.find(run.ctx, wants, stage, radius, run.reserved, tried);
             if (src != null) {
                 if (stage != leg.stage) leg.tried.clear();
                 leg.stage = stage;
@@ -257,11 +258,12 @@ public final class ScavengeTracker {
         finish(run, leg);
     }
 
-    private static void assign(Run run, Leg leg, PmcUnitEntity pmc, ScavengeSource src, long now) {
-        leg.source = src;
+    private static void assign(Run run, Leg leg, PmcUnitEntity pmc, ScavengeSources.Pick pick, long now) {
+        leg.source = pick.source();
+        leg.plan = pick.plan();
         leg.sourceSince = now;
-        run.claim(src);
-        Vec3 at = ScavengeSources.position(run.ctx.level(), src);
+        run.claim(leg);
+        Vec3 at = ScavengeSources.position(run.ctx.level(), pick.source());
         if (at != null) {
             pmc.setOrder(OrderType.MOVE_TO_POSITION);
             pmc.setMoveToTarget(at);
@@ -269,8 +271,9 @@ public final class ScavengeTracker {
     }
 
     private static void finish(Run run, Leg leg) {
-        run.unclaim(leg.source);
+        run.unclaim(leg);
         leg.source = null;
+        leg.plan = Map.of();
         leg.done = true;
     }
 

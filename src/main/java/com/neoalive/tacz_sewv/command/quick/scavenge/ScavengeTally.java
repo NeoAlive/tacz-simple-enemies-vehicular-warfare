@@ -72,7 +72,7 @@ final class ScavengeTally {
     }
 
     /** Item id plus TACZ's ammo or gun id, so calibres are not merged under one item. */
-    private static String keyOf(ItemStack stack) {
+    static String keyOf(ItemStack stack) {
         String key = String.valueOf(ForgeRegistries.ITEMS.getKey(stack.getItem()));
         IAmmo ammo = IAmmo.getIAmmoOrNull(stack);
         if (ammo != null) return key + "|" + ammo.getAmmoId(stack);

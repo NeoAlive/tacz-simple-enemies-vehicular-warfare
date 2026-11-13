@@ -376,6 +376,7 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.IntValue SCAVENGE_SHOVEL_CAP;
     public static final ForgeConfigSpec.IntValue SCAVENGE_REPAIR_TOOL_CAP;
     public static final ForgeConfigSpec.IntValue SCAVENGE_RADIO_CAP;
+    public static final ForgeConfigSpec.BooleanValue SCAVENGE_ARMOR;
     public static final ForgeConfigSpec.DoubleValue QUICK_LAND_RADIUS;
     public static final ForgeConfigSpec.DoubleValue QUICK_GEAR_SEARCH_RADIUS;
     public static final ForgeConfigSpec.IntValue QUICK_GEAR_SEARCH_TIMEOUT_TICKS;
@@ -1595,6 +1596,10 @@ public final class SewvConfig {
                 .defineInRange("scavengeRepairToolCap", 1, 0, 4);
         SCAVENGE_RADIO_CAP = builder.comment("Most handheld radios one unit carries after Scavenge.")
                 .defineInRange("scavengeRadioCap", 1, 0, 4);
+        SCAVENGE_ARMOR = builder.comment(
+                        "Scavenge also swaps worn armor for a found piece that is no worse in protection or",
+                        "durability left and better in one. The old piece is left where the new one was.")
+                .define("scavengeArmor", false);
         QUICK_LAND_RADIUS = builder.comment(
                         "How far (blocks) Quick Board / Entrench / Scavenge / General / Formation look",
                         "for owned PMCs, friendly vehicles and trenches.")

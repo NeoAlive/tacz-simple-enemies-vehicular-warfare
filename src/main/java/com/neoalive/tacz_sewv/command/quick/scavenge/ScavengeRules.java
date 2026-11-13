@@ -3,9 +3,6 @@ package com.neoalive.tacz_sewv.command.quick.scavenge;
 /** The pure arithmetic behind Scavenge, pinned by {@code ScavengeSelfCheck}. */
 public final class ScavengeRules {
 
-    /** Extra metres a source costs per unit already sent to it, so a group spreads out. */
-    public static final double CROWD_PENALTY = 12.0;
-
     private ScavengeRules() {}
 
     /** How many more a unit may take under {@code cap} when it already carries {@code carried}. */
@@ -24,9 +21,15 @@ public final class ScavengeRules {
         return true;
     }
 
-    /** Distance a unit would rank a source at, given how many others already head there. */
-    public static double rank(double distance, int claimants) {
-        return distance + CROWD_PENALTY * Math.max(0, claimants);
+    /** How much of an item a unit plans to take: what it wants, of what nobody else has reserved. */
+    public static int planned(int wanted, int available, int reserved) {
+        return Math.max(0, Math.min(wanted, available - Math.max(0, reserved)));
+    }
+
+    /** Armor swap rule: no worse in protection or durability left, and better in at least one. */
+    public static boolean dominates(int defense, int durability, int wornDefense, int wornDurability) {
+        return defense >= wornDefense && durability >= wornDurability
+                && (defense > wornDefense || durability > wornDurability);
     }
 
     /** The stage after {@code stage}, or null after the last. */

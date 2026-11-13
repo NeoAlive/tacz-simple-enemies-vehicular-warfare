@@ -1,6 +1,8 @@
 package com.neoalive.tacz_sewv.command.quick.scavenge;
 
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -24,6 +26,7 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.common.capabilities.ForgeCapabilities;
 import net.minecraftforge.items.IItemHandler;
+import net.minecraftforge.items.IItemHandlerModifiable;
 import net.minecraftforge.items.ItemHandlerHelper;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
@@ -36,11 +39,19 @@ import com.neoalive.tacz_sewv.entity.ai.support.mines.MineKinds;
 import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
 import com.neoalive.tacz_sewv.util.WorldVehiclePools;
 
-/** Finding, reaching and emptying scavenge sources. Server thread only. */
+/**
+ * Finding, reaching and emptying scavenge sources. Server thread only.
+ *
+ * <p>Every candidate is first planned against what the run has already reserved there, and only a
+ * source with something left for this unit counts. The nearest of those wins, so a group splits
+ * across sources once one cannot serve them all.
+ */
 final class ScavengeSources {
 
     private static final double BLOCK_REACH = 2.5;
     private static final double ENTITY_REACH = 2.0;
+    /** The reservation key of a whole hull or mine. */
+    private static final String WHOLE = "whole";
 
     private ScavengeSources() {}
 
@@ -58,29 +69,28 @@ final class ScavengeSources {
         }
     }
 
-    /**
-     * Best source for this unit in this stage: nearest, with a container or body costing more for
-     * each unit already heading there. Exclusive sources someone else holds, and anything this unit
-     * already tried, are skipped.
-     */
+    /** A source and what this unit means to take from it. */
+    record Pick(ScavengeSource source, Map<String, Integer> plan) {}
+
+    /** One thing a slot can hand over: the slot's own stack, or the rounds in a dropped gun. */
+    private record Offer(int slot, String key, ItemStack sample, int count, boolean magazine) {}
+
     @Nullable
-    static ScavengeSource find(Context ctx, ScavengeWants wants, ScavengeStage stage, double radius,
-                               Map<Object, Integer> claims, Set<Object> tried) {
+    static Pick find(Context ctx, ScavengeWants wants, ScavengeStage stage, double radius, Reservations reserved,
+                     Set<Object> tried) {
         PmcUnitEntity unit = wants.unit;
         ServerLevel level = ctx.level();
         AABB box = unit.getBoundingBox().inflate(radius);
-        ScavengeSource best = null;
-        double bestRank = Double.MAX_VALUE;
+        Pick best = null;
+        double bestDist = Double.MAX_VALUE;
 
         for (Entity e : level.getEntities((Entity) null, box, ScavengeSources::interesting)) {
-            ScavengeSource src = entitySource(ctx, wants, stage, e);
-            if (src == null || tried.contains(src.key())) continue;
-            int claimed = claims.getOrDefault(src.key(), 0);
-            if (src.kind().exclusive() && claimed > 0) continue;
-            double rank = ScavengeRules.rank(Math.sqrt(unit.distanceToSqr(e)), claimed);
-            if (rank < bestRank) {
-                bestRank = rank;
-                best = src;
+            double d = unit.distanceToSqr(e);
+            if (d >= bestDist) continue;
+            Pick pick = entityPick(ctx, wants, stage, e, reserved, tried);
+            if (pick != null) {
+                bestDist = d;
+                best = pick;
             }
         }
 
@@ -95,18 +105,17 @@ final class ScavengeSources {
                 for (BlockEntity be : chunk.getBlockEntities().values()) {
                     BlockPos pos = be.getBlockPos();
                     if (!box.contains(Vec3.atCenterOf(pos))) continue;
+                    double d = unit.distanceToSqr(Vec3.atCenterOf(pos));
+                    if (d >= bestDist) continue;
                     ScavengeSource src = ScavengeSource.container(pos);
                     if (tried.contains(src.key())) continue;
                     if (be instanceof StockpileBlockEntity && !pos.equals(ctx.ownStockpile())) continue;
                     IItemHandler h = be.getCapability(ForgeCapabilities.ITEM_HANDLER, null).orElse(null);
-                    if (h == null || !anyWanted(wants, stage, h)) continue;
-                    if (!ScavengeAccess.claimAllows(level, pos, ctx.issuer())) continue;
-                    int claimed = claims.getOrDefault(src.key(), 0);
-                    double rank = ScavengeRules.rank(Math.sqrt(unit.distanceToSqr(Vec3.atCenterOf(pos))), claimed);
-                    if (rank < bestRank) {
-                        bestRank = rank;
-                        best = src;
-                    }
+                    if (h == null) continue;
+                    Map<String, Integer> plan = plan(wants, stage, offers(h, stage, false), src.key(), reserved);
+                    if (plan.isEmpty() || !ScavengeAccess.claimAllows(level, pos, ctx.issuer())) continue;
+                    bestDist = d;
+                    best = new Pick(src, plan);
                 }
             }
         }
@@ -119,32 +128,77 @@ final class ScavengeSources {
     }
 
     @Nullable
-    private static ScavengeSource entitySource(Context ctx, ScavengeWants wants, ScavengeStage stage, Entity e) {
+    private static Pick entityPick(Context ctx, ScavengeWants wants, ScavengeStage stage, Entity e,
+                                   Reservations reserved, Set<Object> tried) {
         ServerLevel level = ctx.level();
+        ScavengeSource src;
+        Map<String, Integer> plan;
         if (e instanceof ItemEntity item) {
-            if (wants.wanted(stage, item.getItem()) <= 0) return null;
-            if (!ScavengeAccess.claimAllows(level, item.blockPosition(), ctx.issuer())) return null;
-            return ScavengeSource.entity(ScavengeSource.Kind.ITEM, item.blockPosition(), item.getId());
-        }
-        if (stage == ScavengeStage.EMPLACEMENT) {
-            MineKinds.Kind mine = mineKind(e);
-            if (mine != null) {
-                if (wants.mineRoom() <= 0 || !ScavengeAccess.mineAllows(level, e, ctx.issuer())) return null;
-                return ScavengeSource.entity(ScavengeSource.Kind.MINE, e.blockPosition(), e.getId());
-            }
-            if (e instanceof VehicleEntity hull) {
-                if (wants.emplacementRoom() <= 0 || !packable(ctx, hull)) return null;
-                if (!ScavengeAccess.hullAllows(level, hull, ctx.issuer())) return null;
-                return ScavengeSource.entity(ScavengeSource.Kind.HULL, hull.blockPosition(), hull.getId());
-            }
-        }
-        if (CorpseCompat.isCorpse(e)) {
+            src = ScavengeSource.entity(ScavengeSource.Kind.ITEM, item.blockPosition(), item.getId());
+            if (tried.contains(src.key())) return null;
+            plan = plan(wants, stage, offers(new GroundItem(item), stage, true), src.key(), reserved);
+        } else if (CorpseCompat.isCorpse(e)) {
+            src = ScavengeSource.entity(ScavengeSource.Kind.BODY, e.blockPosition(), e.getId());
+            if (tried.contains(src.key())) return null;
             IItemHandler h = CorpseCompat.inventory(e);
-            if (h == null || !anyWanted(wants, stage, h)) return null;
-            if (!ScavengeAccess.claimAllows(level, e.blockPosition(), ctx.issuer())) return null;
-            return ScavengeSource.entity(ScavengeSource.Kind.BODY, e.blockPosition(), e.getId());
+            if (h == null) return null;
+            plan = plan(wants, stage, offers(h, stage, true), src.key(), reserved);
+        } else if (stage == ScavengeStage.EMPLACEMENT && mineKind(e) != null) {
+            src = ScavengeSource.entity(ScavengeSource.Kind.MINE, e.blockPosition(), e.getId());
+            if (tried.contains(src.key()) || reserved.any(src.key()) || wants.mineRoom() <= 0) return null;
+            if (!ScavengeAccess.mineAllows(level, e, ctx.issuer())) return null;
+            return new Pick(src, Map.of(WHOLE, 1));
+        } else if (stage == ScavengeStage.EMPLACEMENT && e instanceof VehicleEntity hull) {
+            src = ScavengeSource.entity(ScavengeSource.Kind.HULL, hull.blockPosition(), hull.getId());
+            if (tried.contains(src.key()) || reserved.any(src.key()) || wants.emplacementRoom() <= 0) return null;
+            if (!packable(ctx, hull) || !ScavengeAccess.hullAllows(level, hull, ctx.issuer())) return null;
+            return new Pick(src, Map.of(WHOLE, 1));
+        } else {
+            return null;
         }
-        return null;
+        if (plan.isEmpty() || !ScavengeAccess.claimAllows(level, e.blockPosition(), ctx.issuer())) return null;
+        return new Pick(src, plan);
+    }
+
+    /**
+     * Rounds are unloaded from guns only where a gun was dropped (the ground, a body), never from
+     * a container someone stocked.
+     */
+    private static List<Offer> offers(IItemHandler h, ScavengeStage stage, boolean unloadGuns) {
+        List<Offer> out = new java.util.ArrayList<>();
+        for (int slot = 0; slot < h.getSlots(); slot++) {
+            ItemStack s = h.getStackInSlot(slot);
+            if (s.isEmpty()) continue;
+            if (unloadGuns && stage == ScavengeStage.AMMO) {
+                ItemStack round = ScavengeItems.magazineRound(s);
+                if (!round.isEmpty()) {
+                    out.add(new Offer(slot, ScavengeTally.keyOf(round), round, ScavengeItems.magazineCount(s), true));
+                    continue;
+                }
+            }
+            out.add(new Offer(slot, ScavengeTally.keyOf(s), s, s.getCount(), false));
+        }
+        return out;
+    }
+
+    /** Per item: what the unit wants of it, out of what is there and not already reserved. */
+    private static Map<String, Integer> plan(ScavengeWants wants, ScavengeStage stage, List<Offer> offers,
+                                             Object sourceKey, Reservations reserved) {
+        Map<String, Integer> avail = new LinkedHashMap<>();
+        Map<String, ItemStack> samples = new HashMap<>();
+        for (Offer o : offers) {
+            avail.merge(o.key(), o.count(), Integer::sum);
+            samples.putIfAbsent(o.key(), o.sample());
+        }
+        Map<String, Integer> out = new LinkedHashMap<>();
+        for (Map.Entry<String, Integer> a : avail.entrySet()) {
+            ItemStack sample = samples.get(a.getKey());
+            int n = ScavengeRules.planned(wants.wanted(stage, sample), a.getValue(),
+                    reserved.reserved(sourceKey, a.getKey()));
+            if (n > 0 && stage != ScavengeStage.ARMOR) n = Math.min(n, fits(wants, sample.copyWithCount(n)));
+            if (n > 0) out.put(a.getKey(), n);
+        }
+        return out;
     }
 
     /** A TOW or mortar class hull nobody is crewing or about to crew. */
@@ -164,13 +218,6 @@ final class ScavengeSources {
             if (kind.entity().equals(id)) return kind;
         }
         return null;
-    }
-
-    private static boolean anyWanted(ScavengeWants wants, ScavengeStage stage, IItemHandler h) {
-        for (int slot = 0; slot < h.getSlots(); slot++) {
-            if (wants.wanted(stage, h.getStackInSlot(slot)) > 0) return true;
-        }
-        return false;
     }
 
     /** Where to walk, or null when the source is gone. */
@@ -195,74 +242,72 @@ final class ScavengeSources {
         return dx * dx + dz * dz <= r * r && Math.abs(unit.getY() - at.y) <= 3.0;
     }
 
-    /** Takes everything this stage wants from the source. Returns how many items moved. */
-    static int take(Context ctx, ScavengeWants wants, ScavengeStage stage, ScavengeSource src, ScavengeTally tally) {
+    /** Takes up to the unit's plan from the source. Returns how many items moved. */
+    static int take(Context ctx, ScavengeWants wants, ScavengeStage stage, ScavengeSource src,
+                    Map<String, Integer> plan, ScavengeTally tally) {
         ServerLevel level = ctx.level();
-        switch (src.kind()) {
+        return switch (src.kind()) {
             case CONTAINER -> {
                 IItemHandler h = handlerAt(level, src.pos());
-                return h == null ? 0 : drain(wants, stage, h, tally);
+                yield h == null ? 0 : drain(wants, stage, h, false, plan, tally);
             }
             case BODY -> {
                 IItemHandler h = CorpseCompat.inventory(level.getEntity(src.entityId()));
-                return h == null ? 0 : drain(wants, stage, h, tally);
+                yield h == null ? 0 : drain(wants, stage, h, true, plan, tally);
             }
-            case ITEM -> {
-                return level.getEntity(src.entityId()) instanceof ItemEntity item
-                        ? pickUp(wants, stage, item, tally) : 0;
-            }
-            case HULL -> {
-                return level.getEntity(src.entityId()) instanceof VehicleEntity hull
-                        ? pack(ctx, wants, hull, tally) : 0;
-            }
+            case ITEM -> level.getEntity(src.entityId()) instanceof ItemEntity item
+                    ? drain(wants, stage, new GroundItem(item), true, plan, tally) : 0;
+            case HULL -> level.getEntity(src.entityId()) instanceof VehicleEntity hull
+                    ? pack(ctx, wants, hull, tally) : 0;
             case MINE -> {
                 Entity mine = level.getEntity(src.entityId());
-                return mine == null ? 0 : lift(ctx, wants, mine, tally);
+                yield mine == null ? 0 : lift(ctx, wants, mine, tally);
             }
-        }
-        return 0;
+        };
     }
 
-    private static int drain(ScavengeWants wants, ScavengeStage stage, IItemHandler source, ScavengeTally tally) {
+    private static int drain(ScavengeWants wants, ScavengeStage stage, IItemHandler source, boolean unloadGuns,
+                             Map<String, Integer> plan, ScavengeTally tally) {
+        Map<String, Integer> left = new HashMap<>(plan);
         int moved = 0;
-        for (int slot = 0; slot < source.getSlots(); slot++) {
-            ItemStack in = source.getStackInSlot(slot);
-            int want = wants.wanted(stage, in);
-            if (want <= 0) continue;
-            ItemStack probe = source.extractItem(slot, Math.min(want, in.getCount()), true);
-            int fit = fits(wants, probe);
-            if (fit <= 0) continue;
-            ItemStack taken = source.extractItem(slot, fit, false);
-            if (taken.isEmpty()) continue;
-            ItemStack copy = taken.copy();
-            ItemStack rest = ItemHandlerHelper.insertItemStacked(wants.pockets, taken, false);
-            int got = copy.getCount() - rest.getCount();
-            if (!rest.isEmpty()) giveBack(wants, source, rest);
-            tally.add(stage, copy, got);
-            moved += got;
+        for (Offer o : offers(source, stage, unloadGuns)) {
+            int limit = left.getOrDefault(o.key(), 0);
+            if (limit <= 0) continue;
+            int n = Math.min(limit, Math.min(o.count(), wants.wanted(stage, o.sample())));
+            if (n <= 0) continue;
+            ItemStack got;
+            if (o.magazine()) {
+                if (!(source instanceof IItemHandlerModifiable m)) continue;
+                n = stage == ScavengeStage.ARMOR ? n : Math.min(n, fits(wants, o.sample().copyWithCount(n)));
+                if (n <= 0) continue;
+                m.setStackInSlot(o.slot(), ScavengeItems.unload(source.getStackInSlot(o.slot()), n));
+                got = o.sample().copyWithCount(n);
+            } else {
+                if (stage != ScavengeStage.ARMOR) {
+                    n = Math.min(n, fits(wants, source.extractItem(o.slot(), n, true)));
+                    if (n <= 0) continue;
+                }
+                got = source.extractItem(o.slot(), n, false);
+                if (got.isEmpty()) continue;
+            }
+            int count = got.getCount();
+            receive(wants, stage, got, source);
+            tally.add(stage, got.copyWithCount(1), count);
+            left.merge(o.key(), -count, Integer::sum);
+            moved += count;
         }
         return moved;
     }
 
-    private static int pickUp(ScavengeWants wants, ScavengeStage stage, ItemEntity item, ScavengeTally tally) {
-        ItemStack in = item.getItem();
-        int want = wants.wanted(stage, in);
-        if (want <= 0) return 0;
-        int fit = fits(wants, in.copyWithCount(Math.min(want, in.getCount())));
-        if (fit <= 0) return 0;
-        ItemStack rest = in.copy();
-        ItemStack taken = rest.split(fit);
-        ItemStack copy = taken.copy();
-        ItemStack left = ItemHandlerHelper.insertItemStacked(wants.pockets, taken, false);
-        rest.grow(left.getCount());
-        if (rest.isEmpty()) {
-            item.discard();
-        } else {
-            item.setItem(rest);
+    /** Into the pockets, or onto the body for armor. What does not stay goes back to the source. */
+    private static void receive(ScavengeWants wants, ScavengeStage stage, ItemStack got, IItemHandler source) {
+        if (stage == ScavengeStage.ARMOR) {
+            ItemStack old = wants.wear(got);
+            if (!old.isEmpty()) giveBack(wants, source, old);
+            return;
         }
-        int got = copy.getCount() - left.getCount();
-        tally.add(stage, copy, got);
-        return got;
+        ItemStack rest = ItemHandlerHelper.insertItemStacked(wants.pockets, got.copy(), false);
+        if (!rest.isEmpty()) giveBack(wants, source, rest);
     }
 
     /** SBW's own crowbar list for the hull, all of it or nothing, then the hull is gone. */
@@ -327,5 +372,61 @@ final class ScavengeSources {
         return be == null ? null : be.getCapability(ForgeCapabilities.ITEM_HANDLER, null).orElse(null);
     }
 
+    /** An item on the ground as a one-slot, take-only handler. */
+    private static final class GroundItem implements IItemHandlerModifiable {
 
+        private final ItemEntity item;
+
+        GroundItem(ItemEntity item) {
+            this.item = item;
+        }
+
+        @Override
+        public int getSlots() {
+            return 1;
+        }
+
+        @Override
+        public ItemStack getStackInSlot(int slot) {
+            return this.item.isAlive() ? this.item.getItem() : ItemStack.EMPTY;
+        }
+
+        @Override
+        public void setStackInSlot(int slot, ItemStack stack) {
+            if (stack.isEmpty()) {
+                this.item.discard();
+            } else {
+                this.item.setItem(stack);
+            }
+        }
+
+        @Override
+        public ItemStack insertItem(int slot, ItemStack stack, boolean simulate) {
+            return stack;
+        }
+
+        @Override
+        public ItemStack extractItem(int slot, int amount, boolean simulate) {
+            ItemStack in = getStackInSlot(slot);
+            if (in.isEmpty() || amount <= 0) return ItemStack.EMPTY;
+            int n = Math.min(amount, in.getCount());
+            ItemStack out = in.copyWithCount(n);
+            if (!simulate) {
+                ItemStack rest = in.copy();
+                rest.shrink(n);
+                setStackInSlot(slot, rest);
+            }
+            return out;
+        }
+
+        @Override
+        public int getSlotLimit(int slot) {
+            return 64;
+        }
+
+        @Override
+        public boolean isItemValid(int slot, ItemStack stack) {
+            return false;
+        }
+    }
 }

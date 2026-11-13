@@ -10,6 +10,7 @@ import com.atsuishio.superbwarfare.data.gun.AmmoConsumer;
 import com.atsuishio.superbwarfare.data.gun.GunData;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.items.IItemHandlerModifiable;
 import net.minecraftforge.registries.ForgeRegistries;
@@ -116,7 +117,35 @@ final class ScavengeWants {
                 Utility u = Utility.of(stack);
                 yield u == null ? 0 : ScavengeRules.remaining(u.cap(), count(s -> Utility.of(s) == u));
             }
+            case ARMOR -> armorWanted(stack);
         };
+    }
+
+    /** Hand slots 2 to 5 mirror FEET to HEAD on a PMC's handler. */
+    private static final int FIRST_ARMOR_SLOT = 2;
+
+    private int armorWanted(ItemStack stack) {
+        if (!SewvConfig.SCAVENGE_ARMOR.get()) return 0;
+        EquipmentSlot slot = ScavengeItems.armorSlot(stack);
+        if (slot == null || slot.getType() != EquipmentSlot.Type.ARMOR) return 0;
+        // SEM keeps ammo in a PMC's FEET slot; a slot holding anything but armor is left alone.
+        return ScavengeItems.beats(stack, worn(slot)) ? 1 : 0;
+    }
+
+    ItemStack worn(EquipmentSlot slot) {
+        int index = FIRST_ARMOR_SLOT + slot.getIndex();
+        return index < this.inv.getSlots() ? this.inv.getStackInSlot(index) : ItemStack.EMPTY;
+    }
+
+    /** Puts the piece on and returns what was worn before. */
+    ItemStack wear(ItemStack piece) {
+        EquipmentSlot slot = ScavengeItems.armorSlot(piece);
+        if (slot == null) return piece;
+        int index = FIRST_ARMOR_SLOT + slot.getIndex();
+        if (index >= this.inv.getSlots()) return piece;
+        ItemStack old = this.inv.getStackInSlot(index).copy();
+        this.inv.setStackInSlot(index, piece);
+        return old;
     }
 
     private int ammoWanted(ItemStack stack) {

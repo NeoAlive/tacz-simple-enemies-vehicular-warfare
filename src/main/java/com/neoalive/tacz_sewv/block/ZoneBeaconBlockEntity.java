@@ -39,6 +39,7 @@ import net.minecraftforge.energy.IEnergyStorage;
 import net.minecraftforge.items.ItemStackHandler;
 import net.minecraftforge.network.PacketDistributor;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
+import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
@@ -290,8 +291,7 @@ public class ZoneBeaconBlockEntity extends BlockEntity implements MenuProvider {
             if (!(e.living instanceof AbstractUnit unit) || !unit.isAlive() || unit == pmc) continue;
             double dx = e.x - from.x, dz = e.z - from.z;
             if (dx * dx + dz * dz > reach * reach) continue;
-            if (subject != null ? VehicleTargeting.isNonHostileIgnoringGameMode(unit, subject)
-                    : VehicleTargeting.isNonHostile(pmc, unit)) continue;
+            if (subject != null ? !hostileToOwner(unit, subject) : VehicleTargeting.isNonHostile(pmc, unit)) continue;
             if (unit.getVehicle() instanceof VehicleEntity hull) {
                 if (seenHulls.contains(hull.getId())) continue;
                 seenHulls.add(hull.getId());
@@ -333,6 +333,17 @@ public class ZoneBeaconBlockEntity extends BlockEntity implements MenuProvider {
         this.aim = next;
         setChanged();
         level.sendBlockUpdated(this.worldPosition, getBlockState(), getBlockState(), 3);
+    }
+
+    /**
+     * Whether {@code unit} would fight the owner. A PMC never targets a player on SEM's own ladder, only
+     * through diplomacy or an invasion, and {@code isNonHostile} has no branch for a PMC looking at a
+     * player, so it read every PMC (the owner's own included) as hostile. Same answer the offline
+     * branch gets from a PMC's point of view.
+     */
+    private static boolean hostileToOwner(AbstractUnit unit, Player owner) {
+        if (unit instanceof PmcUnitEntity) return VehicleTargeting.isDiplomacyEnemy(unit, owner);
+        return !VehicleTargeting.isNonHostileIgnoringGameMode(unit, owner);
     }
 
     /** Streams the contact list to whoever has this FPAS's panel open. */

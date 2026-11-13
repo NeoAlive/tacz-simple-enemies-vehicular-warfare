@@ -36,7 +36,7 @@ public final class RadioSettings {
         CompoundTag tag = stack.getTag().getCompound(TAG);
         RadioFrequency frequency = RadioFrequency.values()[
                 Math.max(0, Math.min(tag.getInt("frequency"), RadioFrequency.values().length - 1))];
-        int delay = Math.max(0, tag.getInt("delay"));
+        int delay = clampDelay(tag.getInt("delay"));
         PlaneAttackMode planeMode = PlaneAttackMode.byOrdinal(tag.getInt("plane"));
         return new State(frequency, delay, planeMode).withFrequency(frequency);
     }
@@ -103,6 +103,11 @@ public final class RadioSettings {
         tag.putBoolean("voice", comms.voice());
         tag.putInt("net", comms.net());
         stack.getOrCreateTag().put(TAG, tag);
+    }
+
+    /** OFF, or a delay inside the panel's range. */
+    public static int clampDelay(int seconds) {
+        return seconds <= 0 ? 0 : Math.max(DELAY_MIN, Math.min(DELAY_MAX, seconds));
     }
 
     /** Delay presets cycled by the panel button: OFF then 20–120 s in 10 s steps, wrapping. */

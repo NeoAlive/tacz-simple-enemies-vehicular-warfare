@@ -164,7 +164,7 @@ public class NetworkHandler {
     // 113: PacketRadarContacts (S->C), FPAS MTI contacts for the open panel.
     // 114: PacketHudNotification carries an urgent flag; NotificationKind.FPAS; PacketRadioSettings (C->S)
     //      + PacketRadioFlags (S->C) for the handheld radio comms toggles.
-    private static final String PROTOCOL_VERSION = "114";
+    private static final String PROTOCOL_VERSION = "115";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),

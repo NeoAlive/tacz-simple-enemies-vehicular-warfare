@@ -75,23 +75,39 @@ public final class RadioVoiceNet {
 
     private record Station(ServerPlayer player, int net, List<DiplomacyData.Subject> subjects) {}
 
+    private record Tuned(ServerPlayer player, int txNet, int rxNet) {}
+
     private static Map<UUID, List<UUID>> rebuild(MinecraftServer server, double proximity, Set<UUID> tx) {
-        List<Station> talkers = new ArrayList<>();
-        List<Station> listeners = new ArrayList<>();
+        List<Tuned> tuned = new ArrayList<>();
+        boolean anyTalker = false;
         for (ServerPlayer p : server.getPlayerList().getPlayers()) {
             if (p.isSpectator()) continue;
             ItemStack held = HandheldRadioItem.findHeld(p);
             RadioSettings.Comms heldComms = held.isEmpty() ? null : RadioSettings.readComms(held);
-            ItemStack carried = HandheldRadioItem.findCarried(p, s -> RadioSettings.readComms(s).voice());
-            if ((heldComms == null || !heldComms.voice()) && carried.isEmpty()) continue;
-            List<DiplomacyData.Subject> subjects = SideRelations.subjectsOf(server, p.getUUID(), p.getScoreboardName());
-            if (heldComms != null && heldComms.voice()) {
-                talkers.add(new Station(p, heldComms.net(), subjects));
+            int txNet = heldComms != null && heldComms.voice() ? heldComms.net() : -1;
+            int rxNet = -1;
+            if (txNet > 0 && heldComms != null) {
+                rxNet = txNet;
+            } else {
+                ItemStack carried = HandheldRadioItem.findCarried(p, s -> RadioSettings.readComms(s).voice());
+                if (!carried.isEmpty()) rxNet = RadioSettings.readComms(carried).net();
+            }
+            if (txNet < 0 && rxNet < 0) continue;
+            if (txNet > 0) {
+                anyTalker = true;
                 tx.add(p.getUUID());
             }
-            if (!carried.isEmpty()) listeners.add(new Station(p, RadioSettings.readComms(carried).net(), subjects));
+            tuned.add(new Tuned(p, txNet, rxNet));
         }
-        if (talkers.isEmpty()) return Map.of();
+        if (!anyTalker || tuned.size() < 2) return Map.of();
+
+        List<Station> talkers = new ArrayList<>();
+        List<Station> listeners = new ArrayList<>();
+        for (Tuned t : tuned) {
+            List<DiplomacyData.Subject> subjects = SideRelations.subjectsOf(server, t.player.getUUID(), t.player.getScoreboardName());
+            if (t.txNet > 0) talkers.add(new Station(t.player, t.txNet, subjects));
+            if (t.rxNet > 0) listeners.add(new Station(t.player, t.rxNet, subjects));
+        }
         ServerLevel overworld = server.getLevel(Level.OVERWORLD);
         DiplomacyData diplomacy = overworld == null ? null : DiplomacyData.get(overworld);
         double proxSq = proximity * proximity;

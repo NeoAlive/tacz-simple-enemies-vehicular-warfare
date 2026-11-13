@@ -39,14 +39,21 @@ public final class RadioVoiceHud {
     private static final long TX_NANOS = 200_000_000L;
     private static final long FORGET_NANOS = 10_000_000_000L;
     private static final double SQUELCH_CHANCE = 0.3;
+    private static final long NAME_RETRY_NANOS = 1_000_000_000L;
     private static final int COL_TX = 0xFFE85A4A;
     private static final int COL_RX = 0xFF4FD1C5;
+    private static final String ICON_TX = "\u25CF";
+    private static final String ICON_RX = "\u25C9";
+    /** Pre-scale card height, drawn at the ticket stack's scale. */
+    private static final int CARD_H = 14;
+    private static final int CARD_GAP = 3;
 
     private static final class Entry {
         volatile long last;
         volatile boolean live;
         volatile boolean startPending;
         String name;
+        long nameTriedAt;
     }
 
     private static final Map<UUID, Entry> STREAMS = new ConcurrentHashMap<>();
@@ -122,19 +129,41 @@ public final class RadioVoiceHud {
         Font font = mc.font;
         int screenW = mc.getWindow().getGuiScaledWidth();
         float scale = Math.min(NotificationHud.DISPLAY_SCALE, GuiFit.fitScale(NotificationHud.TICKET_W, screenW));
-        int right = (screenW - Math.round(NotificationHud.TICKET_W * scale)) / 2 - 6;
-        int y = 4;
+        float right = (screenW - NotificationHud.TICKET_W * scale) / 2f - 4f;
+        float y = 0f;
+        float pulse = 0.55f + 0.45f * (float) Math.abs(Math.sin(now / 90_000_000.0));
         if (tx != null) {
-            g.drawString(font, tx, right - font.width(tx), y, COL_TX, true);
-            y += font.lineHeight + 2;
+            drawCard(g, font, right, y, scale, tx, ICON_TX, COL_TX, pulse);
+            y += (CARD_H + CARD_GAP) * scale;
         }
-        if (rx != null) g.drawString(font, rx, right - font.width(rx), y, COL_RX, true);
+        if (rx != null) drawCard(g, font, right, y, scale, rx, ICON_RX, COL_RX, pulse);
+    }
+
+    /** One card in the ticket style: kind rail with an icon, dark body, right edge at {@code right}. */
+    private static void drawCard(GuiGraphics g, Font font, float right, float top, float scale,
+                                 String text, String icon, int accent, float level) {
+        int railW = NotificationHud.RAIL_W;
+        int w = railW + NotificationHud.TITLE_PAD_X * 2 + font.width(text);
+        var pose = g.pose();
+        pose.pushPose();
+        pose.translate(right - w * scale, top, 0);
+        pose.scale(scale, scale, 1f);
+        g.fill(1, 1, w + 1, CARD_H + 1, NotificationHud.SHADOW);
+        g.fill(0, 0, railW, CARD_H, (accent & 0x00FFFFFF) | 0x55000000);
+        int lit = Math.round(CARD_H * level);
+        g.fill(0, CARD_H - lit, railW, CARD_H, accent);
+        g.drawString(font, icon, (railW - font.width(icon)) / 2, (CARD_H - 8) / 2, NotificationHud.ICON_COLOR, false);
+        g.fill(railW, 0, w, CARD_H, NotificationHud.BODY_BG);
+        g.drawString(font, text, railW + NotificationHud.TITLE_PAD_X, (CARD_H - 8) / 2, NotificationHud.TITLE_COLOR, false);
+        pose.popPose();
     }
 
     private static String nameOf(Minecraft mc, UUID channel, Entry e) {
         if (e.name != null) return e.name;
+        long now = System.nanoTime();
         ClientPacketListener conn = mc.getConnection();
-        if (conn != null) {
+        if (conn != null && (e.nameTriedAt == 0L || now - e.nameTriedAt > NAME_RETRY_NANOS)) {
+            e.nameTriedAt = now;
             for (PlayerInfo info : conn.getOnlinePlayers()) {
                 if (RadioVoiceIds.of(info.getProfile().getId()).equals(channel)) {
                     e.name = info.getProfile().getName();

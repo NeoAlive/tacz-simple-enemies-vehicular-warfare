@@ -19,7 +19,8 @@ import com.neoalive.tacz_sewv.item.RadioSettings;
 /**
  * Ambient radio traffic for the local player while they carry a radio with chatter on. Purely
  * cosmetic and client-only: nothing is sent or synced. Counts unpaused client ticks, so a paused
- * game neither plays nor brings the next transmission closer.
+ * game neither plays nor brings the next transmission closer. The inventory is checked once a second,
+ * and a transmission is cut when the radio goes away or chatter is turned off.
  */
 @Mod.EventBusSubscriber(modid = TaczSewv.MODID, value = Dist.CLIENT)
 public final class RadioChatter {
@@ -28,10 +29,12 @@ public final class RadioChatter {
     private static final int GAP_MAX = 240 * 20;
     private static final double ENEMY_CHANCE = 0.3;
     private static final float VOLUME = 0.45F;
+    private static final int CHECK_TICKS = 20;
 
     private static long now;
     private static long nextAt = -1;
     private static SoundInstance playing;
+    private static boolean listening;
 
     private RadioChatter() {}
 
@@ -41,14 +44,19 @@ public final class RadioChatter {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null || mc.level == null) {
             nextAt = -1;
-            playing = null;
+            listening = false;
+            stop(mc);
             return;
         }
         if (mc.isPaused()) return;
         now++;
-        if (!ClientConfig.flag(ClientConfig.RADIO_CHATTER)
-                || HandheldRadioItem.findCarried(mc.player, s -> RadioSettings.readComms(s).chatter()).isEmpty()) {
+        if (now % CHECK_TICKS == 0) {
+            listening = ClientConfig.flag(ClientConfig.RADIO_CHATTER)
+                    && !HandheldRadioItem.findCarried(mc.player, s -> RadioSettings.readComms(s).chatter()).isEmpty();
+        }
+        if (!listening) {
             nextAt = -1;
+            stop(mc);
             return;
         }
         if (nextAt < 0) {
@@ -71,6 +79,12 @@ public final class RadioChatter {
         playing = SimpleSoundInstance.forUI(pool.event(index), 1.0F, VOLUME);
         mc.getSoundManager().play(playing);
         nextAt = now + pool.ticks(index) + gap();
+    }
+
+    private static void stop(Minecraft mc) {
+        if (playing == null) return;
+        mc.getSoundManager().stop(playing);
+        playing = null;
     }
 
     private static int gap() {

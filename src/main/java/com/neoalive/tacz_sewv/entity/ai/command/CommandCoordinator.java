@@ -16,6 +16,7 @@ import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.mojang.logging.LogUtils;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.util.Mth;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.entity.EntityTypeTest;
 import net.minecraft.world.phys.AABB;
@@ -34,6 +35,7 @@ import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.CrewFacts;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.entity.ai.cover.CoverQuery;
+import com.neoalive.tacz_sewv.entity.ai.formation.DrivableGround;
 import com.neoalive.tacz_sewv.entity.ai.formation.FormationTemplates;
 import com.neoalive.tacz_sewv.entity.ai.formation.SlotMatcher;
 import com.neoalive.tacz_sewv.entity.ai.march.CohesiveMarches;
@@ -48,6 +50,7 @@ import com.neoalive.tacz_sewv.entity.ai.utility.Facts;
 import com.neoalive.tacz_sewv.entity.ai.utility.TacticalScale;
 import com.neoalive.tacz_sewv.entity.ai.utility.UtilityWeights;
 import com.neoalive.tacz_sewv.entity.unit.PmcCommanderEntity;
+import com.neoalive.tacz_sewv.map.BattleFieldMarker;
 
 /**
  * Server-side owner of battle groups: scans eligible drivers on the utility cadence, battle-gates,
@@ -579,10 +582,11 @@ public final class CommandCoordinator {
         double ex = bf.enemyCentroidX;
         double ez = bf.enemyCentroidZ;
         // Half the tightest spacing: cover may bend a formation, never fold two slots onto one spot.
-        return TacticPostProcess.coverPoints(roles,
+        roles = TacticPostProcess.coverPoints(roles,
                 TacticalScale.of(TacticPostProcess.COVER_NEAR), TacticalScale.of(TacticPostProcess.COVER_FAR),
                 TacticalScale.of(templates.minSpacing()) * 0.5,
                 (x, z) -> CoverQuery.exposure(level, x, z, ex, ez));
+        return onLand(level, roles, group.centroidX(), group.centroidZ());
     }
 
     /**
@@ -685,6 +689,7 @@ public final class CommandCoordinator {
                 // tilts play selection towards withdrawal and holding and away from envelopment.
                 if (timidGroup(level, group)) bf.forceBalance *= EasyTuning.FORCE_BALANCE_MULT;
                 bf.peakEnemyWeight = group.notePeakEnemy(weights[1]);
+                gateFlanksByTerrain(level, bf);
                 group.markInfluenceRebuilt(nowTick);
             } catch (Throwable t) {
                 group.battleField().clear();
@@ -734,6 +739,59 @@ public final class CommandCoordinator {
             weightsOut[friendly ? 0 : 1] += CrewFacts.combatantWeight(other);
         }
         return out;
+    }
+
+    /** Pull step when moving a point off water or a tree, in blocks. */
+    private static final double LAND_PULL_STEP = 4.0;
+
+    /**
+     * The influence map opens a flank on friend/foe density alone, so on an island it opened one over the sea and
+     * the flankers were sent offshore. A flank whose mark cannot be pulled onto drivable ground within half the
+     * mark's own offset (walking back toward the enemy) is closed, and play selection sees the real picture.
+     */
+    private static void gateFlanksByTerrain(ServerLevel level, BattleField bf) {
+        if (!bf.populated) return;
+        DrivableGround.Column col = DrivableGround.column(level);
+        double limit = TacticalScale.of(BattleFieldMarker.FLANK_MARK_OFFSET) * 0.5;
+        for (int side : new int[] {+1, -1}) {
+            if (side > 0 ? !bf.openFlankLeft : !bf.openFlankRight) continue;
+            double mx = PlaySignals.flankMarkX(bf, side);
+            double mz = PlaySignals.flankMarkZ(bf, side);
+            if (!flankReachable(col, mx, mz, bf.enemyCentroidX, bf.enemyCentroidZ, limit)) {
+                if (side > 0) bf.openFlankLeft = false;
+                else bf.openFlankRight = false;
+                SewvDiag.command("flank {} closed: mark {},{} has no ground within {}", side > 0 ? "L" : "R",
+                        String.format(Locale.ROOT, "%.0f", mx), String.format(Locale.ROOT, "%.0f", mz),
+                        String.format(Locale.ROOT, "%.0f", limit));
+            }
+        }
+    }
+
+    /** Pure: is there drivable ground walking from the mark toward the enemy within {@code limit}? */
+    static boolean flankReachable(DrivableGround.Column col, double mx, double mz, double ex, double ez,
+                                  double limit) {
+        double[] p = DrivableGround.pullTowards(col, mx, mz, ex, ez, LAND_PULL_STEP);
+        return p != null && Math.hypot(p[0] - mx, p[1] - mz) <= limit;
+    }
+
+    /**
+     * Last pass over a group's dealt points: anything on water or a tree top is walked back toward the group
+     * until it is ground a hull can reach. Plays lay geometry with no idea of terrain.
+     */
+    private static Roles onLand(ServerLevel level, Roles roles, double cx, double cz) {
+        if (roles == null) return null;
+        DrivableGround.Column col = DrivableGround.column(level);
+        Assignment[] out = null;
+        for (int i = 0; i < roles.assignments.length; i++) {
+            Assignment a = roles.assignments[i];
+            if (!Double.isFinite(a.destX) || !Double.isFinite(a.destZ)) continue;
+            if (col.drivable(Mth.floor(a.destX), Mth.floor(a.destZ))) continue;
+            double[] p = DrivableGround.pullTowards(col, a.destX, a.destZ, cx, cz, LAND_PULL_STEP);
+            if (p == null) continue;
+            if (out == null) out = roles.assignments.clone();
+            out[i] = a.withDest(p[0], p[1]);
+        }
+        return out == null ? roles : new Roles(out);
     }
 
     /** A rifleman this close to one of the group's hulls is at the hulls (CohesiveLine's infantry). */

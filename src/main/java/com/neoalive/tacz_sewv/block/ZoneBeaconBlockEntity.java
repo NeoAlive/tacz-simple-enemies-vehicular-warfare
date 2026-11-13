@@ -75,7 +75,7 @@ public class ZoneBeaconBlockEntity extends BlockEntity implements MenuProvider {
     private static final int MAX_CONTACTS = 64;
 
     public enum Mode { ECM, MTI }
-    private static final AABB RENDER_EXTENT = new AABB(-2, 0, -2, 3, 6, 3);
+    private static final AABB RENDER_EXTENT = new AABB(-3, 0, -3, 4, 7, 4);
 
     /** Receive-only from outside; the beacon spends from it itself. */
     private static final class Buffer extends EnergyStorage {
@@ -239,15 +239,19 @@ public class ZoneBeaconBlockEntity extends BlockEntity implements MenuProvider {
         if (this.powered && this.mode == Mode.MTI && level.getGameTime() >= this.nextScan) {
             this.nextScan = level.getGameTime() + SCAN_TICKS;
             scan(level);
+            if (this.contacts.isEmpty()) clearAim(level);
             sendContacts(level);
         } else if (!this.powered && !this.contacts.isEmpty()) {
             this.contacts = List.of();
             sendContacts(level);
         }
+        if (!this.powered) clearAim(level);
         if (was != this.powered) {
             ServerPlayer owner = onlineOwner(level);
             if (owner != null) HudNotify.fpasPower(owner, this.powered, this.worldPosition);
             publish(level);
+            // The renderer folds and unfolds the array off this.
+            level.sendBlockUpdated(this.worldPosition, getBlockState(), getBlockState(), 3);
             setChanged();
             this.sinceSave = 0;
         } else if (++this.sinceSave >= SAVE_EVERY_TICKS) {
@@ -341,9 +345,21 @@ public class ZoneBeaconBlockEntity extends BlockEntity implements MenuProvider {
         }
     }
 
+    /** Live contact to track; null with nothing in the scan, so the array goes back to spinning. */
     @Nullable
     public Vec3 aim() {
         return this.aim;
+    }
+
+    public boolean powered() {
+        return this.powered;
+    }
+
+    private void clearAim(ServerLevel level) {
+        if (this.aim == null) return;
+        this.aim = null;
+        setChanged();
+        level.sendBlockUpdated(this.worldPosition, getBlockState(), getBlockState(), 3);
     }
 
     @Override

@@ -12,7 +12,7 @@
   "attack": {"sounds": ["tacz_sewv:attack"]},
   "fob_alarm": {"sounds": ["tacz_sewv:alarm"]},
   "fpas_azimuth": {"sounds": ["tacz_sewv:fpas/azimuth"]},
-  "fpas_zenith": {"sounds": ["tacz_sewv:fpas/zenith"]},
+  "fpas_hydraulics": {"sounds": ["tacz_sewv:fpas/zenith"]},
   "fpas_stop": {"sounds": ["tacz_sewv:fpas/stop_1", "tacz_sewv:fpas/stop_2", "tacz_sewv:fpas/stop_3", "tacz_sewv:fpas/stop_4"]},
   "fpas_target": {"sounds": ["tacz_sewv:fpas/target"]},
   "grace_start": {"sounds": ["tacz_sewv:grace_start"]},

@@ -6,6 +6,7 @@ import java.util.WeakHashMap;
 import javax.annotation.Nullable;
 
 import com.github.mcmodderanchor.simplebedrockmodel.v2.common.model.runtime.BakedModelInstance;
+import com.github.mcmodderanchor.simplebedrockmodel.v2.common.model.runtime.BoneState;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
 import net.minecraft.client.Minecraft;
@@ -20,51 +21,45 @@ import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
-import org.joml.Vector3f;
+import org.joml.Quaternionf;
 
 import com.neoalive.tacz_sewv.block.ZoneBeaconBlockEntity;
+import com.neoalive.tacz_sewv.client.fpas.BedrockClip;
+import com.neoalive.tacz_sewv.client.fpas.FpasPose;
 import com.neoalive.tacz_sewv.init.ModSounds;
 
 /**
- * The FPAS: {@code radar} turns on Y (azimuth), {@code dish} tilts on its Z (zenith) by at most
- * {@link #ZENITH_LIMIT_DEG} around its bind pose, past which it clips the supports. In MTI both slew
- * toward the server's last spotted hostile ({@link ZoneBeaconBlockEntity#aim}); in ECM the array
- * just sweeps slowly round.
+ * The FPAS. Powering up plays {@code transitionopen}, powering down plays {@code transitionclose},
+ * and in between {@code radar} spins (ECM, or MTI with nothing in the scan) or tracks the nearest
+ * contact on azimuth only. {@link FpasPose} owns the sequencing; this class samples the clips and
+ * writes the bones.
  *
- * <p>The dish's rest facing is read off its bind rotation rather than assumed, so the mapping
- * survives SBM's axis conversion and future edits of the model.
+ * <p>Clips are Bedrock data and are converted the way SBM bakes bones: X and Y rotation negated,
+ * ZYX order, X position negated. The dish rests facing world -Z.
  */
 public class ZoneBeaconRenderer implements BlockEntityRenderer<ZoneBeaconBlockEntity> {
 
-    private static final float ZENITH_LIMIT_DEG = 10.0F;
-    private static final float AZIMUTH_DEG_PER_TICK = 3.0F;
-    private static final float ZENITH_DEG_PER_TICK = 0.5F;
-    /** ECM idle sweep, a full turn in about 45 s. */
-    private static final float ECM_SPIN_DEG_PER_TICK = 0.4F;
-
-    /** Remaining error below which an axis counts as settled, for the slew sounds. */
-    private static final float AZIMUTH_SETTLED_DEG = 0.5F;
-    private static final float ZENITH_SETTLED_DEG = 0.1F;
+    private static final String[] CLIP_BONES = {"dish", "hydraulicjacks", "gunmetal"};
     /** A loop outlives its last render by this many ticks, so an unseen FPAS goes quiet. */
     private static final int LOOP_GRACE_TICKS = 5;
 
-    private static final class Slew {
-        float azimuth;
-        float zenith;
+    private static final class State {
+        final FpasPose pose;
         float last;
         boolean azMoving;
-        boolean zenMoving;
+        boolean hydraulics;
         @Nullable
-        SlewLoop azLoop;
+        Loop azLoop;
         @Nullable
-        SlewLoop zenLoop;
+        Loop hydraulicsLoop;
 
-        Slew(float now) {
+        State(FpasPose pose, float now) {
+            this.pose = pose;
             this.last = now;
         }
     }
 
-    private static final Map<ZoneBeaconBlockEntity, Slew> slew = new WeakHashMap<>();
+    private static final Map<ZoneBeaconBlockEntity, State> states = new WeakHashMap<>();
 
     public ZoneBeaconRenderer(BlockEntityRendererProvider.Context context) {
     }
@@ -75,44 +70,37 @@ public class ZoneBeaconRenderer implements BlockEntityRenderer<ZoneBeaconBlockEn
         BakedModelInstance instance = FobBlockClient.instance(be);
         if (instance == null || be.getLevel() == null) return;
         instance.resetPose();
-        var radar = instance.getBone("radar");
-        var dish = instance.getBone("dish");
-        if (radar != null && dish != null) {
+        Map<String, BedrockClip> clips = FobBlockClient.fpasClips();
+        BedrockClip open = clips.get("transitionopen");
+        BedrockClip close = clips.get("transitionclose");
+        BedrockClip spin = clips.get("spin");
+        BoneState radar = instance.getBone("radar");
+        if (radar != null && open != null && close != null && spin != null) {
             float now = be.getLevel().getGameTime() + partialTick;
-            Slew s = slew.computeIfAbsent(be, k -> new Slew(now));
+            State s = states.computeIfAbsent(be, k -> new State(
+                    new FpasPose(open.length() * 20.0F, close.length() * 20.0F, spinRate(spin), be.powered()), now));
             float dt = Mth.clamp(now - s.last, 0.0F, 20.0F);
             s.last = now;
-            boolean azMoving = false, zenMoving = false;
 
-            // Dish boresight in the radar's frame at rest: the feed struts sit on its local +Y.
-            Vector3f rest = dish.definition().bindRotation().transform(new Vector3f(0.0F, 1.0F, 0.0F));
             Vec3 aim = be.mode() == ZoneBeaconBlockEntity.Mode.MTI ? be.aim() : null;
-            if (aim == null) {
-                // ECM, or MTI with nothing seen yet: a slow sweep, dish settling level. No servo loop.
-                s.azimuth = Mth.wrapDegrees(s.azimuth + ECM_SPIN_DEG_PER_TICK * dt);
-                s.zenith -= Mth.clamp(s.zenith, -ZENITH_DEG_PER_TICK * dt, ZENITH_DEG_PER_TICK * dt);
-            } else {
+            float bearing = Float.NaN;
+            if (aim != null) {
                 double dx = aim.x - (be.getBlockPos().getX() + 0.5);
                 double dz = aim.z - (be.getBlockPos().getZ() + 0.5);
-                double dy = aim.y - (be.getBlockPos().getY() + Math.abs(dish.definition().pivotY()) / 16.0);
-                // Ry(t) turns a horizontal bearing atan2(z, x) by -t.
-                float azimuth = (float) Math.toDegrees(Math.atan2(rest.z, rest.x) - Math.atan2(dz, dx));
-                float restElev = (float) Math.toDegrees(Math.atan2(rest.y, Math.hypot(rest.x, rest.z)));
-                float wantElev = (float) Math.toDegrees(Math.atan2(dy, Math.hypot(dx, dz)));
-                // A world-Z turn raises the boresight when it points +X, lowers it when -X.
-                float zenith = Mth.clamp(Math.signum(rest.x) * (wantElev - restElev),
-                        -ZENITH_LIMIT_DEG, ZENITH_LIMIT_DEG);
-                float azErr = Mth.wrapDegrees(azimuth - s.azimuth);
-                float zenErr = zenith - s.zenith;
-                azMoving = Math.abs(azErr) > AZIMUTH_SETTLED_DEG;
-                zenMoving = Math.abs(zenErr) > ZENITH_SETTLED_DEG;
-                s.azimuth += Mth.clamp(azErr, -AZIMUTH_DEG_PER_TICK * dt, AZIMUTH_DEG_PER_TICK * dt);
-                s.zenith += Mth.clamp(zenErr, -ZENITH_DEG_PER_TICK * dt, ZENITH_DEG_PER_TICK * dt);
+                // Ry(t) takes the -Z rest boresight to (-sin t, -cos t).
+                bearing = (float) Math.toDegrees(Math.atan2(-dx, -dz));
             }
-            sounds(be, s, azMoving, zenMoving);
-            radar.rotation.mul(Axis.YP.rotationDegrees(s.azimuth));
-            // SBM composes bind rotations Z-outermost, so the zenith goes on the left.
-            dish.rotation.premul(Axis.ZP.rotationDegrees(s.zenith));
+            s.pose.step(be.powered(), bearing, dt);
+
+            radar.rotation.mul(Axis.YP.rotationDegrees(s.pose.azimuth()));
+            switch (s.pose.phase()) {
+                case OPENING -> applyClip(instance, open, s.pose.clipTime() / 20.0F);
+                case CLOSING -> applyClip(instance, close, s.pose.clipTime() / 20.0F);
+                case CLOSED -> applyClip(instance, close, close.length());
+                default -> {
+                }
+            }
+            sounds(be, s, s.pose.azSlewing(aim != null), s.pose.hydraulicsMoving());
         }
 
         poseStack.pushPose();
@@ -121,39 +109,63 @@ public class ZoneBeaconRenderer implements BlockEntityRenderer<ZoneBeaconBlockEn
         poseStack.popPose();
     }
 
-    private static void sounds(ZoneBeaconBlockEntity be, Slew s, boolean azMoving, boolean zenMoving) {
+    /** Degrees per tick, signed as the baked Y rotation. */
+    private static float spinRate(BedrockClip spin) {
+        float[] end = spin.sample("radar", BedrockClip.Channel.ROTATION, spin.length());
+        return end == null || spin.length() <= 0.0F ? 0.0F : -end[1] / (spin.length() * 20.0F);
+    }
+
+    private static void applyClip(BakedModelInstance instance, BedrockClip clip, float seconds) {
+        for (String name : CLIP_BONES) {
+            BoneState bone = instance.getBone(name);
+            if (bone == null) continue;
+            float[] r = clip.sample(name, BedrockClip.Channel.ROTATION, seconds);
+            if (r != null) {
+                bone.rotation.mul(new Quaternionf().rotateZYX(
+                        r[2] * Mth.DEG_TO_RAD, -r[1] * Mth.DEG_TO_RAD, -r[0] * Mth.DEG_TO_RAD));
+            }
+            float[] p = clip.sample(name, BedrockClip.Channel.POSITION, seconds);
+            if (p != null) {
+                bone.x -= p[0];
+                bone.y += p[1];
+                bone.z += p[2];
+            }
+        }
+    }
+
+    private static void sounds(ZoneBeaconBlockEntity be, State s, boolean azMoving, boolean hydraulics) {
         SoundManager manager = Minecraft.getInstance().getSoundManager();
         if (azMoving && (s.azLoop == null || s.azLoop.isStopped())) {
-            s.azLoop = new SlewLoop(ModSounds.FPAS_AZIMUTH.get(), be, s, true);
+            s.azLoop = new Loop(ModSounds.FPAS_AZIMUTH.get(), be, s, true, 0.8F);
             manager.play(s.azLoop);
         }
-        if (zenMoving && (s.zenLoop == null || s.zenLoop.isStopped())) {
-            s.zenLoop = new SlewLoop(ModSounds.FPAS_ZENITH.get(), be, s, false);
-            manager.play(s.zenLoop);
+        if (hydraulics && (s.hydraulicsLoop == null || s.hydraulicsLoop.isStopped())) {
+            s.hydraulicsLoop = new Loop(ModSounds.FPAS_HYDRAULICS.get(), be, s, false, 0.6F);
+            manager.play(s.hydraulicsLoop);
         }
-        if ((s.azMoving && !azMoving) || (s.zenMoving && !zenMoving)) {
+        if ((s.azMoving && !azMoving) || (s.hydraulics && !hydraulics)) {
             Vec3 at = Vec3.atBottomCenterOf(be.getBlockPos()).add(0.0, 2.0, 0.0);
             manager.play(new SimpleSoundInstance(ModSounds.FPAS_STOP.get(), SoundSource.BLOCKS, 1.0F, 1.0F,
                     SoundInstance.createUnseededRandom(), at.x, at.y, at.z));
         }
         s.azMoving = azMoving;
-        s.zenMoving = zenMoving;
+        s.hydraulics = hydraulics;
     }
 
-    /** One axis' servo loop; stops itself once that axis settles or the FPAS is no longer drawn. */
-    private static final class SlewLoop extends AbstractTickableSoundInstance {
+    /** One motor loop; stops itself once that motion ends or the FPAS is no longer drawn. */
+    private static final class Loop extends AbstractTickableSoundInstance {
         private final ZoneBeaconBlockEntity be;
-        private final Slew slew;
+        private final State state;
         private final boolean azimuth;
 
-        SlewLoop(SoundEvent event, ZoneBeaconBlockEntity be, Slew slew, boolean azimuth) {
+        Loop(SoundEvent event, ZoneBeaconBlockEntity be, State state, boolean azimuth, float volume) {
             super(event, SoundSource.BLOCKS, SoundInstance.createUnseededRandom());
             this.be = be;
-            this.slew = slew;
+            this.state = state;
             this.azimuth = azimuth;
             this.looping = true;
             this.delay = 0;
-            this.volume = azimuth ? 0.8F : 0.6F;
+            this.volume = volume;
             Vec3 at = Vec3.atBottomCenterOf(be.getBlockPos()).add(0.0, 2.0, 0.0);
             this.x = at.x;
             this.y = at.y;
@@ -162,9 +174,9 @@ public class ZoneBeaconRenderer implements BlockEntityRenderer<ZoneBeaconBlockEn
 
         @Override
         public void tick() {
-            boolean moving = this.azimuth ? this.slew.azMoving : this.slew.zenMoving;
+            boolean moving = this.azimuth ? this.state.azMoving : this.state.hydraulics;
             if (this.be.isRemoved() || this.be.getLevel() == null || !moving
-                    || this.be.getLevel().getGameTime() - this.slew.last > LOOP_GRACE_TICKS) {
+                    || this.be.getLevel().getGameTime() - this.state.last > LOOP_GRACE_TICKS) {
                 stop();
             }
         }

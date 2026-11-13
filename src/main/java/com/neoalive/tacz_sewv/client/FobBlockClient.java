@@ -21,6 +21,7 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 
 import com.neoalive.tacz_sewv.TaczSewv;
+import com.neoalive.tacz_sewv.client.fpas.BedrockClip;
 import com.neoalive.tacz_sewv.init.ModBlocks;
 
 public final class FobBlockClient {
@@ -29,9 +30,10 @@ public final class FobBlockClient {
         COMMAND("command_block", ModBlocks.QUARTERS_BENCH.get()),
         PARKING("parking_field", ModBlocks.PARKING_FIELD.get()),
         STOCKPILE("stockpile_block", ModBlocks.STOCKPILE_AMMO.get()),
-        /** Kept live so {@link ZoneBeaconRenderer} can slew them. */
+        /** Kept live so {@link ZoneBeaconRenderer} can pose them. */
         // Not under geo/: GeckoLib parses every file there and crashes on Blockbench poly meshes.
-        FPAS("models/bedrock/block/", "fpas", ModBlocks.ZONE_BEACON.get(), "radar", "dish");
+        FPAS("models/bedrock/block/", "fpas", ModBlocks.ZONE_BEACON.get(), "radar", "dish", "hydraulicjacks",
+                "gunmetal");
 
         final ResourceLocation geo;
         final ResourceLocation texture;
@@ -53,6 +55,13 @@ public final class FobBlockClient {
     private static final Map<Kind, BakedBedrockModel> baked = new EnumMap<>(Kind.class);
     private static final Map<Kind, BakedModelInstance> itemInstances = new EnumMap<>(Kind.class);
     private static final Map<BlockEntity, BakedModelInstance> instances = new java.util.WeakHashMap<>();
+    /**
+     * Outside models/bedrock/ (SBW bakes every json there as a geo and crashes on a clip) and
+     * outside animations/ (GeckoLib and SBW both scan it).
+     */
+    private static final ResourceLocation FPAS_ANIMATION =
+            new ResourceLocation(TaczSewv.MODID, "sewv/fpas.animation.json");
+    private static Map<String, BedrockClip> fpasClips = Map.of();
 
     private FobBlockClient() {}
 
@@ -79,6 +88,11 @@ public final class FobBlockClient {
     public static BakedModelInstance itemInstance(Kind kind) {
         BakedBedrockModel model = baked.get(kind);
         return model == null ? null : itemInstances.computeIfAbsent(kind, k -> model.createInstance());
+    }
+
+    /** FPAS clips by short name (spin, transitionopen, transitionclose); empty if the file failed. */
+    public static Map<String, BedrockClip> fpasClips() {
+        return fpasClips;
     }
 
     public static ResourceLocation texture(Kind kind) {
@@ -112,6 +126,12 @@ public final class FobBlockClient {
             } catch (IOException | JsonParseException | IllegalStateException e) {
                 TaczSewv.LOGGER.error("Failed to load FOB model {}", kind.geo, e);
             }
+        }
+        try (InputStreamReader reader = new InputStreamReader(manager.open(FPAS_ANIMATION), StandardCharsets.UTF_8)) {
+            fpasClips = BedrockClip.parse(reader);
+        } catch (IOException | RuntimeException e) {
+            fpasClips = Map.of();
+            TaczSewv.LOGGER.error("Failed to load FPAS animation {}", FPAS_ANIMATION, e);
         }
     }
 }

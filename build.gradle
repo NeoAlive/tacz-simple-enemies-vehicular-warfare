@@ -1226,3 +1226,12 @@ spotless {
         endWithNewline()
     }
 }
+
+tasks.register('selfCheckFpasPose', JavaExec) {
+    group = 'verification'
+    description = 'Runs the FPAS clip sampler and pose state machine self-check.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
+    mainClass = 'com.neoalive.tacz_sewv.client.fpas.FpasPoseSelfCheck'
+    jvmArgs '-ea'
+}

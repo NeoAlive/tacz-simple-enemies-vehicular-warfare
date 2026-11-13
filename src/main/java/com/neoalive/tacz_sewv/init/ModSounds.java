@@ -231,9 +231,9 @@ public final class ModSounds {
     /** FOB scramble siren; one ~0.9 s clip, re-triggered every {@code ThreatEvaluator.ALARM_TICKS}. */
     public static final RegistryObject<SoundEvent> FOB_ALARM = register("fob_alarm");
 
-    /** FPAS radar: azimuth and zenith slew loops, the brake when either axis settles, new contact. */
+    /** FPAS radar: azimuth slew loop, open/close hydraulics loop, the brake when either stops, new contact. */
     public static final RegistryObject<SoundEvent> FPAS_AZIMUTH = register("fpas_azimuth");
-    public static final RegistryObject<SoundEvent> FPAS_ZENITH = register("fpas_zenith");
+    public static final RegistryObject<SoundEvent> FPAS_HYDRAULICS = register("fpas_hydraulics");
     public static final RegistryObject<SoundEvent> FPAS_STOP = register("fpas_stop");
     public static final RegistryObject<SoundEvent> FPAS_TARGET = register("fpas_target");
 

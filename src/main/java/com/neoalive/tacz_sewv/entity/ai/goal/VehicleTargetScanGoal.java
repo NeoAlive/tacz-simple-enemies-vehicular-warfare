@@ -25,6 +25,7 @@ import com.neoalive.tacz_sewv.entity.ai.command.CrewAssignment;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleWeapons;
+import com.neoalive.tacz_sewv.entity.ai.plane.PlaneRoleFilter;
 import com.neoalive.tacz_sewv.entity.ai.sensor.AwarenessCues;
 import com.neoalive.tacz_sewv.entity.ai.sensor.ContactBoard;
 import com.neoalive.tacz_sewv.entity.ai.sensor.ContactSight;
@@ -509,6 +510,7 @@ boolean inRun = DriveHelicopterGoal.inFiringRun(v);
             return false;
         }
         if (e.getVehicle() == v) return false; // riding our own hull — crewmate or min-range hugger
+        if (PlaneRoleFilter.rejects(this.unit, e)) return false;
         // A TOW's own scan only ever freelances onto armor — a launcher round on an infantryman
         // is a wasted missile. Infantry/monsters remain reachable, just not through this scan:
         // a radio fire mission (FireMissionSupport) sets the target through SEM's own

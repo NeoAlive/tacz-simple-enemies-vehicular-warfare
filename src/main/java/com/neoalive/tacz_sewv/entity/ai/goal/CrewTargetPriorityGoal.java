@@ -16,11 +16,13 @@ import com.neoalive.tacz_sewv.config.EasyModePlayerEvents;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
+import com.neoalive.tacz_sewv.entity.ai.plane.PlaneRoleFilter;
 import com.neoalive.tacz_sewv.entity.ai.sensor.CombatantIndex;
 import com.neoalive.tacz_sewv.entity.ai.sensor.ContactBoard;
 import com.neoalive.tacz_sewv.entity.ai.support.MortarSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.TowSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.VehicleMortarSupport;
+import com.neoalive.tacz_sewv.item.PlaneRole;
 
 /**
  * Doctrine targeting for crew-served weapons and mounted vehicle crews: a mortar shoots
@@ -75,6 +77,7 @@ public class CrewTargetPriorityGoal extends Goal {
         if (TowSupport.isCrewing(this.unit)) return Doctrine.ARMOR;
         if (MortarSupport.hasMortarClaim(this.unit)) return Doctrine.TROOPS;
         if (VehicleMortarSupport.isCrewing(this.unit)) return Doctrine.TROOPS;
+        if (PlaneRoleFilter.roleOf(this.unit) == PlaneRole.FIGHTER) return Doctrine.AIR;
         if (this.unit.getVehicle() instanceof VehicleEntity v && HullFacts.isAntiAirHull(v)) {
             return Doctrine.AIR;
         }
@@ -103,7 +106,7 @@ public class CrewTargetPriorityGoal extends Goal {
         // Already on the right kind of target — nothing to improve, so don't hold TARGET
         // (and don't pay for a scan) just to re-pick what the crew is already shooting.
         LivingEntity current = this.unit.getTarget();
-        if (current != null && current.isAlive() && preferred(doctrine, current)) return false;
+        if (current != null && current.isAlive() && wants(doctrine, current)) return false;
 
         if (this.scanCooldown > 0) {
             this.scanCooldown--;
@@ -131,7 +134,7 @@ public class CrewTargetPriorityGoal extends Goal {
         if (target == null || !target.isAlive()) return false;
         // The crew moved on to something else (retaliation, an order) — let it go rather
         // than drag it back; this goal's job is the pick, not custody.
-        if (!preferred(doctrine, target)) return false;
+        if (!wants(doctrine, target)) return false;
 
         // A board-held target of a mounted crew is not dropped for distance (it was admitted out to
         // wideScanRadius); it leaves with its contact.
@@ -162,7 +165,7 @@ public class CrewTargetPriorityGoal extends Goal {
         for (CombatantIndex.Entry entry : snapshot.query(this.unit.getX(), this.unit.getZ(), radius,
                 this.unit.getY() - radius, this.unit.getY() + radius)) {
             LivingEntity e = entry.living;
-            if (e != null && e.isAlive() && preferred(doctrine, e) && isValidTarget(e)
+            if (e != null && e.isAlive() && wants(doctrine, e) && isValidTarget(e)
                     && this.unit.distanceToSqr(e) <= radiusSq) {
                 candidates.add(e);
             }
@@ -172,7 +175,7 @@ public class CrewTargetPriorityGoal extends Goal {
         if (this.unit.getVehicle() != null && EasyMode.wideScanAllowed(this.unit)) {
             double wide = wideRadius(radius);
             for (LivingEntity e : ContactBoard.contactsFor(this.unit, minSource(doctrine))) {
-                if (candidates.contains(e) || !preferred(doctrine, e) || !isValidTarget(e)) continue;
+                if (candidates.contains(e) || !wants(doctrine, e) || !isValidTarget(e)) continue;
                 if (this.unit.distanceToSqr(e) <= wide * wide) candidates.add(e);
             }
         }
@@ -218,6 +221,11 @@ public class CrewTargetPriorityGoal extends Goal {
      */
     private static ContactBoard.Source minSource(Doctrine doctrine) {
         return doctrine == Doctrine.TROOPS ? ContactBoard.Source.RELAYED : ContactBoard.Source.PROXIMITY;
+    }
+
+    /** Preferred by doctrine and allowed by the hull's Airplane Mode. */
+    private boolean wants(Doctrine doctrine, LivingEntity target) {
+        return preferred(doctrine, target) && !PlaneRoleFilter.rejects(this.unit, target);
     }
 
     /** Is this the kind of target the crew's weapon is for? */

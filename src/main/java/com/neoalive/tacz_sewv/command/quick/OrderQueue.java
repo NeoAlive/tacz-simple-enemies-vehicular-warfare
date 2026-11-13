@@ -26,6 +26,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
+import com.neoalive.tacz_sewv.command.quick.scavenge.ScavengeTracker;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.support.CoverHoldOrders;
 import com.neoalive.tacz_sewv.entity.ai.support.VehicleFormation;
@@ -159,8 +160,9 @@ public final class OrderQueue {
             case QuickCommandRegistry.ID_DISMISS:
             case QuickCommandRegistry.ID_SET_GUARD:
                 return true;
+            case QuickCommandRegistry.ID_QUICK_SCAVENGE:
             case QuickCommandRegistry.ID_QUICK_REFILL:
-                return !QuickRefillTracker.isActive(player.getUUID());
+                return !ScavengeTracker.isActive(player.getUUID());
             case QuickCommandRegistry.ID_QUICK_EVAC:
                 return !QuickEvacTracker.isActive(player.getUUID());
             case QuickCommandRegistry.ID_QUICK_MOVE:

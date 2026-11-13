@@ -42,6 +42,7 @@ import com.neoalive.tacz_sewv.entity.ai.support.VehicleFormation;
 import com.neoalive.tacz_sewv.entity.unit.PmcCommanderEntity;
 import com.neoalive.tacz_sewv.init.ModSounds;
 import com.neoalive.tacz_sewv.item.HandheldRadioItem;
+import com.neoalive.tacz_sewv.item.PlaneRole;
 import com.neoalive.tacz_sewv.item.RadioSettings;
 import com.neoalive.tacz_sewv.item.SignalRelayItem;
 import com.neoalive.tacz_sewv.map.VehicleMarker;
@@ -445,6 +446,7 @@ public final class QuickCommandWheelScreen extends Screen {
         if (QuickAirClient.isAirClientAction(pipelineId)) return QuickAirClient.isEnabled(pipelineId);
         return switch (pipelineId) {
             case QuickCommandRegistry.ID_BOARD_PASSENGER -> this.aim.entity() != null;
+            case QuickCommandRegistry.ID_PLANE_ROLE -> !QuickAirClient.planePilots().isEmpty();
             case QuickCommandRegistry.ID_REACH_GUARD -> reachGuardKnown();
             // Releases waiters into the player's own hull, so it means nothing on foot.
             case QuickCommandRegistry.ID_BOARD_QUEUED -> this.minecraft != null && this.minecraft.player != null
@@ -589,6 +591,15 @@ public final class QuickCommandWheelScreen extends Screen {
         // Signal: no unit scope, the server takes every owned unit under the bound radars.
         if (QuickCommandRegistry.isSignalLeaf(pipelineId)) {
             NetworkHandler.CHANNEL.sendToServer(new PacketQuickCommand(pipelineId, List.of(), false, null));
+            return true;
+        }
+
+        // Airplane Mode goes to fixed-wing pilots only, whatever else is in scope.
+        if (QuickCommandRegistry.isPlaneRole(pipelineId)) {
+            List<Integer> pilots = QuickAirClient.planePilots();
+            if (pilots.isEmpty()) return false;
+            NetworkHandler.CHANNEL.sendToServer(
+                    new PacketQuickCommand(pipelineId, pilots, WheelScope.explicit(), null));
             return true;
         }
 
@@ -965,6 +976,13 @@ public final class QuickCommandWheelScreen extends Screen {
                     I18n.get(FieldChoice.manValueKey()), man.length() > place.length() ? man : place,
                     I18n.get("gui.tacz_sewv.wheel.scale.tag." + pipelineId),
                     FieldChoice.manNow() ? 1.0f : 0.0f, FieldChoice.manNow());
+        }
+        if (FieldChoice.isPlaneRoleLeaf(pipelineId)) {
+            PlaneRole role = FieldChoice.planeRole();
+            return new ScaleCardDraw.Card(I18n.get("gui.tacz_sewv.wheel.scale.plane_role"),
+                    FieldChoice.planeRoleName(), FieldChoice.widestPlaneRoleName(),
+                    I18n.get("gui.tacz_sewv.wheel.scale.tag." + pipelineId),
+                    role.ordinal() / (float) (PlaneRole.values().length - 1), role != PlaneRole.AUTO);
         }
         if (FieldChoice.isMinefieldLeaf(pipelineId)) {
             return new ScaleCardDraw.Card(I18n.get("gui.tacz_sewv.wheel.scale.mine"), FieldChoice.mineName(),

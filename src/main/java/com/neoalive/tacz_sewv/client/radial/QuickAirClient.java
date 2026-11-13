@@ -125,6 +125,13 @@ public final class QuickAirClient {
         return findPilots(mc, null);
     }
 
+    /** Owned fixed-wing pilots in scope, for Airplane Mode. */
+    public static List<Integer> planePilots() {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player == null || mc.level == null) return List.of();
+        return findPilots(mc, true);
+    }
+
     private static boolean canSelfRappel(Minecraft mc) {
         if (!(mc.player.getVehicle() instanceof VehicleEntity hull)
                 || !HullFacts.isHelicopterHull(hull)) {

@@ -5,6 +5,7 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.entity.Entity;
 
 import com.neoalive.tacz_sewv.item.PlaneAttackMode;
+import com.neoalive.tacz_sewv.item.PlaneRole;
 
 /**
  * Player-issued flight command carried on a unit entity, read by
@@ -63,6 +64,8 @@ public interface IHelicopterPilot {
      * is {@code AUTO}, which is the correct answer for every crew nobody ever radioed.
      */
     String TAG_PLANE_ATTACK_MODE = "tacz_sewv_plane_attack_mode";
+    /** Airplane Mode target filter ({@link PlaneRole}). Missing key is AUTO. */
+    String TAG_PLANE_ROLE = "tacz_sewv_plane_role";
 
     default void sewv$setHeliCommand(int command) {
         ((Entity) this).getPersistentData().putInt(TAG_HELI_COMMAND, command);
@@ -103,5 +106,14 @@ public interface IHelicopterPilot {
     default PlaneAttackMode sewv$getPlaneAttackMode() {
         return PlaneAttackMode.byOrdinal(
                 ((Entity) this).getPersistentData().getInt(TAG_PLANE_ATTACK_MODE));
+    }
+
+    default void sewv$setPlaneRole(PlaneRole role) {
+        ((Entity) this).getPersistentData().putInt(TAG_PLANE_ROLE,
+                role == null ? PlaneRole.AUTO.ordinal() : role.ordinal());
+    }
+
+    default PlaneRole sewv$getPlaneRole() {
+        return PlaneRole.byOrdinal(((Entity) this).getPersistentData().getInt(TAG_PLANE_ROLE));
     }
 }

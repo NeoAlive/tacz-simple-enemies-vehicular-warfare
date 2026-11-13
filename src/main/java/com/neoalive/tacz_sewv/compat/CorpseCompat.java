@@ -1,10 +1,13 @@
 package com.neoalive.tacz_sewv.compat;
 
 import java.util.ArrayDeque;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
+
+import javax.annotation.Nullable;
 
 import com.mojang.logging.LogUtils;
 import net.minecraft.core.NonNullList;
@@ -18,6 +21,7 @@ import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.ModList;
 import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.items.IItemHandlerModifiable;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
@@ -27,6 +31,7 @@ import org.slf4j.Logger;
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.bridge.ISemCorpse;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.util.ListsItemHandler;
 import com.neoalive.tacz_sewv.util.UnitCorpseAppearance;
 import com.neoalive.tacz_sewv.util.UnitCorpseLoot;
 
@@ -143,7 +148,41 @@ public final class CorpseCompat {
      * CorpseMod types only. Never referenced until {@link #isLoaded()} is true, so an install
      * without Corpse never classloads this nested class.
      */
+    /** True for a CorpseMod body. False when CorpseMod is absent. */
+    public static boolean isCorpse(Entity entity) {
+        if (!isLoaded()) return false;
+        try {
+            return Access.isCorpse(entity);
+        } catch (NoClassDefFoundError e) {
+            return false;
+        }
+    }
+
+    /** A body's loot as one take-only handler, or null for anything that is not a loaded corpse. */
+    @Nullable
+    public static IItemHandlerModifiable inventory(Entity entity) {
+        if (!isLoaded()) return null;
+        try {
+            return Access.inventory(entity);
+        } catch (NoClassDefFoundError e) {
+            return null;
+        }
+    }
+
     private static final class Access {
+
+        static boolean isCorpse(Entity entity) {
+            return entity instanceof de.maxhenkel.corpse.entities.CorpseEntity;
+        }
+
+        @Nullable
+        static IItemHandlerModifiable inventory(Entity entity) {
+            if (!(entity instanceof de.maxhenkel.corpse.entities.CorpseEntity corpse)) return null;
+            de.maxhenkel.corpse.corelib.death.Death death = corpse.getDeath();
+            if (death == null) return null;
+            return new ListsItemHandler(List.of(death.getMainInventory(), death.getOffHandInventory(),
+                    death.getArmorInventory(), death.getAdditionalItems()), () -> {});
+        }
 
         private Access() {}
 

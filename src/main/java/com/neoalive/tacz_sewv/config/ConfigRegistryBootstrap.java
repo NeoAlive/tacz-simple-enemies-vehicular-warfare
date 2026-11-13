@@ -949,8 +949,26 @@ final class ConfigRegistryBootstrap {
                 SewvConfig.QUICK_EVAC_BOARD_RADIUS, SewvConfig.QUICK_EVAC_BOARD_RADIUS::set);
         b.intRange(ConfigScope.SERVER, "boarding", "quickEvacBoardTimeoutTicks", 40, 2400,
                 SewvConfig.QUICK_EVAC_BOARD_TIMEOUT_TICKS, SewvConfig.QUICK_EVAC_BOARD_TIMEOUT_TICKS::set);
-        b.intRange(ConfigScope.SERVER, "boarding", "quickRefillTimeoutTicks", 40, 2400,
-                SewvConfig.QUICK_REFILL_TIMEOUT_TICKS, SewvConfig.QUICK_REFILL_TIMEOUT_TICKS::set);
+        b.intRange(ConfigScope.SERVER, "boarding", "scavengeTimeoutTicks", 40, 6000,
+                SewvConfig.SCAVENGE_TIMEOUT_TICKS, SewvConfig.SCAVENGE_TIMEOUT_TICKS::set);
+        b.doubleRange(ConfigScope.SERVER, "boarding", "scavengeRadius", 4.0, 128.0,
+                SewvConfig.SCAVENGE_RADIUS, SewvConfig.SCAVENGE_RADIUS::set);
+        b.intRange(ConfigScope.SERVER, "boarding", "scavengeAmmoStacks", 1, 12,
+                SewvConfig.SCAVENGE_AMMO_STACKS, SewvConfig.SCAVENGE_AMMO_STACKS::set);
+        b.intRange(ConfigScope.SERVER, "boarding", "scavengeEmplacementCap", 0, 9,
+                SewvConfig.SCAVENGE_EMPLACEMENT_CAP, SewvConfig.SCAVENGE_EMPLACEMENT_CAP::set);
+        b.intRange(ConfigScope.SERVER, "boarding", "scavengeMineCap", 0, 32,
+                SewvConfig.SCAVENGE_MINE_CAP, SewvConfig.SCAVENGE_MINE_CAP::set);
+        b.intRange(ConfigScope.SERVER, "boarding", "scavengeGrenadeCap", 0, 16,
+                SewvConfig.SCAVENGE_GRENADE_CAP, SewvConfig.SCAVENGE_GRENADE_CAP::set);
+        b.intRange(ConfigScope.SERVER, "boarding", "scavengeMedkitCap", 0, 16,
+                SewvConfig.SCAVENGE_MEDKIT_CAP, SewvConfig.SCAVENGE_MEDKIT_CAP::set);
+        b.intRange(ConfigScope.SERVER, "boarding", "scavengeShovelCap", 0, 4,
+                SewvConfig.SCAVENGE_SHOVEL_CAP, SewvConfig.SCAVENGE_SHOVEL_CAP::set);
+        b.intRange(ConfigScope.SERVER, "boarding", "scavengeRepairToolCap", 0, 4,
+                SewvConfig.SCAVENGE_REPAIR_TOOL_CAP, SewvConfig.SCAVENGE_REPAIR_TOOL_CAP::set);
+        b.intRange(ConfigScope.SERVER, "boarding", "scavengeRadioCap", 0, 4,
+                SewvConfig.SCAVENGE_RADIO_CAP, SewvConfig.SCAVENGE_RADIO_CAP::set);
         b.doubleRange(ConfigScope.SERVER, "boarding", "quickLandRadius", 8.0, 256.0,
                 SewvConfig.QUICK_LAND_RADIUS, SewvConfig.QUICK_LAND_RADIUS::set);
         b.doubleRange(ConfigScope.SERVER, "boarding", "quickGearSearchRadius", 4.0, 128.0,

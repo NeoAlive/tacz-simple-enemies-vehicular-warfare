@@ -45,6 +45,7 @@ public final class OrderStandDown {
         CoverHoldOrders.clear(pmc);
         com.neoalive.tacz_sewv.command.quick.GearSearchTracker.release(pmc);
         com.neoalive.tacz_sewv.command.quick.MinefieldTracker.release(pmc);
+        com.neoalive.tacz_sewv.command.quick.scavenge.ScavengeTracker.release(pmc);
     }
 
     /**
@@ -66,6 +67,7 @@ public final class OrderStandDown {
         if (CoverHoldOrders.has(pmc)) return true;
         if (com.neoalive.tacz_sewv.command.quick.GearSearchTracker.isSearching(pmc)) return true;
         if (com.neoalive.tacz_sewv.command.quick.MinefieldTracker.isLaying(pmc)) return true;
+        if (com.neoalive.tacz_sewv.command.quick.scavenge.ScavengeTracker.isScavenging(pmc)) return true;
         IVehicleBoarder boarder = (IVehicleBoarder) pmc;
         if (boarder.tacz_sewv$isBoarding() || boarder.tacz_sewv$getMountTargetId() >= 0) return true;
         return MortarSupport.hasMortarClaim(pmc) || FobSupport.hasRoutePending(pmc);
@@ -80,6 +82,7 @@ public final class OrderStandDown {
         CoverHoldOrders.clear(pmc);
         com.neoalive.tacz_sewv.command.quick.GearSearchTracker.release(pmc);
         com.neoalive.tacz_sewv.command.quick.MinefieldTracker.release(pmc);
+        com.neoalive.tacz_sewv.command.quick.scavenge.ScavengeTracker.release(pmc);
         pmc.setOrder(OrderType.CEASE_FIRE);
 
         PatrolSupport.clearSweepMembership(pmc, reason);

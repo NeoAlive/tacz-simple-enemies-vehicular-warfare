@@ -62,7 +62,7 @@ public final class EquipmentDeploy {
     }
 
     @Nullable
-    static Kit resolve(ItemStack stack, int slot, List<String> tow, List<String> mortar) {
+    public static Kit resolve(ItemStack stack, int slot, List<String> tow, List<String> mortar) {
         if (stack.isEmpty()) return null;
         if (stack.getItem() instanceof MortarDeployerItem) {
             EntityType<?> type = ModEntities.MORTAR.get();

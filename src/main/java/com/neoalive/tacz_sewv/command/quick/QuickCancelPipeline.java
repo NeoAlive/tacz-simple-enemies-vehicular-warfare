@@ -14,6 +14,7 @@ import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.bridge.IMortarCrew;
 import com.neoalive.tacz_sewv.bridge.IPathwayInfantry;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
+import com.neoalive.tacz_sewv.command.quick.scavenge.ScavengeTracker;
 import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.support.EntrenchSupport;
@@ -28,7 +29,7 @@ import com.neoalive.tacz_sewv.fob.FobSupport;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 
 /**
- * Root Cancel: abort active Quick Evac / Refill, dismiss area / board / entrench / capture-medic
+ * Root Cancel: abort active Quick Evac / Scavenge, dismiss area / board / entrench / capture-medic
  * state on radius PMCs, and drop them to FREE_FIRE. Does not force a dismount.
  */
 public final class QuickCancelPipeline implements QuickCommandPipeline {
@@ -37,7 +38,7 @@ public final class QuickCancelPipeline implements QuickCommandPipeline {
     public void execute(ServerPlayer issuer, QuickCommandContext context) {
         if (!(issuer.level() instanceof ServerLevel level)) return;
 
-        boolean abortedRefill = QuickRefillTracker.cancelPlayer(issuer.getUUID(), level);
+        boolean abortedRefill = ScavengeTracker.cancelPlayer(issuer.getUUID(), level);
         boolean abortedEvac = QuickEvacTracker.cancelPlayer(issuer.getUUID(), level);
         abortedRefill |= GearSearchTracker.cancelPlayer(issuer.getUUID(), level);
         abortedRefill |= MinefieldTracker.cancelPlayer(issuer.getUUID());

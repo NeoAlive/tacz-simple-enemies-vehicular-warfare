@@ -33,9 +33,11 @@ import com.neoalive.tacz_sewv.crew.CrewFacts;
 import com.neoalive.tacz_sewv.crew.CrewRadio;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
+import com.neoalive.tacz_sewv.entity.ai.plane.PlaneRoleFilter;
 import com.neoalive.tacz_sewv.init.ModSounds;
 import com.neoalive.tacz_sewv.init.ModSounds.SoundPool;
 import com.neoalive.tacz_sewv.item.PlaneAttackMode;
+import com.neoalive.tacz_sewv.item.PlaneRole;
 import com.neoalive.tacz_sewv.item.RadioFrequency;
 
 /**
@@ -106,7 +108,8 @@ public final class FireMissionSupport {
 
     private static boolean isPlanePilot(AbstractUnit unit) {
         if (!(unit.getVehicle() instanceof VehicleEntity v) || v.getFirstPassenger() != unit) return false;
-        return HullFacts.isPlaneHull(v);
+        // A Fighter-mode plane is not offered for close air support.
+        return HullFacts.isPlaneHull(v) && PlaneRoleFilter.roleOf(unit) != PlaneRole.FIGHTER;
     }
 
     /**

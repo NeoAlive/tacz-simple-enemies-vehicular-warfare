@@ -6,11 +6,13 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.BiPredicate;
 
 import javax.annotation.Nullable;
 
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.SectionPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -19,6 +21,8 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.chunk.LevelChunk;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.common.capabilities.ForgeCapabilities;
 import net.minecraftforge.event.TickEvent;
@@ -172,12 +176,44 @@ public final class GearSearchTracker {
         }
 
         BlockPos ownStockpile = ownStockpile(level, issuer);
-        BlockPos chest = QuickRefillTracker.nearestContainer(level, pmc, radius, (be, handler) -> {
+        BlockPos chest = nearestContainer(level, pmc, radius, (be, handler) -> {
             if (be instanceof StockpileBlockEntity && !be.getBlockPos().equals(ownStockpile)) return false;
             return count(handler, kit) - run.claimed(be.getBlockPos()) > 0;
         });
         if (chest != null && pmc.distanceToSqr(Vec3.atCenterOf(chest)) < bestDist) {
             best = new Target(-1, chest);
+        }
+        return best;
+    }
+
+    /** Nearest loaded block entity within {@code radius} whose item handler passes {@code test}. */
+    @Nullable
+    static BlockPos nearestContainer(ServerLevel level, Entity origin, double radius,
+                                            BiPredicate<BlockEntity, IItemHandler> test) {
+        AABB box = origin.getBoundingBox().inflate(radius);
+        BlockPos best = null;
+        double bestDist = Double.MAX_VALUE;
+        int minCx = SectionPos.blockToSectionCoord((int) Math.floor(box.minX));
+        int maxCx = SectionPos.blockToSectionCoord((int) Math.floor(box.maxX));
+        int minCz = SectionPos.blockToSectionCoord((int) Math.floor(box.minZ));
+        int maxCz = SectionPos.blockToSectionCoord((int) Math.floor(box.maxZ));
+        for (int cx = minCx; cx <= maxCx; cx++) {
+            for (int cz = minCz; cz <= maxCz; cz++) {
+                if (!level.hasChunk(cx, cz)) continue;
+                LevelChunk chunk = level.getChunk(cx, cz);
+                for (BlockEntity be : chunk.getBlockEntities().values()) {
+                    BlockPos pos = be.getBlockPos();
+                    if (!box.contains(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5)) continue;
+                    IItemHandler handler = be.getCapability(ForgeCapabilities.ITEM_HANDLER, null)
+                            .orElse(null);
+                    if (handler == null || !test.test(be, handler)) continue;
+                    double d = origin.distanceToSqr(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5);
+                    if (d < bestDist) {
+                        bestDist = d;
+                        best = pos.immutable();
+                    }
+                }
+            }
         }
         return best;
     }

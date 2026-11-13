@@ -10,12 +10,14 @@ import javax.annotation.Nullable;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 
 import com.neoalive.tacz_sewv.client.radial.WedgeEntry;
+import com.neoalive.tacz_sewv.command.quick.scavenge.QuickScavengePipeline;
 import com.neoalive.tacz_sewv.compat.PlayerReviveCompat;
 import com.neoalive.tacz_sewv.entity.ai.support.CoverHoldOrders;
 import com.neoalive.tacz_sewv.entity.ai.support.FormationShape;
 import com.neoalive.tacz_sewv.entity.ai.support.RoleKit;
 import com.neoalive.tacz_sewv.fpas.RadarContact;
 import com.neoalive.tacz_sewv.item.PlaneAttackMode;
+import com.neoalive.tacz_sewv.item.PlaneRole;
 import com.neoalive.tacz_sewv.item.RadioFrequency;
 import com.neoalive.tacz_sewv.item.RadioSettings;
 
@@ -37,6 +39,8 @@ public final class QuickCommandRegistry {
     public static final String ID_QUICK_BOARD = "quick_board";
     public static final String ID_BOARD_QUEUED = "board_queued";
     public static final String ID_QUICK_ENTRENCH = "quick_entrench";
+    public static final String ID_QUICK_SCAVENGE = "quick_scavenge";
+    /** Old id of the order Scavenge replaced; kept so a queued entry still resolves. */
     public static final String ID_QUICK_REFILL = "quick_refill";
     /** Wheel-only leaves; the role picked with Ctrl+scroll turns them into a per-kit id. */
     public static final String ID_QUICK_SEARCH_GEAR = "quick_search_gear";
@@ -48,6 +52,8 @@ public final class QuickCommandRegistry {
     public static final String ID_QUICK_DEPLOY_EQUIPMENT = "quick_deploy_equipment";
     /** Wheel-only leaf; the mine and shape picked on the wheel ride the id ({@code QuickMinefieldPipeline#id}). */
     public static final String ID_QUICK_MINEFIELD = "quick_minefield";
+    /** Wheel-only leaf; the role picked with a scroll turns it into {@link #planeRoleId}. */
+    public static final String ID_PLANE_ROLE = "quick_plane_role";
     public static final String ID_QUICK_CANCEL = "quick_cancel";
     public static final String ID_QUICK_FOLLOW = "quick_follow";
     public static final String ID_QUICK_DISMOUNT = "quick_dismount";
@@ -125,7 +131,9 @@ public final class QuickCommandRegistry {
         register(ID_QUICK_EVAC, new QuickEvacPipeline());
         register(ID_QUICK_BOARD, new QuickBoardPipeline());
         register(ID_QUICK_ENTRENCH, new QuickEntrenchPipeline());
-        register(ID_QUICK_REFILL, new QuickRefillPipeline());
+        QuickScavengePipeline scavenge = new QuickScavengePipeline();
+        register(ID_QUICK_SCAVENGE, scavenge);
+        register(ID_QUICK_REFILL, scavenge);
         register(ID_QUICK_CANCEL, new QuickCancelPipeline());
         register(ID_QUICK_FOLLOW, new QuickSemOrderPipeline(OrderType.FOLLOW_COMMANDER));
         register(ID_QUICK_HOLD, new QuickSemOrderPipeline(OrderType.HOLD_POSITION));
@@ -144,6 +152,7 @@ public final class QuickCommandRegistry {
         }
         for (RoleKit.Kit kit : SEARCH_KITS) register(searchGearId(kit), new QuickSearchGearPipeline(kit));
         for (RoleKit.Kit kit : SWAP_KITS) register(swapRoleId(kit), new QuickSwapRolePipeline(kit));
+        for (PlaneRole role : PlaneRole.values()) register(planeRoleId(role), new QuickPlaneRolePipeline(role));
         // Formation leaves are client-committed via PacketVehicleFormation (not PacketQuickCommand).
 
         List<WedgeEntry> general = new ArrayList<>();
@@ -172,7 +181,7 @@ public final class QuickCommandRegistry {
                         leaf(ID_TOW, "\u26D3", 0xD98A4A))),
                 category("land", "\u26F0", 0x6BA84A, List.of(
                         leaf(ID_QUICK_ENTRENCH, "\u26F0", 0x6BA84A),
-                        leaf(ID_QUICK_REFILL, "\u21BB", 0x6BA84A),
+                        leaf(ID_QUICK_SCAVENGE, "\u21BB", 0x6BA84A),
                         leaf(ID_QUICK_ROUTE_FOB, "\u2302", 0x6BA84A),
                         leaf(ID_QUICK_SEARCH_GEAR, "\u2315", 0x6BA84A),
                         leaf(ID_QUICK_SWAP_ROLE, "\u21C6", 0x6BA84A),
@@ -185,7 +194,8 @@ public final class QuickCommandRegistry {
                         leaf(ID_QUICK_EMERGENCY_LAND, "\u26A0", 0x4AB8E8),
                         leaf(ID_RAPPEL_CREW, "\u21CA", 0x4AB8E8),
                         leaf(ID_RAPPEL_SELF, "\u21F3", 0x4AB8E8),
-                        leaf(ID_PARATROOP, "\u2602", 0x4AB8E8))),
+                        leaf(ID_PARATROOP, "\u2602", 0x4AB8E8),
+                        leaf(ID_PLANE_ROLE, "\u2316", 0x4AB8E8))),
                 category("procedures", "\u2699", 0x5AB8A0, List.of(
                         leaf(ID_QUICK_EVAC, "\u21E7", 0x5AB8A0),
                         leaf(ID_QUICK_SEARCH, "\u25CE", 0x5AB8A0),
@@ -305,6 +315,14 @@ public final class QuickCommandRegistry {
         return pipelineId.startsWith(ID_QUICK_DEPLOY_EQUIPMENT);
     }
 
+    public static String planeRoleId(PlaneRole role) {
+        return ID_PLANE_ROLE + "_" + role.key();
+    }
+
+    public static boolean isPlaneRole(String pipelineId) {
+        return pipelineId.startsWith(ID_PLANE_ROLE);
+    }
+
     public static boolean isMinefield(String pipelineId) {
         return pipelineId.startsWith(ID_QUICK_MINEFIELD);
     }
@@ -325,6 +343,7 @@ public final class QuickCommandRegistry {
                 || isMinefield(pipelineId)
                 || ID_QUICK_BOARD.equals(pipelineId)
                 || ID_QUICK_ENTRENCH.equals(pipelineId)
+                || ID_QUICK_SCAVENGE.equals(pipelineId)
                 || ID_QUICK_REFILL.equals(pipelineId)
                 || ID_QUICK_EVAC.equals(pipelineId);
     }

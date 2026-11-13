@@ -782,6 +782,15 @@ tasks.register('selfCheckTaczCube', JavaExec) {
     jvmArgs '-ea'
 }
 
+tasks.register('selfCheckScavenge', JavaExec) {
+    group = 'verification'
+    description = 'Runs the Scavenge and Airplane Mode self-check (stages, caps, full pockets, role filter).'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
+    mainClass = 'com.neoalive.tacz_sewv.command.quick.scavenge.ScavengeSelfCheck'
+    jvmArgs '-ea'
+}
+
 tasks.register('selfCheckLang', JavaExec) {
     group = 'verification'
     description = 'Checks locale files against en_us for keys, placeholders, and banned phrasing.'
@@ -794,7 +803,7 @@ tasks.register('selfCheckLang', JavaExec) {
 tasks.register('selfCheck') {
     group = 'verification'
     description = 'Runs all headless AI self-checks.'
-    dependsOn 'selfCheckArmor', 'selfCheckArtillery', 'selfCheckReducedCharge', 'selfCheckShieldRay', 'selfCheckCamo', 'selfCheckLoadout', 'selfCheckVehiclePacks', 'selfCheckMiscPacks', 'selfCheckUtility', 'selfCheckEasyMode', 'selfCheckRadial', 'selfCheckSignal', 'selfCheckCoverHold', 'selfCheckWeapons', 'selfCheckGrouping', 'selfCheckElection', 'selfCheckInfluence', 'selfCheckPlay', 'selfCheckFormation', 'selfCheckPlayerFormation', 'selfCheckInfantryFormation', 'selfCheckMarch', 'selfCheckSeam', 'selfCheckHeli', 'selfCheckHeliArmament', 'selfCheckPlane', 'selfCheckContactBoard', 'selfCheckWideScan', 'selfCheckPathBudget', 'selfCheckLofCache', 'selfCheckChunkTickets', 'selfCheckUnitLod', 'selfCheckTaskedDestination', 'selfCheckDismount', 'selfCheckMinefield', 'selfCheckTactics', 'selfCheckCues', 'selfCheckSuppression', 'selfCheckAcquisition', 'selfCheckEngineGates', 'selfCheckSounds', 'selfCheckRadioQueue', 'selfCheckCrewSkins', 'selfCheckAirport', 'selfCheckGround', 'selfCheckOrca', 'selfCheckCover', 'selfCheckBattlePosition', 'selfCheckBallistics', 'selfCheckIdle', 'selfCheckInvasion', 'selfCheckConfig', 'selfCheckPathway', 'selfCheckStructures', 'selfCheckTerritory', 'selfCheckDiplomacy', 'selfCheckVehicleAccess', 'selfCheckLv', 'selfCheckRadioDsp', 'selfCheckMinimap', 'selfCheckVehicleClientLod', 'selfCheckTaczCube', 'selfCheckLang'
+    dependsOn 'selfCheckArmor', 'selfCheckArtillery', 'selfCheckReducedCharge', 'selfCheckShieldRay', 'selfCheckCamo', 'selfCheckLoadout', 'selfCheckVehiclePacks', 'selfCheckMiscPacks', 'selfCheckUtility', 'selfCheckEasyMode', 'selfCheckRadial', 'selfCheckSignal', 'selfCheckCoverHold', 'selfCheckWeapons', 'selfCheckGrouping', 'selfCheckElection', 'selfCheckInfluence', 'selfCheckPlay', 'selfCheckFormation', 'selfCheckPlayerFormation', 'selfCheckInfantryFormation', 'selfCheckMarch', 'selfCheckSeam', 'selfCheckHeli', 'selfCheckHeliArmament', 'selfCheckPlane', 'selfCheckContactBoard', 'selfCheckWideScan', 'selfCheckPathBudget', 'selfCheckLofCache', 'selfCheckChunkTickets', 'selfCheckUnitLod', 'selfCheckTaskedDestination', 'selfCheckDismount', 'selfCheckMinefield', 'selfCheckTactics', 'selfCheckCues', 'selfCheckSuppression', 'selfCheckAcquisition', 'selfCheckEngineGates', 'selfCheckSounds', 'selfCheckRadioQueue', 'selfCheckCrewSkins', 'selfCheckAirport', 'selfCheckGround', 'selfCheckOrca', 'selfCheckCover', 'selfCheckBattlePosition', 'selfCheckBallistics', 'selfCheckIdle', 'selfCheckInvasion', 'selfCheckConfig', 'selfCheckPathway', 'selfCheckStructures', 'selfCheckTerritory', 'selfCheckDiplomacy', 'selfCheckVehicleAccess', 'selfCheckLv', 'selfCheckRadioDsp', 'selfCheckMinimap', 'selfCheckVehicleClientLod', 'selfCheckTaczCube', 'selfCheckScavenge', 'selfCheckLang'
 }
 
 mixin {

@@ -10,7 +10,9 @@ import net.minecraftforge.registries.ForgeRegistries;
 
 import com.neoalive.tacz_sewv.command.quick.QuickCommandRegistry;
 import com.neoalive.tacz_sewv.command.quick.QuickMinefieldPipeline;
+import com.neoalive.tacz_sewv.command.quick.QuickPlaneRolePipeline;
 import com.neoalive.tacz_sewv.entity.ai.support.mines.MinefieldPlanner;
+import com.neoalive.tacz_sewv.item.PlaneRole;
 
 /**
  * The values the two engineer-ish leaves carry. Deploy Equipment: Ctrl+scroll flips whether the unit
@@ -24,6 +26,7 @@ public final class FieldChoice {
     /** 0 = Auto, otherwise {@code minePool[mineIndex - 1]}. */
     private static int mineIndex = 0;
     private static MinefieldPlanner.ShapeChoice shape = MinefieldPlanner.ShapeChoice.AUTO;
+    private static PlaneRole planeRole = PlaneRole.AUTO;
 
     private FieldChoice() {}
 
@@ -34,7 +37,12 @@ public final class FieldChoice {
 
     public static boolean isChoiceLeaf(String pipelineId) {
         return QuickCommandRegistry.ID_QUICK_DEPLOY_EQUIPMENT.equals(pipelineId)
-                || QuickCommandRegistry.ID_QUICK_MINEFIELD.equals(pipelineId);
+                || QuickCommandRegistry.ID_QUICK_MINEFIELD.equals(pipelineId)
+                || QuickCommandRegistry.ID_PLANE_ROLE.equals(pipelineId);
+    }
+
+    public static boolean isPlaneRoleLeaf(String pipelineId) {
+        return QuickCommandRegistry.ID_PLANE_ROLE.equals(pipelineId);
     }
 
     public static boolean isMinefieldLeaf(String pipelineId) {
@@ -45,6 +53,10 @@ public final class FieldChoice {
     public static boolean step(String pipelineId, int dir) {
         if (QuickCommandRegistry.ID_QUICK_DEPLOY_EQUIPMENT.equals(pipelineId)) {
             manNow = !manNow;
+            return true;
+        }
+        if (isPlaneRoleLeaf(pipelineId)) {
+            planeRole = dir > 0 ? planeRole.next() : planeRole.previous();
             return true;
         }
         if (isMinefieldLeaf(pipelineId)) {
@@ -66,6 +78,7 @@ public final class FieldChoice {
         if (QuickCommandRegistry.ID_QUICK_DEPLOY_EQUIPMENT.equals(pipelineId)) {
             return QuickCommandRegistry.deployEquipmentId(manNow);
         }
+        if (isPlaneRoleLeaf(pipelineId)) return QuickCommandRegistry.planeRoleId(planeRole);
         if (isMinefieldLeaf(pipelineId)) {
             String item = mineIndex == 0 ? QuickMinefieldPipeline.AUTO : minePool.get(mineIndex - 1);
             return QuickMinefieldPipeline.id(shape.ordinal(), item);
@@ -78,16 +91,45 @@ public final class FieldChoice {
         if (QuickCommandRegistry.ID_QUICK_DEPLOY_EQUIPMENT.equals(pipelineId)) {
             return I18n.get(key, I18n.get(manValueKey()));
         }
+        if (isPlaneRoleLeaf(pipelineId)) return I18n.get(key, planeRoleName());
         return I18n.get(key, mineName());
     }
 
     public static String icon(String pipelineId, String fallback) {
         if (QuickCommandRegistry.ID_QUICK_DEPLOY_EQUIPMENT.equals(pipelineId)) return manNow ? "⚒" : "⚓";
+        if (isPlaneRoleLeaf(pipelineId)) {
+            return switch (planeRole) {
+                case AUTO -> fallback;
+                case CAS -> "\u2316";
+                case FIGHTER -> "\u2708";
+            };
+        }
         return fallback;
     }
 
     public static String manValueKey() {
         return manNow ? "gui.tacz_sewv.wheel.scale.deploy.man" : "gui.tacz_sewv.wheel.scale.deploy.place";
+    }
+
+    public static PlaneRole planeRole() {
+        return planeRole;
+    }
+
+    public static String planeRoleName() {
+        return planeRoleName(planeRole);
+    }
+
+    public static String planeRoleName(PlaneRole role) {
+        return I18n.get(QuickPlaneRolePipeline.roleKey(role));
+    }
+
+    public static String widestPlaneRoleName() {
+        String widest = "";
+        for (PlaneRole role : PlaneRole.values()) {
+            String n = planeRoleName(role);
+            if (n.length() > widest.length()) widest = n;
+        }
+        return widest;
     }
 
     public static boolean manNow() {

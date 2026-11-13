@@ -366,7 +366,16 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.DoubleValue QUICK_EVAC_HELI_SEARCH_RADIUS;
     public static final ForgeConfigSpec.DoubleValue QUICK_EVAC_BOARD_RADIUS;
     public static final ForgeConfigSpec.IntValue QUICK_EVAC_BOARD_TIMEOUT_TICKS;
-    public static final ForgeConfigSpec.IntValue QUICK_REFILL_TIMEOUT_TICKS;
+    public static final ForgeConfigSpec.IntValue SCAVENGE_TIMEOUT_TICKS;
+    public static final ForgeConfigSpec.DoubleValue SCAVENGE_RADIUS;
+    public static final ForgeConfigSpec.IntValue SCAVENGE_AMMO_STACKS;
+    public static final ForgeConfigSpec.IntValue SCAVENGE_EMPLACEMENT_CAP;
+    public static final ForgeConfigSpec.IntValue SCAVENGE_MINE_CAP;
+    public static final ForgeConfigSpec.IntValue SCAVENGE_GRENADE_CAP;
+    public static final ForgeConfigSpec.IntValue SCAVENGE_MEDKIT_CAP;
+    public static final ForgeConfigSpec.IntValue SCAVENGE_SHOVEL_CAP;
+    public static final ForgeConfigSpec.IntValue SCAVENGE_REPAIR_TOOL_CAP;
+    public static final ForgeConfigSpec.IntValue SCAVENGE_RADIO_CAP;
     public static final ForgeConfigSpec.DoubleValue QUICK_LAND_RADIUS;
     public static final ForgeConfigSpec.DoubleValue QUICK_GEAR_SEARCH_RADIUS;
     public static final ForgeConfigSpec.IntValue QUICK_GEAR_SEARCH_TIMEOUT_TICKS;
@@ -1560,13 +1569,35 @@ public final class SewvConfig {
                         "Absolute game-time budget (ticks) for Quick Evac: each heli takes off when",
                         "its reserved seats are filled or when this timeout elapses, whichever comes first.")
                 .defineInRange("quickEvacBoardTimeoutTicks", 350, 40, 2400);
-        QUICK_REFILL_TIMEOUT_TICKS = builder.comment(
-                        "Absolute game-time budget (ticks) for Quick Refill walks to a chest/stockpile",
-                        "before the MOVE is dropped back to FREE_FIRE.")
-                .defineInRange("quickRefillTimeoutTicks", 350, 40, 2400);
+        SCAVENGE_TIMEOUT_TICKS = builder.comment(
+                        "Absolute game-time budget (ticks) for a whole Scavenge order before every walk is",
+                        "dropped back to FREE_FIRE and the summary is sent.")
+                .defineInRange("scavengeTimeoutTicks", 1200, 40, 6000);
+        SCAVENGE_RADIUS = builder.comment(
+                        "How far (blocks) from each unit Scavenge looks for containers, items on the ground,",
+                        "corpses and unmanned emplacements.")
+                .defineInRange("scavengeRadius", 48.0, 4.0, 128.0);
+        SCAVENGE_AMMO_STACKS = builder.comment(
+                        "Full stacks of each ammo its own guns use that a unit scavenges up to.")
+                .defineInRange("scavengeAmmoStacks", 3, 1, 12);
+        SCAVENGE_EMPLACEMENT_CAP = builder.comment(
+                        "Most packed emplacements (TOW, mortar and similar) one unit carries after Scavenge.")
+                .defineInRange("scavengeEmplacementCap", 2, 0, 9);
+        SCAVENGE_MINE_CAP = builder.comment("Most mines one unit carries after Scavenge.")
+                .defineInRange("scavengeMineCap", 6, 0, 32);
+        SCAVENGE_GRENADE_CAP = builder.comment("Most grenades one unit carries after Scavenge.")
+                .defineInRange("scavengeGrenadeCap", 4, 0, 16);
+        SCAVENGE_MEDKIT_CAP = builder.comment("Most medical kits one unit carries after Scavenge.")
+                .defineInRange("scavengeMedkitCap", 2, 0, 16);
+        SCAVENGE_SHOVEL_CAP = builder.comment("Most military shovels one unit carries after Scavenge.")
+                .defineInRange("scavengeShovelCap", 1, 0, 4);
+        SCAVENGE_REPAIR_TOOL_CAP = builder.comment("Most repair tools one unit carries after Scavenge.")
+                .defineInRange("scavengeRepairToolCap", 1, 0, 4);
+        SCAVENGE_RADIO_CAP = builder.comment("Most handheld radios one unit carries after Scavenge.")
+                .defineInRange("scavengeRadioCap", 1, 0, 4);
         QUICK_LAND_RADIUS = builder.comment(
-                        "How far (blocks) Quick Board / Entrench / Refill / General / Formation look",
-                        "for owned PMCs, friendly vehicles, trenches, and chests.")
+                        "How far (blocks) Quick Board / Entrench / Scavenge / General / Formation look",
+                        "for owned PMCs, friendly vehicles and trenches.")
                 .defineInRange("quickLandRadius", 64.0, 8.0, 256.0);
         QUICK_GEAR_SEARCH_RADIUS = builder.comment(
                         "How far (blocks) from each unit Search equipment looks for a medical kit, repair",

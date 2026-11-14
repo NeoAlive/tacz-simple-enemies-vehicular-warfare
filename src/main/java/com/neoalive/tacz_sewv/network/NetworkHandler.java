@@ -166,7 +166,9 @@ public class NetworkHandler {
     //      + PacketRadioFlags (S->C) for the handheld radio comms toggles.
     // 116: WorldVehiclePools.Category.MINE in pool editor packets; PacketMinePool (S->C).
     // 117: PacketSetVoice (C->S) + crew voice in PacketSyncPmcIdentity.
-    private static final String PROTOCOL_VERSION = "117";
+    // 118: PacketApplyPmcIdentity carries the whole terminal (PacketSetVoice and PacketSetNameCategory
+    //      removed), PacketSyncPmcIdentity the logo link, PacketFetchWebLogo (C->S) + PacketWebLogo (S->C).
+    private static final String PROTOCOL_VERSION = "118";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),
@@ -507,13 +509,6 @@ public class NetworkHandler {
         );
 
         // C->S, TDT "Identity" category "Full Names" control (NamePreference / NpcIdentity).
-        CHANNEL.registerMessage(
-                nextId(),
-                PacketSetNameCategory.class,
-                PacketSetNameCategory::encode,
-                PacketSetNameCategory::new,
-                PacketSetNameCategory::handle
-        );
 
         // S->C / C->S, spawn_probe structure-prep editor.
         CHANNEL.registerMessage(
@@ -850,10 +845,17 @@ public class NetworkHandler {
         );
         CHANNEL.registerMessage(
                 nextId(),
-                PacketSetVoice.class,
-                PacketSetVoice::encode,
-                PacketSetVoice::new,
-                PacketSetVoice::handle
+                PacketFetchWebLogo.class,
+                PacketFetchWebLogo::encode,
+                PacketFetchWebLogo::new,
+                PacketFetchWebLogo::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketWebLogo.class,
+                PacketWebLogo::encode,
+                PacketWebLogo::new,
+                PacketWebLogo::handle
         );
     }
 }

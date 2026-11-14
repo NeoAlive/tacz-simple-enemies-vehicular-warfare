@@ -625,6 +625,7 @@ public class ClientEvents {
         AirportPlots.clear();
         InvasionHudClient.clear();
         VehicleSkinClient.clearAll();
+        com.neoalive.tacz_sewv.client.skin.WebLogoTextures.clear();
         CamoClient.clearAll();
         HeliRunPhaseClient.clearAll();
         PlayerRappelClient.clearAll();

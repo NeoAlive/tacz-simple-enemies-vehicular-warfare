@@ -418,6 +418,8 @@ final class ConfigRegistryBootstrap {
                 SewvConfig.NAME_ASSIGNMENT_ENABLED, SewvConfig.NAME_ASSIGNMENT_ENABLED::set);
         b.string(ConfigScope.SERVER, "soldiers", "defaultNameCategory",
                 SewvConfig.DEFAULT_NAME_CATEGORY, SewvConfig.DEFAULT_NAME_CATEGORY::set);
+        b.bool(ConfigScope.SERVER, "soldiers", "webLogosEnabled",
+                SewvConfig.WEB_LOGOS_ENABLED, SewvConfig.WEB_LOGOS_ENABLED::set);
         b.multilineIds(ConfigScope.SERVER, "soldiers", "nvgEligibleItems",
                 () -> List.copyOf(SewvConfig.NVG_ELIGIBLE_ITEMS.get()),
                 v -> SewvConfig.NVG_ELIGIBLE_ITEMS.set(v));

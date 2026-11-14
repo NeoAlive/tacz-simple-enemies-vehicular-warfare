@@ -7,6 +7,7 @@ import java.util.UUID;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
@@ -23,9 +24,10 @@ public final class PmcIdentityPreference extends SavedData {
     public static final String DEFAULT_POOL = "pmc_default";
     public static final String DEFAULT_LOGO = "pmc_1";
 
-    public record PmcIdentity(String companyName, String logoPool, String logoId) {
+    /** {@code logoUrl} is set only for the web pool; {@code logoId} is then the hash of it. */
+    public record PmcIdentity(String companyName, String logoPool, String logoId, String logoUrl) {
         public static PmcIdentity defaults() {
-            return new PmcIdentity("", DEFAULT_POOL, DEFAULT_LOGO);
+            return new PmcIdentity("", DEFAULT_POOL, DEFAULT_LOGO, "");
         }
     }
 
@@ -47,7 +49,8 @@ public final class PmcIdentityPreference extends SavedData {
                         new PmcIdentity(
                                 tag.getString("company"),
                                 tag.getString("pool"),
-                                tag.getString("logo")));
+                                tag.getString("logo"),
+                                tag.getString("url")));
             }
         }
         return data;
@@ -62,6 +65,7 @@ public final class PmcIdentityPreference extends SavedData {
             tag.putString("company", entry.getValue().companyName());
             tag.putString("pool", entry.getValue().logoPool());
             tag.putString("logo", entry.getValue().logoId());
+            if (!entry.getValue().logoUrl().isEmpty()) tag.putString("url", entry.getValue().logoUrl());
             list.add(tag);
         }
         nbt.put("identities", list);
@@ -69,14 +73,21 @@ public final class PmcIdentityPreference extends SavedData {
     }
 
     private static PmcIdentityPreference store(Level level) {
-        if (level instanceof ServerLevel serverLevel) {
-            ServerLevel overworld = serverLevel.getServer().getLevel(Level.OVERWORLD);
-            if (overworld != null) {
-                return overworld.getDataStorage().computeIfAbsent(
-                        PmcIdentityPreference::load, PmcIdentityPreference::new, DATA_NAME);
-            }
+        return level instanceof ServerLevel serverLevel ? store(serverLevel.getServer()) : new PmcIdentityPreference();
+    }
+
+    private static PmcIdentityPreference store(MinecraftServer server) {
+        ServerLevel overworld = server.getLevel(Level.OVERWORLD);
+        if (overworld != null) {
+            return overworld.getDataStorage().computeIfAbsent(
+                    PmcIdentityPreference::load, PmcIdentityPreference::new, DATA_NAME);
         }
         return new PmcIdentityPreference();
+    }
+
+    /** Every saved identity, read only. */
+    public static Map<UUID, PmcIdentity> all(MinecraftServer server) {
+        return Map.copyOf(store(server).identities);
     }
 
     public static void set(Player player, PmcIdentity identity) {

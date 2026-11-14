@@ -21,7 +21,7 @@ import net.minecraft.world.level.saveddata.SavedData;
  * player's death/respawn (a fresh {@code ServerPlayer} instance) without an explicit
  * {@code PlayerEvent.Clone} copy, which reads as exactly "the preference isn't persistent."
  *
- * <p>Set from the TDT's Identity/"Full Names" control ({@code PacketSetNameCategory}); read by
+ * <p>Set from the TDT's recruit names control ({@code PacketApplyPmcIdentity}); read by
  * {@link NpcIdentity#issue} whenever a freshly spawned PMC unit already has an owner.
  */
 public class NamePreference extends SavedData {

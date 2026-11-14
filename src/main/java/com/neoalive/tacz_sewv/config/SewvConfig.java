@@ -91,6 +91,7 @@ public final class SewvConfig {
 
     public static final ForgeConfigSpec.BooleanValue NAME_ASSIGNMENT_ENABLED;
     public static final ForgeConfigSpec.ConfigValue<String> DEFAULT_NAME_CATEGORY;
+    public static final ForgeConfigSpec.BooleanValue WEB_LOGOS_ENABLED;
 
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> NVG_ELIGIBLE_ITEMS;
     public static final ForgeConfigSpec.DoubleValue NVG_SPAWN_CHANCE;
@@ -678,6 +679,11 @@ public final class SewvConfig {
                         "a player who never set one via the TDT's Identity/\"Full Names\" control. \"RANDOM\" draws",
                         "the name and surname independently from every category's pooled union.")
                 .define("defaultNameCategory", "RANDOM");
+        WEB_LOGOS_ENABLED = builder.comment(
+                        "Let players use an image from a web link as their PMC logo in the TDT.",
+                        "The server downloads each link once, at server start or when it is first set, and keeps",
+                        "it in memory until the server stops. Clients never contact the link themselves.")
+                .define("webLogosEnabled", true);
         builder.pop();
 
         builder.push("nvg");

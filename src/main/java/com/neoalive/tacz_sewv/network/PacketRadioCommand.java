@@ -145,7 +145,7 @@ public class PacketRadioCommand {
             }
 
             var ack = FireMissionSupport.ackFor(call.kinds(), settings.planeMode(),
-                    com.neoalive.tacz_sewv.crew.CrewRadio.Faction.PMC);
+                    com.neoalive.tacz_sewv.crew.VoicePreference.get(player));
             if (ack != null) {
                 player.level().playSound(null, player, ack, net.minecraft.sounds.SoundSource.VOICE, 1.8F, 1.0F);
             }

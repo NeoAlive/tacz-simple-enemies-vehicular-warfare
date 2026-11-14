@@ -1,6 +1,5 @@
 package com.neoalive.tacz_sewv.crew;
 
-import java.util.EnumMap;
 import java.util.List;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
@@ -13,6 +12,7 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
+import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
 
@@ -285,8 +285,9 @@ public final class CrewRadio {
     private static final int AIRTIME_WINDOW_TICKS = 50;
     private static final java.util.WeakHashMap<ServerLevel, AirtimeRing> AIRTIME = new java.util.WeakHashMap<>();
 
-    /** Resolved pools per faction: [domain][line] then [0 = normal, 1 = panicked]. Built on first use. */
-    private static volatile EnumMap<Faction, SoundPool[][][]> pools;
+    /** Resolved pools per voice suffix: [domain][line] then [0 = normal, 1 = panicked]. Built on first use. */
+    private static final java.util.concurrent.ConcurrentHashMap<String, SoundPool[][][]> POOLS =
+            new java.util.concurrent.ConcurrentHashMap<>();
 
     private CrewRadio() {}
 
@@ -574,7 +575,7 @@ public final class CrewRadio {
             return false;
         }
         if (data.getBoolean(LOW_HEALTH_SPOKEN_KEY)) return false;
-        if (pool(factionOf(crew), domainOf(hull), Line.VEHICLE_LOW_HEALTH, false) == null) {
+        if (pool(voiceOf(crew), domainOf(hull), Line.VEHICLE_LOW_HEALTH, false) == null) {
             data.putBoolean(LOW_HEALTH_SPOKEN_KEY, true);
             return false;
         }
@@ -734,54 +735,56 @@ public final class CrewRadio {
         return Faction.PMC;
     }
 
+    /** Pool suffix this unit speaks with: its faction, or for a PMC its owner's TDT language. */
+    public static String voiceOf(AbstractUnit unit) {
+        if (unit instanceof RUunitEntity) return "ru";
+        if (unit instanceof USunitEntity) return "us";
+        if (unit instanceof PmcUnitEntity pmc) return VoicePreference.get(pmc.getServer(), pmc.getOwnerUUID());
+        return PmcVoices.DEFAULT;
+    }
+
     private static boolean playLine(VehicleEntity hull, AbstractUnit speaker, Line line, boolean panicked) {
         Domain domain = domainOf(hull);
         if (blocked(line, domain)) return false;
-        Faction faction = factionOf(speaker);
+        // a language missing a line falls back within itself and otherwise stays silent, never English
+        String voice = voiceOf(speaker);
         Line resolved = line;
-        SoundPool pool = pool(faction, domain, resolved, panicked);
+        SoundPool pool = pool(voice, domain, resolved, panicked);
         while (pool == null && resolved.fallback != null) {
             resolved = resolved.fallback;
             if (blocked(resolved, domain)) return false;
-            pool = pool(faction, domain, resolved, panicked);
+            pool = pool(voice, domain, resolved, panicked);
         }
         if (pool == null) return false;
         return playPool(hull, line, pool, hull.getPersistentData());
     }
 
-    private static SoundPool pool(Faction faction, Domain domain, Line line, boolean panicked) {
-        SoundPool[] pair = table().get(faction)[domain.ordinal()][line.ordinal()];
+    private static SoundPool pool(String voice, Domain domain, Line line, boolean panicked) {
+        SoundPool[] pair = POOLS.computeIfAbsent(voice, CrewRadio::build)[domain.ordinal()][line.ordinal()];
         if (panicked && pair[1] != null) return pair[1];
         return pair[0];
     }
 
-    /** The clips for a line with no hull behind it (radio answers), or null when the faction has none. */
-    public static SoundPool poolFor(Faction faction, Line line) {
-        return pool(faction, Domain.GROUND, line, false);
+    /** The clips for a line with no hull behind it (radio answers), or null when the voice has none. */
+    public static SoundPool poolFor(String voice, Line line) {
+        return pool(voice, Domain.GROUND, line, false);
     }
 
-    private static EnumMap<Faction, SoundPool[][][]> table() {
-        EnumMap<Faction, SoundPool[][][]> t = pools;
-        if (t != null) return t;
-        t = new EnumMap<>(Faction.class);
-        for (Faction f : Faction.values()) {
-            String suffix = "_" + f.name().toLowerCase(java.util.Locale.ROOT);
-            SoundPool[][][] rows = new SoundPool[DOMAINS.length][LINES.length][2];
-            for (Domain d : DOMAINS) {
-                for (Line l : LINES) {
-                    SoundPool[] pair = rows[d.ordinal()][l.ordinal()];
-                    if (d.key != null) {
-                        pair[0] = ModSounds.crew(l.pool + "_" + d.key + suffix);
-                        pair[1] = ModSounds.crew(l.pool + "_" + d.key + suffix + "_panicked");
-                    }
-                    if (pair[0] == null) pair[0] = ModSounds.crew(l.pool + suffix);
-                    if (pair[1] == null) pair[1] = ModSounds.crew(l.pool + suffix + "_panicked");
+    private static SoundPool[][][] build(String voice) {
+        String suffix = "_" + voice;
+        SoundPool[][][] rows = new SoundPool[DOMAINS.length][LINES.length][2];
+        for (Domain d : DOMAINS) {
+            for (Line l : LINES) {
+                SoundPool[] pair = rows[d.ordinal()][l.ordinal()];
+                if (d.key != null) {
+                    pair[0] = ModSounds.crew(l.pool + "_" + d.key + suffix);
+                    pair[1] = ModSounds.crew(l.pool + "_" + d.key + suffix + "_panicked");
                 }
+                if (pair[0] == null) pair[0] = ModSounds.crew(l.pool + suffix);
+                if (pair[1] == null) pair[1] = ModSounds.crew(l.pool + suffix + "_panicked");
             }
-            t.put(f, rows);
         }
-        pools = t;
-        return t;
+        return rows;
     }
 
     /** The cooldown key used is always the requested line's, so a fallback never resets another line's timer. */

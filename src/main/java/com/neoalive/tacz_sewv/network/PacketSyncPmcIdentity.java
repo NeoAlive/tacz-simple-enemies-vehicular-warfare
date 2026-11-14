@@ -18,12 +18,14 @@ public final class PacketSyncPmcIdentity {
     private final String logoPool;
     private final String logoId;
     private final String nameCategory;
+    private final String voice;
 
-    public PacketSyncPmcIdentity(PmcIdentityPreference.PmcIdentity identity, String nameCategory) {
+    public PacketSyncPmcIdentity(PmcIdentityPreference.PmcIdentity identity, String nameCategory, String voice) {
         this.companyName = identity.companyName();
         this.logoPool = identity.logoPool();
         this.logoId = identity.logoId();
         this.nameCategory = nameCategory;
+        this.voice = voice;
     }
 
     public PacketSyncPmcIdentity(FriendlyByteBuf buf) {
@@ -31,6 +33,7 @@ public final class PacketSyncPmcIdentity {
         this.logoPool = buf.readUtf();
         this.logoId = buf.readUtf();
         this.nameCategory = buf.readUtf();
+        this.voice = buf.readUtf(32);
     }
 
     public void encode(FriendlyByteBuf buf) {
@@ -38,11 +41,12 @@ public final class PacketSyncPmcIdentity {
         buf.writeUtf(this.logoPool);
         buf.writeUtf(this.logoId);
         buf.writeUtf(this.nameCategory);
+        buf.writeUtf(this.voice, 32);
     }
 
     public void handle(Supplier<NetworkEvent.Context> ctx) {
         ctx.get().enqueueWork(() -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> {
-            TdtScreen.receiveIdentitySync(this.companyName, this.logoPool, this.logoId, this.nameCategory);
+            TdtScreen.receiveIdentitySync(this.companyName, this.logoPool, this.logoId, this.nameCategory, this.voice);
             if (Minecraft.getInstance().screen instanceof TdtScreen screen) {
                 screen.onIdentitySynced();
             }

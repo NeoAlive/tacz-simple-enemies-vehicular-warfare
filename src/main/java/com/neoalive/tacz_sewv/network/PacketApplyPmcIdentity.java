@@ -66,7 +66,8 @@ public final class PacketApplyPmcIdentity {
             NetworkHandler.CHANNEL.send(
                     PacketDistributor.PLAYER.with(() -> player),
                     new PacketSyncPmcIdentity(identity, com.neoalive.tacz_sewv.crew.NamePreference.get(
-                            player, com.neoalive.tacz_sewv.config.SewvConfig.DEFAULT_NAME_CATEGORY.get())));
+                            player, com.neoalive.tacz_sewv.config.SewvConfig.DEFAULT_NAME_CATEGORY.get()),
+                            com.neoalive.tacz_sewv.crew.VoicePreference.get(player)));
             NetworkHandler.sendOrderFeedback(player,
                     Component.translatable("message.tacz_sewv.identity.applied"));
         });

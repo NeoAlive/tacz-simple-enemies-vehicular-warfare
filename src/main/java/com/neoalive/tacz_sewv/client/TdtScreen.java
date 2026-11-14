@@ -18,16 +18,19 @@ import com.neoalive.tacz_sewv.client.gui.GuiFit;
 import com.neoalive.tacz_sewv.client.skin.LogoPoolRegistry;
 import com.neoalive.tacz_sewv.crew.NamePools;
 import com.neoalive.tacz_sewv.crew.PmcIdentityPreference;
+import com.neoalive.tacz_sewv.crew.PmcVoices;
 import com.neoalive.tacz_sewv.init.ModSounds;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketApplyPmcIdentity;
 import com.neoalive.tacz_sewv.network.PacketRequestPmcIdentity;
 import com.neoalive.tacz_sewv.network.PacketSetNameCategory;
+import com.neoalive.tacz_sewv.network.PacketSetVoice;
 
 /**
- * Tactical Data Terminal: the player's PMC identity — unit name pool, company name and helmet logo.
+ * Tactical Data Terminal: the player's PMC identity — unit name pool, company name, helmet logo and
+ * crew radio language.
  * Orders moved to the Quick Wheel (held key); carrying the terminal is still what enables it.
- * A centred modal with five fixed rows; nothing scrolls.
+ * A centred modal with six fixed rows; nothing scrolls.
  */
 public class TdtScreen extends Screen {
 
@@ -38,7 +41,7 @@ public class TdtScreen extends Screen {
     private static final int HEADER_H = 24;
     private static final int CELL_H = 22;
     private static final int CELL_GAP = 4;
-    private static final int ROWS = 5;
+    private static final int ROWS = 6;
     private static final int STEP_BTN = 18;
     private static final int FLOAT_ICON = 22;
     private static final int FOOTER_BTN_W = 52;
@@ -47,7 +50,9 @@ public class TdtScreen extends Screen {
     private static final int ROW_COMPANY = 1;
     private static final int ROW_POOL = 2;
     private static final int ROW_ICON = 3;
-    private static final int ROW_FOOTER = 4;
+    private static final int ROW_VOICE = 4;
+    private static final int ROW_FOOTER = 5;
+    private static final int VOICE_ROW_H = 12;
 
     // C2 palette — single accent; fills stay neutral.
     private static final int COL_BASE = 0xFF12161C;
@@ -59,6 +64,7 @@ public class TdtScreen extends Screen {
     private static final int COL_ACCENT = 0xFF4FD1C5;
 
     private static String selectedNameCategory = NamePools.RANDOM;
+    private static String selectedVoice = PmcVoices.DEFAULT;
 
     private static String draftCompanyName = "";
     private static String draftLogoPool = PmcIdentityPreference.DEFAULT_POOL;
@@ -85,6 +91,8 @@ public class TdtScreen extends Screen {
     private EditBox companyField;
     /** Logo picker flyout open, anchored at the click. */
     private boolean logoFloat;
+    /** Crew language dropdown open, under its row. */
+    private boolean voiceFloat;
     private float floatAnim;
     private int floatX;
     private int floatY;
@@ -92,7 +100,8 @@ public class TdtScreen extends Screen {
     private String pendingTip;
 
     /** Server snapshot applied — refreshes draft fields and the company EditBox. */
-    public static void receiveIdentitySync(String company, String pool, String logo, String nameCategory) {
+    public static void receiveIdentitySync(String company, String pool, String logo, String nameCategory,
+            String voice) {
         savedCompanyName = company;
         savedLogoPool = pool;
         savedLogoId = logo;
@@ -100,6 +109,7 @@ public class TdtScreen extends Screen {
         draftLogoPool = pool;
         draftLogoId = logo;
         selectedNameCategory = nameCategory;
+        selectedVoice = PmcVoices.sanitize(voice);
     }
 
     public void onIdentitySynced() {
@@ -126,6 +136,7 @@ public class TdtScreen extends Screen {
         this.panelTop = (this.height - panelH) / 2;
         this.rowsTop = this.panelTop + HEADER_H;
         this.logoFloat = false;
+        this.voiceFloat = false;
 
         int labelW = this.font.width(I18n.get("gui.tacz_sewv.tdt.pmc_company"));
         int fieldX = rowLeft() + PAD + labelW + 6;
@@ -226,6 +237,11 @@ public class TdtScreen extends Screen {
             this.logoFloat = false;
             return true;
         }
+        if (this.voiceFloat) {
+            if (clickVoiceFloat(mouseX, mouseY)) clickSound();
+            this.voiceFloat = false;
+            return true;
+        }
         if (this.companyField != null && this.companyField.mouseClicked(mouseX, mouseY, button)) {
             setFocused(this.companyField);
             return true;
@@ -253,6 +269,11 @@ public class TdtScreen extends Screen {
                     this.logoFloat = true;
                     this.floatX = (int) mx;
                     this.floatY = (int) my;
+                    this.floatAnim = 0.0F;
+                    yield true;
+                }
+                case ROW_VOICE -> {
+                    this.voiceFloat = true;
                     this.floatAnim = 0.0F;
                     yield true;
                 }
@@ -335,8 +356,9 @@ public class TdtScreen extends Screen {
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        if (this.logoFloat && keyCode == org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE) {
+        if ((this.logoFloat || this.voiceFloat) && keyCode == org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE) {
             this.logoFloat = false;
+            this.voiceFloat = false;
             return true;
         }
         return super.keyPressed(keyCode, scanCode, modifiers);
@@ -359,13 +381,15 @@ public class TdtScreen extends Screen {
             renderRow(g, row, mouseX, mouseY);
         }
         if (this.companyField != null) {
-            this.companyField.setVisible(!this.logoFloat);
+            this.companyField.setVisible(!this.logoFloat && !this.voiceFloat);
         }
         super.render(g, mouseX, mouseY, partialTick);
 
         // Last, so neither the EditBox nor the steppers can paint over it.
         if (this.logoFloat) {
             renderLogoFloat(g, mouseX, mouseY);
+        } else if (this.voiceFloat) {
+            renderVoiceFloat(g, mouseX, mouseY);
         } else if (this.pendingTip != null) {
             g.renderTooltip(this.font, Component.translatable(this.pendingTip), mouseX, mouseY);
         }
@@ -375,7 +399,7 @@ public class TdtScreen extends Screen {
         int x = rowLeft();
         int right = rowRight();
         int y = rowY(row);
-        boolean hover = !this.logoFloat && mouseX >= x && mouseX < right && mouseY >= y && mouseY < y + CELL_H;
+        boolean hover = !this.logoFloat && !this.voiceFloat && mouseX >= x && mouseX < right && mouseY >= y && mouseY < y + CELL_H;
         int textY = y + (CELL_H - 8) / 2;
 
         if (row == ROW_FOOTER) {
@@ -420,8 +444,85 @@ public class TdtScreen extends Screen {
                         COL_MUTED, false);
                 if (hover) this.pendingTip = "gui.tacz_sewv.tdt.logo_icon.tip";
             }
+            case ROW_VOICE -> {
+                g.drawString(this.font, Component.translatable("gui.tacz_sewv.tdt.voice"), textX, textY,
+                        COL_TEXT, false);
+                String name = voiceName(selectedVoice) + "  \u25BE";
+                g.drawString(this.font, name, right - PAD - this.font.width(name), textY, COL_MUTED, false);
+                if (hover) this.pendingTip = "gui.tacz_sewv.tdt.voice.tip";
+            }
             default -> {
             }
+        }
+    }
+
+    // --- Crew language dropdown ----------------------------------------------
+
+    private static String voiceName(String key) {
+        PmcVoices.Voice v = PmcVoices.of(key);
+        return v == null || v.name() == null ? I18n.get("gui.tacz_sewv.tdt.voice.default") : v.name();
+    }
+
+    private static void selectVoice(String key) {
+        selectedVoice = key;
+        NetworkHandler.CHANNEL.sendToServer(new PacketSetVoice(key));
+    }
+
+    /** {x, y, w, h, colW} of the dropdown: two columns under the language row, clamped to the screen. */
+    private int[] voiceFloatBox() {
+        int colW = 0;
+        for (PmcVoices.Voice v : PmcVoices.ALL) colW = Math.max(colW, this.font.width(voiceName(v.key())));
+        colW += 12;
+        int pad = 6;
+        int rows = (PmcVoices.ALL.size() + 1) / 2;
+        int fw = colW * 2 + pad * 2;
+        int fh = rows * VOICE_ROW_H + pad * 2;
+        int fx = Mth.clamp(rowRight() - fw, 4, this.width - fw - 4);
+        int fy = Mth.clamp(rowY(ROW_VOICE) + CELL_H, 4, this.height - fh - 4);
+        return new int[]{fx, fy, fw, fh, colW};
+    }
+
+    /** Index into {@link PmcVoices#ALL} under the cursor, or -1. Column-major so it reads top to bottom. */
+    private int voiceAt(double mx, double my) {
+        int[] b = voiceFloatBox();
+        int pad = 6;
+        int rows = (PmcVoices.ALL.size() + 1) / 2;
+        if (mx < b[0] + pad || mx >= b[0] + pad + b[4] * 2 || my < b[1] + pad || my >= b[1] + pad + rows * VOICE_ROW_H) {
+            return -1;
+        }
+        int col = (int) (mx - b[0] - pad) / b[4];
+        int row = (int) (my - b[1] - pad) / VOICE_ROW_H;
+        int idx = col * rows + row;
+        return idx < PmcVoices.ALL.size() ? idx : -1;
+    }
+
+    private boolean clickVoiceFloat(double mx, double my) {
+        int idx = voiceAt(mx, my);
+        if (idx < 0) return false;
+        selectVoice(PmcVoices.ALL.get(idx).key());
+        return true;
+    }
+
+    private void renderVoiceFloat(GuiGraphics g, int mouseX, int mouseY) {
+        int[] b = voiceFloatBox();
+        int pad = 6;
+        int rows = (PmcVoices.ALL.size() + 1) / 2;
+        int fx = b[0];
+        int fy = b[1] - (int) ((1.0F - this.floatAnim) * 8.0F);
+        g.fill(fx, fy, fx + b[2], fy + b[3], COL_BASE);
+        g.fill(fx, fy, fx + b[2], fy + 1, COL_ACCENT);
+        g.fill(fx, fy, fx + 1, fy + b[3], COL_BORDER);
+        g.fill(fx + b[2] - 1, fy, fx + b[2], fy + b[3], COL_BORDER);
+        g.fill(fx, fy + b[3] - 1, fx + b[2], fy + b[3], COL_BORDER);
+        int hovered = voiceAt(mouseX, mouseY + (b[1] - fy));
+        for (int i = 0; i < PmcVoices.ALL.size(); i++) {
+            String key = PmcVoices.ALL.get(i).key();
+            int ex = fx + pad + (i / rows) * b[4];
+            int ey = fy + pad + (i % rows) * VOICE_ROW_H;
+            boolean selected = key.equals(selectedVoice);
+            if (i == hovered) g.fill(ex - 2, ey - 1, ex + b[4] - 4, ey + VOICE_ROW_H - 1, COL_HOVER);
+            if (selected) g.fill(ex - 2, ey - 1, ex - 1, ey + VOICE_ROW_H - 1, COL_ACCENT);
+            g.drawString(this.font, voiceName(key), ex + 2, ey + 1, selected ? COL_ACCENT : COL_TEXT, false);
         }
     }
 

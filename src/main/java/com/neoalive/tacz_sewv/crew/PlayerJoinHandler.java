@@ -46,7 +46,7 @@ public class PlayerJoinHandler {
             String category = NamePreference.get(sp, SewvConfig.DEFAULT_NAME_CATEGORY.get());
             NetworkHandler.CHANNEL.send(
                     PacketDistributor.PLAYER.with(() -> sp),
-                    new PacketSyncPmcIdentity(PmcIdentityPreference.get(sp), category));
+                    new PacketSyncPmcIdentity(PmcIdentityPreference.get(sp), category, VoicePreference.get(sp)));
             NpcIdentity.refreshCompanyName(sp);
         }
     }

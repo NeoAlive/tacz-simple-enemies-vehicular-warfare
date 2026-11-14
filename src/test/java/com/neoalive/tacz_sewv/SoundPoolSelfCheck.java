@@ -44,7 +44,7 @@ public final class SoundPoolSelfCheck {
                 checkKey(json, soundsDir, problems, prefix + "_" + i);
             }
             // Crew pools are timed by the radio queue, so each needs one length per clip.
-            if (prefix.matches(".*_(us|pmc|ru)(_panicked)?")) {
+            if (prefix.matches(".*_(us|pmc|ru|pmc_[a-z]{2})(_panicked)?")) {
                 short[] ticks = com.neoalive.tacz_sewv.crew.CrewClipLengths.of(prefix);
                 if (ticks == null || ticks.length != count) {
                     problems.add("CrewClipLengths for " + prefix + " has " + (ticks == null ? "no" : ticks.length)

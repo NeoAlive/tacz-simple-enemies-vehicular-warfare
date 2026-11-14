@@ -288,21 +288,21 @@ public final class FireMissionSupport {
     /**
      * Radio answer to a fire mission. A named CAS attack (bomb, AGM, cannon) gets the pilot's own
      * line; an AUTO CAS mission and a mortar or TOW mission get the crew radio's acknowledgement for
-     * the caller's faction. Null when nothing fits or the faction has no clips.
+     * the caller's voice. Null when nothing fits or the voice has no clips.
      */
     @Nullable
-    public static SoundEvent ackFor(Set<Kind> triggered, PlaneAttackMode mode, CrewRadio.Faction faction) {
+    public static SoundEvent ackFor(Set<Kind> triggered, PlaneAttackMode mode, String voice) {
         if (triggered.contains(Kind.CAS)) {
             SoundPool pool = switch (mode) {
                 case BOMB -> ModSounds.PILOT_BOMB;
                 case CANNON -> ModSounds.PILOT_CANNON;
                 case GUIDED -> ModSounds.PILOT_AGM;
-                case AUTO -> CrewRadio.poolFor(faction, CrewRadio.Line.SUPPORT_ACK_AIR);
+                case AUTO -> CrewRadio.poolFor(voice, CrewRadio.Line.SUPPORT_ACK_AIR);
             };
             return pool == null ? null : pool.next();
         }
         if (triggered.contains(Kind.MORTAR) || triggered.contains(Kind.TOW)) {
-            SoundPool pool = CrewRadio.poolFor(faction, CrewRadio.Line.SUPPORT_ACK_MORTAR);
+            SoundPool pool = CrewRadio.poolFor(voice, CrewRadio.Line.SUPPORT_ACK_MORTAR);
             return pool == null ? null : pool.next();
         }
         return null;

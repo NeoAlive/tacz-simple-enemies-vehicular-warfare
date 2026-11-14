@@ -45,6 +45,7 @@ import com.neoalive.tacz_sewv.compat.McspAmmoCompat;
 import com.neoalive.tacz_sewv.compat.NpcVehicleOverrides;
 import com.neoalive.tacz_sewv.compat.VehicleAmmoStorage;
 import com.neoalive.tacz_sewv.compat.VvpAmmoCompat;
+import com.neoalive.tacz_sewv.compat.fcp.FcpCompat;
 import com.neoalive.tacz_sewv.compat.lv.LvCompat;
 import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.SewvConfig;
@@ -439,6 +440,7 @@ public final class TankSpawner {
         if (plane.hasEnergyStorage()) {
             plane.setEnergy(plane.getMaxEnergy());
         }
+        FcpCompat.startEngineNow(plane);
         stockAmmo(plane, faction);
 
         int seats = Math.max(1, plane.getMaxPassengers());
@@ -521,6 +523,7 @@ public final class TankSpawner {
         if (tank.hasEnergyStorage()) {
             tank.setEnergy(tank.getMaxEnergy());
         }
+        FcpCompat.startEngineNow(tank);
         stockAmmo(tank, faction);
 
         // One unit per seat, mounted in join order: SW's VehicleEntity assigns
@@ -657,6 +660,7 @@ public final class TankSpawner {
         if (tank.hasEnergyStorage()) {
             tank.setEnergy(tank.getMaxEnergy());
         }
+        FcpCompat.startEngineNow(tank);
         stockAmmo(tank, TankFaction.PMC);
 
         // Player first → seat 0 (driver). startRiding relocates the player onto the hull.
@@ -849,6 +853,9 @@ public final class TankSpawner {
     }
 
     private static void stockAmmo(VehicleEntity tank, TankFaction faction) {
+        // FCP arms its hulls from a per-vehicle loadout table into its own hold.
+        boolean fcp = FcpCompat.isFcp(tank);
+        if (fcp) FcpCompat.fillCombatLoad(tank);
         if (!VehicleAmmoStorage.hasStorage(tank)) return;
 
         String id = entityId(tank);
@@ -861,6 +868,7 @@ public final class TankSpawner {
             VehicleAmmoStorage.setStack(tank, 0, new ItemStack(ModItems.CREATIVE_AMMO_BOX.get()));
             return;
         }
+        if (fcp && !VehicleAmmoStorage.isEmpty(tank)) return;
 
         List<Item> ammo = resolveWithFallback(tank, id);
         if (ammo.isEmpty()) {

@@ -47,6 +47,11 @@ config="tacz_sewv.playerrevive.mixins.json"
 [[mixins]]
 config="tacz_sewv.corpse.mixins.json"
 
+# Frontline Combat Pack 2.0+ compat. Separate config ("required": false) + FcpMixinPlugin
+# (LoadingModList gate on mod id fcp, version 2.0.0 or newer). Compiled against libs/fcp.jar.
+[[mixins]]
+config="tacz_sewv.fcp.mixins.json"
+
 # MineColonies compat. Separate config ("required": false) + MineColoniesMixinPlugin
 # (LoadingModList gate on mod id minecolonies) so an absent MineColonies never queues
 # MixinGuardTargeting / MixinRaidManager. Compiled against libs/minecolonies.jar (compileOnly),
@@ -198,7 +203,7 @@ config="tacz_sewv.gemrender.mixins.json"
 [[dependencies.tacz_sewv]]
     modId="fcp"
     mandatory=false
-    versionRange="[0,)"
+    versionRange="[2.0.0,)"
     ordering="NONE"
     side="BOTH"
 

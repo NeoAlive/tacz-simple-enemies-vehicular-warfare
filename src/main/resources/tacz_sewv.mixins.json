@@ -16,6 +16,7 @@
     "MixinUnitVoicelines",
     "MixinVehicleVoicelines",
     "MixinVehicleRadioQueue",
+    "MixinVehicleAiEngine",
     "MixinVehicleEasyDamage",
     "AccessorPacketIssueOrder",
     "AccessorSinglePoolElement",

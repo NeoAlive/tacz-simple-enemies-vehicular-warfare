@@ -1,10 +1,9 @@
-package com.neoalive.tacz_sewv.compat;
+package com.neoalive.tacz_sewv.compat.fcp;
 
 import javax.annotation.Nullable;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraftforge.fml.ModList;
 import net.minecraftforge.registries.ForgeRegistries;
 
 /**
@@ -41,7 +40,7 @@ public final class FcpEmplacementCompat {
     }
 
     public static boolean present() {
-        return ModList.get().isLoaded(MODID);
+        return FcpCompat.supported();
     }
 
     /** Any FCP emplacement that needs AI magazine / rail loading. */

@@ -20,7 +20,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
 import com.neoalive.tacz_sewv.block.EmplacementSupport;
 import com.neoalive.tacz_sewv.bridge.IIssuedAmmo;
-import com.neoalive.tacz_sewv.compat.FcpEmplacementCompat;
+import com.neoalive.tacz_sewv.compat.fcp.FcpEmplacementCompat;
 import com.neoalive.tacz_sewv.config.EasyMode;
 
 /**

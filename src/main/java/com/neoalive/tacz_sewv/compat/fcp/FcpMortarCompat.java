@@ -1,8 +1,7 @@
-package com.neoalive.tacz_sewv.compat;
+package com.neoalive.tacz_sewv.compat.fcp;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraftforge.fml.ModList;
 import net.minecraftforge.registries.ForgeRegistries;
 import org.jetbrains.annotations.Nullable;
 
@@ -30,7 +29,7 @@ public final class FcpMortarCompat {
     private FcpMortarCompat() {}
 
     public static boolean present() {
-        return ModList.get().isLoaded(MODID);
+        return FcpCompat.supported();
     }
 
     /**

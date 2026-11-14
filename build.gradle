@@ -755,6 +755,15 @@ tasks.register('selfCheckLv', JavaExec) {
     jvmArgs '-ea'
 }
 
+tasks.register('selfCheckFcp', JavaExec) {
+    group = 'verification'
+    description = 'Runs the Frontline Combat Pack isolation and roster self-check.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
+    mainClass = 'com.neoalive.tacz_sewv.compat.fcp.FcpSelfCheck'
+    jvmArgs '-ea'
+}
+
 tasks.register('selfCheckMinimap', JavaExec) {
     group = 'verification'
     description = 'Runs the shared map-drawing / minimap projection and isolation self-check.'
@@ -803,7 +812,7 @@ tasks.register('selfCheckLang', JavaExec) {
 tasks.register('selfCheck') {
     group = 'verification'
     description = 'Runs all headless AI self-checks.'
-    dependsOn 'selfCheckArmor', 'selfCheckArtillery', 'selfCheckReducedCharge', 'selfCheckShieldRay', 'selfCheckCamo', 'selfCheckLoadout', 'selfCheckVehiclePacks', 'selfCheckMiscPacks', 'selfCheckUtility', 'selfCheckEasyMode', 'selfCheckRadial', 'selfCheckSignal', 'selfCheckCoverHold', 'selfCheckWeapons', 'selfCheckGrouping', 'selfCheckElection', 'selfCheckInfluence', 'selfCheckPlay', 'selfCheckFormation', 'selfCheckPlayerFormation', 'selfCheckInfantryFormation', 'selfCheckMarch', 'selfCheckSeam', 'selfCheckHeli', 'selfCheckHeliArmament', 'selfCheckPlane', 'selfCheckContactBoard', 'selfCheckWideScan', 'selfCheckPathBudget', 'selfCheckLofCache', 'selfCheckChunkTickets', 'selfCheckUnitLod', 'selfCheckTaskedDestination', 'selfCheckDismount', 'selfCheckMinefield', 'selfCheckTactics', 'selfCheckCues', 'selfCheckSuppression', 'selfCheckAcquisition', 'selfCheckEngineGates', 'selfCheckSounds', 'selfCheckRadioQueue', 'selfCheckCrewSkins', 'selfCheckAirport', 'selfCheckGround', 'selfCheckOrca', 'selfCheckCover', 'selfCheckBattlePosition', 'selfCheckBallistics', 'selfCheckIdle', 'selfCheckInvasion', 'selfCheckConfig', 'selfCheckPathway', 'selfCheckStructures', 'selfCheckTerritory', 'selfCheckDiplomacy', 'selfCheckVehicleAccess', 'selfCheckLv', 'selfCheckRadioDsp', 'selfCheckMinimap', 'selfCheckVehicleClientLod', 'selfCheckTaczCube', 'selfCheckScavenge', 'selfCheckLang'
+    dependsOn 'selfCheckArmor', 'selfCheckArtillery', 'selfCheckReducedCharge', 'selfCheckShieldRay', 'selfCheckCamo', 'selfCheckLoadout', 'selfCheckVehiclePacks', 'selfCheckMiscPacks', 'selfCheckUtility', 'selfCheckEasyMode', 'selfCheckRadial', 'selfCheckSignal', 'selfCheckCoverHold', 'selfCheckWeapons', 'selfCheckGrouping', 'selfCheckElection', 'selfCheckInfluence', 'selfCheckPlay', 'selfCheckFormation', 'selfCheckPlayerFormation', 'selfCheckInfantryFormation', 'selfCheckMarch', 'selfCheckSeam', 'selfCheckHeli', 'selfCheckHeliArmament', 'selfCheckPlane', 'selfCheckContactBoard', 'selfCheckWideScan', 'selfCheckPathBudget', 'selfCheckLofCache', 'selfCheckChunkTickets', 'selfCheckUnitLod', 'selfCheckTaskedDestination', 'selfCheckDismount', 'selfCheckMinefield', 'selfCheckTactics', 'selfCheckCues', 'selfCheckSuppression', 'selfCheckAcquisition', 'selfCheckEngineGates', 'selfCheckSounds', 'selfCheckRadioQueue', 'selfCheckCrewSkins', 'selfCheckAirport', 'selfCheckGround', 'selfCheckOrca', 'selfCheckCover', 'selfCheckBattlePosition', 'selfCheckBallistics', 'selfCheckIdle', 'selfCheckInvasion', 'selfCheckConfig', 'selfCheckPathway', 'selfCheckStructures', 'selfCheckTerritory', 'selfCheckDiplomacy', 'selfCheckVehicleAccess', 'selfCheckLv', 'selfCheckFcp', 'selfCheckRadioDsp', 'selfCheckMinimap', 'selfCheckVehicleClientLod', 'selfCheckTaczCube', 'selfCheckScavenge', 'selfCheckLang'
 }
 
 mixin {
@@ -834,6 +843,8 @@ mixin {
     config "tacz_sewv.perf.mixins.json"
     // Separate config + GemRenderMixinPlugin gate: GemRender is optional and compileOnly.
     config "tacz_sewv.gemrender.mixins.json"
+    // Separate config + FcpMixinPlugin gate: Frontline Combat Pack 2.0+ is optional and compileOnly.
+    config "tacz_sewv.fcp.mixins.json"
 }
 
 repositories {
@@ -1062,6 +1073,12 @@ dependencies {
     //   ./gradlew runClient -PwithLv
     // LV jar-in-jars ApricityUI, rhino and MixinExtras, which a dev run does not unpack, so they
     // come along under the same flag (copied out of LV's META-INF/jarjar into libs/).
+    // Soft: Frontline Combat Pack 2.0.0 (libs/fcp.jar, the release jar). Only compat/fcp/FcpHulls and
+    // mixin/fcp may name frontline.* types. Opt into the run classpath with -PwithFcp.
+    compileOnly fg.deobf("blank:fcp:1.0")
+    if (project.hasProperty('withFcp')) {
+        runtimeOnly fg.deobf("blank:fcp:1.0")
+    }
     compileOnly fg.deobf("blank:ywzj_vehicle:1.0")
     if (project.hasProperty('withLv')) {
         runtimeOnly fg.deobf("blank:ywzj_vehicle:1.0")

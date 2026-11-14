@@ -20,7 +20,7 @@ import org.jetbrains.annotations.Nullable;
 import com.neoalive.tacz_sewv.bridge.FireMission;
 import com.neoalive.tacz_sewv.bridge.IIssuedAmmo;
 import com.neoalive.tacz_sewv.bridge.IMortarCrew;
-import com.neoalive.tacz_sewv.compat.FcpMortarCompat;
+import com.neoalive.tacz_sewv.compat.fcp.FcpMortarCompat;
 
 /**
  * Mortar ballistics and magazine reload for crewed <b>vehicle</b> mortars (FCP Hilux /

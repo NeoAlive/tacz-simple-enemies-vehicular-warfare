@@ -30,7 +30,8 @@ import com.neoalive.tacz_sewv.util.vehiclemelee.VehicleFacts;
  * {@code hurt} still run first, upstream of this redirect.
  *
  * <p><b>Other mods redirect this same call</b> — Doggie's New Vehicle 1.1.39
- * ({@code DnvVehicleArmorMixin}, {@code require = 1}) does, and two {@code @Redirect}s on one
+ * ({@code DnvVehicleArmorMixin}, {@code require = 1}) and Frontline Combat Pack 2.0
+ * ({@code VehicleArmorMixin}, defaultRequire 1) both do, and two {@code @Redirect}s on one
  * instruction is a hard Mixin error that takes the whole game down at load. So this one yields:
  * on a redirect conflict Mixin keeps the HIGHER-priority redirector and skips the other, so
  * {@code priority = 900} (below the default 1000) makes the other mod's redirect win

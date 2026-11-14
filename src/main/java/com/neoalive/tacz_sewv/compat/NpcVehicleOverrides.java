@@ -2,6 +2,7 @@ package com.neoalive.tacz_sewv.compat;
 
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import javax.annotation.Nullable;
@@ -59,6 +60,11 @@ public final class NpcVehicleOverrides {
 
     private static final Map<EntityType<?>, String> ENTITY_IDS = new ConcurrentHashMap<>();
 
+    /** FCP helicopters with no weapon on any seat. */
+    private static final Set<String> FCP_TRANSPORT_HELIS = Set.of(
+            "fcp:huey", "fcp:mi17", "fcp:mi8", "fcp:uh60", "fcp:venom", "fcp:littlebird", "fcp:bigbird",
+            "fcp:ch47", "fcp:ch53a", "fcp:ch53e", "fcp:mh53");
+
     /** Thrust scale stacked on health mobility; 1.0 = no cap. */
     public static float speedScale(@Nullable VehicleEntity hull) {
         if (!npcSeated(hull)) return 1.0f;
@@ -83,8 +89,7 @@ public final class NpcVehicleOverrides {
     public static boolean isTransportHeli(@Nullable VehicleEntity hull) {
         String id = entityId(hull);
         if (id == null) return false;
-        return id.equals("fcp:huey")
-                || id.equals("fcp:mi17")
+        return FCP_TRANSPORT_HELIS.contains(id)
                 || id.equals("ashvehicle:uh_60")
                 || id.equals("vvp:mi_8")
                 || id.equals("vvp:nh_90");

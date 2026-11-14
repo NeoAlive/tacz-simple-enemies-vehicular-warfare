@@ -154,39 +154,53 @@ public final class VehiclePackPresets {
         return new Builder()
                 .put(TankFaction.RU, Category.GROUND, ns,
                         "bmp1", "bmp1am", "bmp1p", "bmp1u", "bmp2", "bmp2_noatgm", "bmp2d", "bmp2m", "bmp2md",
-                        "brdm2", "btr3e", "btr4mv1", "btr80", "btr80_cope", "btr82", "btr82_cope", "btr82at",
-                        "t72av", "t14_armata", "gaz_tigr", "gaz_tigr_gl", "gaz_tigr_mg", "gaz_tigr_rws",
-                        "kamaz", "kamaz_kung", "kamaz_long", "kozak2m1", "kozak5", "kozak_ambulance",
-                        "msta", "novator", "novator_unarmed", "pantsir",
+                        "bmp3", "bmp3_cage", "bmp3m", "brm3k",
+                        "brdm2", "brdm2_kornet", "btr3e", "btr4e", "btr4e1", "btr4mv1", "btr80", "btr80_cope",
+                        "btr82", "btr82_cope", "btr82at",
+                        "t72a", "t72av", "t72b", "t72b_1985", "t72b_1989", "t72b2", "t72b3", "t72b3_2016",
+                        "t72b3m", "t72m2_moderna", "t90a", "t90m", "t90m_2022", "t90m_2024", "t90ms", "t14_armata",
+                        "gaz_tigr", "gaz_tigr_dual", "gaz_tigr_gl", "gaz_tigr_mg", "gaz_tigr_rws", "gaz66", "zis5",
+                        "kamaz", "kamaz_kung", "kamaz_long", "kozak2m1", "kozak5", "kozak_ambulance", "skif",
+                        "msta", "2s31", "khrizantema", "novator", "novator_unarmed", "novator_stugna", "pantsir",
+                        "typhoon_vdv", "typhoon_vdv_unarmed",
                         "uaz", "uaz_3303", "uaz_452", "uaz_dshka", "uaz_spg9",
                         "ural", "ural_fuel", "ural_grad", "ural_kung",
-                        "toyota_hilux", "toyota_hilux_bmp", "toyota_hilux_mortar", "toyota_hilux_rocket_pod",
-                        "toyota_hilux_spg9", "toyota_hilux_zu23")
+                        "toyota_hilux", "toyota_hilux_bmp", "toyota_hilux_kornet", "toyota_hilux_mortar",
+                        "toyota_hilux_rocket_pod", "toyota_hilux_spg9", "toyota_hilux_zu23")
                 .put(TankFaction.RU, Category.ROTOR, ns,
-                        "mi8", "mi8_amtsh", "mi8_door_guns", "mi8_mtv", "mi17", "mi17_door_guns")
+                        "mi8", "mi8_amtsh", "mi8_door_guns", "mi8_mtv", "mi17", "mi17_door_guns", "ka52")
                 .put(TankFaction.RU, Category.TOW, ns, "empl_kornet", "empl_dshk", "empl_ags17", "empl_zis3")
                 .put(TankFaction.US, Category.GROUND, ns,
-                        "aavp", "lav25", "stryker_dragoon", "stryker_m2", "stryker_mgs", "stryker_mk19",
-                        "stryker_tow", "stryker_mortar",
+                        "m1a1", "m1a1_aim", "m1a1_ukr", "m1a2", "m1a2_tusk1", "m1a2_tusk2",
+                        "leopard2a4", "leopard2a4_ukr", "leopard2a6", "leopard2a7v", "type10",
+                        "m2a2", "m2a2_busk", "m2a3", "m2a3_busk", "m6a2", "puma", "puma_atgm", "marder1a3",
+                        "aavp", "lav25", "lav25_mg", "m113", "m113a2",
+                        "stryker_dragoon", "stryker_m2", "stryker_mgs", "stryker_mk19", "stryker_tow", "stryker_mortar",
                         "hmmwv_ambulance", "hmmwv_armored_m2", "hmmwv_armored_mk19", "hmmwv_armored_unarmed",
                         "hmmwv_asrad", "hmmwv_avenger", "hmmwv_cargo", "hmmwv_shelter", "hmmwv_soft_top",
                         "hmmwv_soft_top_no_doors", "hmmwv_unarmored_m2", "hmmwv_unarmored_m2_shield",
                         "hmmwv_unarmored_m2_turret", "hmmwv_unarmored_tow", "hmmwv_unarmored_tow_turret",
                         "hmmwv_unarmored_unarmed",
-                        "matv", "matv_9in1", "matv_crow", "matv_tow",
-                        "m109", "m939", "man_hx58", "man_hx58_mg3", "fmtv", "rg_33", "dpv_m240", "dpv_minigun")
+                        "matv", "matv_9in1", "matv_crow", "matv_mk19", "matv_tow",
+                        "dingo", "dingo_gmg", "dingo_m2", "dingo_mg3",
+                        "caiman", "caiman_unarmed", "caiman_uparmored", "caiman_uparmored_unarmed",
+                        "komatsu_lav", "komatsu_lav_shield", "komatsu_lav_unarmed", "type73", "type73_m2",
+                        "toyota_hmv", "m109", "m939", "man_hx58", "man_hx58_mg3", "man_hx60", "fmtv", "fmtv_4x4",
+                        "rg_33", "dpv_m240", "dpv_minigun")
                 .put(TankFaction.US, Category.ROTOR, ns,
                         "huey", "huey_m134_door_guns", "huey_m134_gunship", "huey_m60_door_guns",
-                        "huey_m60_gunship", "huey_rockets", "littlebird", "littlebird_armed", "littlebird_heavy",
+                        "huey_m60_gunship", "littlebird", "littlebird_armed", "littlebird_heavy",
                         "uh60", "uh60_minigun", "venom", "venom_door_guns", "venom_gunship", "viper", "oh1",
-                        "mh60l", "mh53", "ch53a", "ch53e", "bigbird")
+                        "mh60l", "mh53", "ch47", "ch53a", "ch53e", "bigbird")
                 .put(TankFaction.US, Category.TOW, ns, "empl_tow", "empl_m2", "empl_mg3", "empl_mk19")
                 .put(TankFaction.PMC, Category.GROUND, ns,
-                        "t72av", "bmp2_noatgm", "brdm2", "btr80", "lav25", "stryker_m2", "matv", "matv_tow",
+                        "t72av", "t72b", "m1a1", "leopard2a4", "m2a2", "bmp2_noatgm", "bmp3", "brdm2", "btr80",
+                        "lav25", "m113", "stryker_m2", "matv", "matv_tow", "dingo_m2", "caiman",
                         "hmmwv_armored_m2", "hmmwv_unarmored_tow", "gaz_tigr_mg", "toyota_hilux_spg9",
-                        "toyota_hilux_zu23", "uaz_dshka", "rg_33", "dpv_minigun")
+                        "toyota_hilux_zu23", "toyota_hilux_kornet", "type73_m2", "uaz_dshka", "rg_33", "dpv_minigun")
                 .put(TankFaction.PMC, Category.ROTOR, ns,
-                        "huey_m60_gunship", "littlebird_armed", "uh60", "mi17", "mi8_door_guns", "venom")
+                        "huey_m60_gunship", "littlebird_armed", "littlebird_heavy", "uh60", "uh60_minigun",
+                        "mh60l", "mi17", "mi8_door_guns", "venom")
                 .put(TankFaction.PMC, Category.TOW, ns, "empl_tow", "empl_kornet", "empl_dshk")
                 .freeze();
     }

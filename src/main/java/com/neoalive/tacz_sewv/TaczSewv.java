@@ -153,9 +153,11 @@ public class TaczSewv {
     CorpseCompat.reportAvailability();
     // Limitless Vehicles: LvCompat imports no LV type, so this is safe with the mod absent.
     com.neoalive.tacz_sewv.compat.lv.LvCompat.reportAvailability();
+    com.neoalive.tacz_sewv.compat.fcp.FcpCompat.reportAvailability();
     com.neoalive.tacz_sewv.compat.NeoArmsCompat.bootstrap();
     // MixinVehicleDamageRedirect yields the DamageModifier.compute call to DNV's own redirect
-    // (two @Redirects on one call is a load-time crash), so say what that turns off.
+    // (two @Redirects on one call is a load-time crash), so say what that turns off. FCP 2.0
+    // redirects the same call and reports it from FcpCompat.
     if (ModList.get().isLoaded("doggiesnewvehicle")) {
         LOGGER.warn("[sewv] Doggie's New Vehicle owns SBW's vehicle damage hook - TaCZ ballistic "
                 + "translation and mob melee damage against vehicles are inactive on this install.");

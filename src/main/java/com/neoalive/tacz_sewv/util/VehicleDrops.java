@@ -12,8 +12,11 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.event.entity.living.LivingDropsEvent;
 import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.items.IItemHandler;
+import net.minecraftforge.items.IItemHandlerModifiable;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
+import com.neoalive.tacz_sewv.compat.VehicleAmmoStorage;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.support.MortarSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.Type63Support;
@@ -64,9 +67,9 @@ public final class VehicleDrops {
      * Spill the hull container per config, then empty it so SBW's own {@code remove} loop
      * finds nothing.
      *
-     * <p>Stays on SBW {@code getItems()} on purpose: addon holds (FCP) already spill in their
-     * own {@code remove} override before {@code super.remove} reaches this mixin. Walking
-     * {@code ITEM_HANDLER} here would drop the same stacks twice.
+     * <p>Stays on SBW {@code getItems()} on purpose: FCP holds spill in their own {@code remove}
+     * override, which {@link #scrubFcpHold} handles first. Walking {@code ITEM_HANDLER} here would
+     * drop the same stacks twice.
      */
     public static void spillAndClear(VehicleEntity vehicle) {
         List<ItemStack> items = vehicle.getItems();
@@ -81,6 +84,31 @@ public final class VehicleDrops {
         }
         for (int i = 0; i < items.size(); i++) {
             items.set(i, ItemStack.EMPTY);
+        }
+    }
+
+    /**
+     * FCP 2.0 hulls spill their own hold in their remove override, before SBW's. Run first:
+     * a kill spills the hold here per mode and empties it, a discard keeps the hold for FCP to
+     * spill (crowbar, despawn) minus system ammo boxes, and a gated hull drops nothing on discard.
+     */
+    public static void scrubFcpHold(VehicleEntity vehicle, Entity.RemovalReason reason) {
+        if (vehicle.level().isClientSide || !reason.shouldDestroy()) return;
+        IItemHandler handler = VehicleAmmoStorage.handler(vehicle);
+        if (!(handler instanceof IItemHandlerModifiable hold)) return;
+        boolean killed = reason == Entity.RemovalReason.KILLED;
+        String mode = SewvConfig.VEHICLE_DEATH_DROPS.get();
+        boolean clearAll = !killed && isGated(vehicle);
+        for (int i = 0; i < hold.getSlots(); i++) {
+            ItemStack stack = hold.getStackInSlot(i);
+            if (stack.isEmpty()) continue;
+            if (killed) {
+                ItemStack drop = MODE_DISABLE.equals(mode) ? ItemStack.EMPTY : filterStack(stack, mode);
+                if (!drop.isEmpty()) vehicle.spawnAtLocation(drop, 0.5f);
+                hold.setStackInSlot(i, ItemStack.EMPTY);
+            } else if (clearAll || CreativeAmmoConsumable.isCreativeAmmoBox(stack)) {
+                hold.setStackInSlot(i, ItemStack.EMPTY);
+            }
         }
     }
 

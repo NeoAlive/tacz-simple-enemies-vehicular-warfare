@@ -11,6 +11,7 @@ import net.minecraftforge.items.IItemHandler;
 import net.minecraftforge.items.IItemHandlerModifiable;
 import net.minecraftforge.items.ItemHandlerHelper;
 
+import com.neoalive.tacz_sewv.compat.fcp.FcpCompat;
 import com.neoalive.tacz_sewv.util.CreativeAmmoConsumable;
 import com.neoalive.tacz_sewv.util.RandomUtil;
 
@@ -55,6 +56,8 @@ public final class VehicleAmmoStorage {
         if (hull == null) return 0;
         IItemHandler handler = handler(hull);
         if (handler == null) return 0;
+        // FCP's hold is built at its real size and saved as is; its SBW container size is 0.
+        if (FcpCompat.hasHold(hull)) return handler.getSlots();
         return Math.max(0, Math.min(handler.getSlots(), hull.getContainerSize()));
     }
 

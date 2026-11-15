@@ -238,6 +238,8 @@
   "gui.tacz_sewv.map.cruise.cancel": "Abbrechen",
   "message.tacz_sewv.cruise.plotting": "Linksklick setzt einen Wegpunkt, Rechtsklick entfernt. %s gesetzt.",
   "message.tacz_sewv.cruise.plotted": "Route mit %s Wegpunkten gesendet.",
+  "message.tacz_sewv.waypoint.moved": "Wegpunkt verschoben (%s Einheiten).",
+  "message.tacz_sewv.waypoint.cancelled": "Verschieben des Wegpunkts abgebrochen.",
   "message.tacz_sewv.cruise.cancelled": "Routenplanung abgebrochen.",
   "message.tacz_sewv.cruise.ordered.done": "auf eine Marschroute mit %2$s Wegpunkten befohlen.",
   "message.tacz_sewv.cruise.ordered.none": "keine geeigneten Bodenfahrzeuge.",

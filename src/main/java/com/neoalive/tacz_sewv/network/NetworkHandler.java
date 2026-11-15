@@ -168,7 +168,7 @@ public class NetworkHandler {
     // 117: PacketSetVoice (C->S) + crew voice in PacketSyncPmcIdentity.
     // 118: PacketApplyPmcIdentity carries the whole terminal (PacketSetVoice and PacketSetNameCategory
     //      removed), PacketSyncPmcIdentity the logo link, PacketFetchWebLogo (C->S) + PacketWebLogo (S->C).
-    private static final String PROTOCOL_VERSION = "118";
+    private static final String PROTOCOL_VERSION = "119";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),
@@ -369,6 +369,13 @@ public class NetworkHandler {
                 PacketReachGuard::encode,
                 PacketReachGuard::new,
                 PacketReachGuard::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketMoveWaypoint.class,
+                PacketMoveWaypoint::encode,
+                PacketMoveWaypoint::new,
+                PacketMoveWaypoint::handle
         );
 
         CHANNEL.registerMessage(

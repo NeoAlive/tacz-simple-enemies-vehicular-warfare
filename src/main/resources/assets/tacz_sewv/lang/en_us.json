@@ -238,6 +238,8 @@
   "gui.tacz_sewv.map.cruise.cancel": "Cancel",
   "message.tacz_sewv.cruise.plotting": "Left-click to add a waypoint, right-click to remove. %s plotted.",
   "message.tacz_sewv.cruise.plotted": "Route of %s waypoints sent.",
+  "message.tacz_sewv.waypoint.moved": "Waypoint moved (%s units).",
+  "message.tacz_sewv.waypoint.cancelled": "Waypoint drag cancelled.",
   "message.tacz_sewv.cruise.cancelled": "Route plotting cancelled.",
   "message.tacz_sewv.cruise.ordered.done": "ordered to cruise a %2$s-waypoint route.",
   "message.tacz_sewv.cruise.ordered.none": "no eligible ground vehicles.",

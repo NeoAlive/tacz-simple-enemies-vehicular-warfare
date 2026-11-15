@@ -286,6 +286,13 @@ public abstract class MixinPmcUnitEntity
      * standing formation instead of dropping it — those two orders are meant to keep the shape
      * and axis a Quick Wheel formation set, not just FORM_WEDGE/FORM_COLUMN.
      */
+    /** Every MOVE writer goes through here, so this is where a map waypoint learns its batch. */
+    @Inject(method = "setMoveToTarget", at = @At("HEAD"), remap = false)
+    private void tacz_sewv$stampMoveBatch(net.minecraft.world.phys.Vec3 target, CallbackInfo ci) {
+        if (!((Entity) (Object) this).isAddedToWorld()) return;
+        com.neoalive.tacz_sewv.order.OrderBatch.stamp((Entity) (Object) this);
+    }
+
     @Inject(method = "setFormationIndex", at = @At("HEAD"), remap = false)
     private void tacz_sewv$dropFormationAxisOnReorder(int index, CallbackInfo ci) {
         if (!((Entity) (Object) this).isAddedToWorld()) return;

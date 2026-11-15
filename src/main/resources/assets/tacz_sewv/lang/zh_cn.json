@@ -238,6 +238,8 @@
   "gui.tacz_sewv.map.cruise.cancel": "取消",
   "message.tacz_sewv.cruise.plotting": "左键添加航点，右键移除。已标 %s。",
   "message.tacz_sewv.cruise.plotted": "已发送 %s 个航点的航线。",
+  "message.tacz_sewv.waypoint.moved": "路径点已移动（%s 个单位）。",
+  "message.tacz_sewv.waypoint.cancelled": "已取消拖动路径点。",
   "message.tacz_sewv.cruise.cancelled": "航线绘制已取消。",
   "message.tacz_sewv.cruise.ordered.done": "已受令沿 %2$s 个航点的航线行进。",
   "message.tacz_sewv.cruise.ordered.none": "没有符合条件的地面载具。",

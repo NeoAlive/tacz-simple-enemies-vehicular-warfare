@@ -6,6 +6,7 @@ import java.util.UUID;
 import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineType;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.core.BlockPos;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.Entity;
@@ -208,6 +209,56 @@ public final class PatrolSupport {
     public static void beginCruise(PmcUnitEntity pmc, List<BlockPos> route) {
         EntrenchSupport.clear(pmc);
         ((IVehiclePatrol) pmc).sewv$setCruise(route, true);
+    }
+
+    /**
+     * Moves a live patrol or search area to {@code origin} (a map waypoint drag). A patrol drops a leg
+     * that now falls outside the ring, and a final move drops it anyway so the next leg is picked in
+     * the new area. A final search move restarts its sweep from the first leg.
+     */
+    public static void moveOrigin(PmcUnitEntity pmc, BlockPos origin, boolean fin) {
+        IVehiclePatrol task = (IVehiclePatrol) pmc;
+        if (task.sewv$getPatrolOrigin() == null) return;
+        CompoundTag tag = pmc.getPersistentData();
+        tag.putLong(IVehiclePatrol.TAG_ORIGIN, origin.asLong());
+        BlockPos waypoint = task.sewv$getPatrolWaypoint();
+        int radius = task.sewv$getPatrolRadius();
+        boolean outside = waypoint != null && horizontalDistSq(waypoint, origin) > (double) radius * radius;
+        if (task.sewv$getPatrolMode() == IVehiclePatrol.MODE_SEARCH) {
+            if (!fin) return;
+            tag.putInt(IVehiclePatrol.TAG_STEP, 0);
+            tag.remove(IVehiclePatrol.TAG_WAYPOINT);
+            tag.remove(IVehiclePatrol.TAG_STEP_DEADLINE);
+            return;
+        }
+        if (fin || outside) {
+            tag.remove(IVehiclePatrol.TAG_WAYPOINT);
+            tag.remove(IVehiclePatrol.TAG_NEXT_ROTATE);
+        }
+    }
+
+    /**
+     * Moves node {@code index} of a live cruise. Node 0 is also the task origin. The leg in progress
+     * keeps its index and gets a fresh timeout if it was the one moved.
+     */
+    public static void moveCruiseNode(PmcUnitEntity pmc, int index, BlockPos pos) {
+        IVehiclePatrol task = (IVehiclePatrol) pmc;
+        if (task.sewv$getPatrolMode() != IVehiclePatrol.MODE_CRUISE) return;
+        CompoundTag tag = pmc.getPersistentData();
+        long[] route = tag.getLongArray(IVehiclePatrol.TAG_ROUTE);
+        if (index < 0 || index >= route.length) return;
+        route[index] = pos.asLong();
+        tag.putLongArray(IVehiclePatrol.TAG_ROUTE, route);
+        if (index == 0) tag.putLong(IVehiclePatrol.TAG_ORIGIN, pos.asLong());
+        if (Math.floorMod(task.sewv$getPatrolStep(), route.length) == index) {
+            task.sewv$setPatrolStepDeadline(pmc.level().getGameTime() + SWEEP_STEP_TIMEOUT);
+        }
+    }
+
+    private static double horizontalDistSq(BlockPos a, BlockPos b) {
+        double dx = a.getX() - b.getX();
+        double dz = a.getZ() - b.getZ();
+        return dx * dx + dz * dz;
     }
 
     /** Drive the plotted route once, then stand down — manual preferred-pathway funnel for hulls. */

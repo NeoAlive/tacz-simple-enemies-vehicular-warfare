@@ -65,6 +65,7 @@ import com.neoalive.tacz_sewv.invasion.InvasionTags;
 import com.neoalive.tacz_sewv.invasion.PmcOwnerSupport;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketOwnedVehicles;
+import com.neoalive.tacz_sewv.order.OrderBatch;
 
 /**
  * Sends each player the crewed vehicles their side can see, for the map markers in
@@ -650,18 +651,20 @@ public final class OwnedVehicleTracker {
         if (patrol.sewv$isPatrolling()) {
             if (patrol.sewv$getPatrolMode() == IVehiclePatrol.MODE_SWEEP) return MarkerOrder.NONE;
             if (patrol.sewv$getPatrolMode() == IVehiclePatrol.MODE_CRUISE) {
-                return MarkerOrder.cruise(patrol.sewv$getCruiseRoute());
+                return MarkerOrder.cruise(patrol.sewv$getCruiseRoute(), OrderBatch.of(pmc));
             }
             BlockPos origin = patrol.sewv$getPatrolOrigin();
             if (origin != null) {
                 MarkerOrder.Type mode = patrol.sewv$getPatrolMode() == IVehiclePatrol.MODE_SEARCH
                         ? MarkerOrder.Type.SEARCH : MarkerOrder.Type.PATROL;
-                return MarkerOrder.area(mode, origin, patrol.sewv$getPatrolRadius());
+                return MarkerOrder.area(mode, origin, patrol.sewv$getPatrolRadius(), OrderBatch.of(pmc));
             }
         }
         if (pmc.getOrder() == OrderType.MOVE_TO_POSITION) {
             Vec3 t = pmc.getMoveToTarget();
-            if (t != null && !t.equals(Vec3.ZERO)) return MarkerOrder.move(BlockPos.containing(t));
+            if (t != null && !t.equals(Vec3.ZERO)) {
+                return MarkerOrder.move(BlockPos.containing(t), OrderBatch.of(pmc), OrderBatch.reached(pmc, t));
+            }
         }
         return MarkerOrder.NONE;
     }

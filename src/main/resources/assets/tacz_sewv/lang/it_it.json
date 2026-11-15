@@ -238,6 +238,8 @@
   "gui.tacz_sewv.map.cruise.cancel": "Annulla",
   "message.tacz_sewv.cruise.plotting": "Clic sinistro per aggiungere una tappa, clic destro per togliere. %s segnate.",
   "message.tacz_sewv.cruise.plotted": "Rotta di %s tappe inviata.",
+  "message.tacz_sewv.waypoint.moved": "Waypoint spostato (%s unità).",
+  "message.tacz_sewv.waypoint.cancelled": "Spostamento del waypoint annullato.",
   "message.tacz_sewv.cruise.cancelled": "Tracciamento rotta annullato.",
   "message.tacz_sewv.cruise.ordered.done": "con ordine di crociera su una rotta di %2$s tappe.",
   "message.tacz_sewv.cruise.ordered.none": "nessun veicolo terrestre idoneo.",

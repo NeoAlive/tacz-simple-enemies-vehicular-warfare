@@ -14,6 +14,7 @@ import net.minecraft.world.level.Level;
 import com.neoalive.tacz_sewv.map.BattleFieldMarker;
 import com.neoalive.tacz_sewv.map.FobMarker;
 import com.neoalive.tacz_sewv.map.HelipadMarker;
+import com.neoalive.tacz_sewv.map.MarkerOrder;
 import com.neoalive.tacz_sewv.map.VehicleMarker;
 
 /**
@@ -50,6 +51,16 @@ public final class MapMarkers {
     @Nullable
     private static FobMarker fobMarker;
     private static List<HelipadMarker> helipads = List.of();
+    /**
+     * Orders a waypoint drag has moved locally, by unit id, until the sync agrees or they expire.
+     * Without these the 1 Hz sync would snap a dragged handle back while the server catches up.
+     */
+    private static final Int2ObjectOpenHashMap<Pending> OVERRIDES = new Int2ObjectOpenHashMap<>();
+
+    private record Pending(MarkerOrder order, long expiresMs) {}
+
+    private static final long OVERRIDE_HOLD_MS = 3000L;
+
     /** Selected hull network ids — survives driver dismount and sync refreshes. */
     private static final Set<Integer> SELECTED = new HashSet<>();
 
@@ -70,6 +81,31 @@ public final class MapMarkers {
         fobMarker = fob;
         helipads = List.copyOf(pads);
         SELECTED.removeIf(vehicleId -> !BY_VEHICLE_ID.containsKey(vehicleId));
+        OVERRIDES.int2ObjectEntrySet().removeIf(e -> {
+            VehicleMarker m = BY_DRIVER_ID.get(e.getIntKey());
+            return m == null || e.getValue().order().near(m.order(), 1.5);
+        });
+    }
+
+    /** The order to draw for a marker: a pending drag override, else the synced one. */
+    public static MarkerOrder effectiveOrder(VehicleMarker marker) {
+        Pending o = marker.driverId() == NO_DRIVER ? null : OVERRIDES.get(marker.driverId());
+        if (o == null) return marker.order();
+        if (System.currentTimeMillis() > o.expiresMs()) {
+            OVERRIDES.remove(marker.driverId());
+            return marker.order();
+        }
+        return o.order();
+    }
+
+    /** Holds {@code order} for unit {@code driverId}; {@code pinned} keeps it until released (mid-drag). */
+    public static void override(int driverId, MarkerOrder order, boolean pinned) {
+        long until = pinned ? Long.MAX_VALUE : System.currentTimeMillis() + OVERRIDE_HOLD_MS;
+        OVERRIDES.put(driverId, new Pending(order, until));
+    }
+
+    public static void dropOverride(int driverId) {
+        OVERRIDES.remove(driverId);
     }
 
     /** Drop everything — call on disconnect so a new world never inherits the last one's picture. */
@@ -81,6 +117,7 @@ public final class MapMarkers {
         fobMarker = null;
         helipads = List.of();
         SELECTED.clear();
+        OVERRIDES.clear();
     }
 
     public static List<HelipadMarker> helipads() {

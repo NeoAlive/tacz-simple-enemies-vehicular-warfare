@@ -238,6 +238,8 @@
   "gui.tacz_sewv.map.cruise.cancel": "Cancelar",
   "message.tacz_sewv.cruise.plotting": "Clic izquierdo para añadir un punto de ruta, clic derecho para quitar. %s marcados.",
   "message.tacz_sewv.cruise.plotted": "Ruta de %s puntos de ruta enviada.",
+  "message.tacz_sewv.waypoint.moved": "Punto de ruta movido (%s unidades).",
+  "message.tacz_sewv.waypoint.cancelled": "Arrastre del punto de ruta cancelado.",
   "message.tacz_sewv.cruise.cancelled": "Trazado de ruta cancelado.",
   "message.tacz_sewv.cruise.ordered.done": "con orden de crucero por una ruta de %2$s puntos.",
   "message.tacz_sewv.cruise.ordered.none": "ningún vehículo terrestre apto.",

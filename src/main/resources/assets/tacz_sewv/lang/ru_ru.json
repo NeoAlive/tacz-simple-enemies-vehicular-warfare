@@ -238,6 +238,8 @@
   "gui.tacz_sewv.map.cruise.cancel": "Отменить",
   "message.tacz_sewv.cruise.plotting": "ЛКМ добавляет путевую точку, ПКМ убирает. Отмечено: %s.",
   "message.tacz_sewv.cruise.plotted": "Маршрут из %s путевых точек отправлен.",
+  "message.tacz_sewv.waypoint.moved": "Точка маршрута перемещена (подразделений: %s).",
+  "message.tacz_sewv.waypoint.cancelled": "Перемещение точки маршрута отменено.",
   "message.tacz_sewv.cruise.cancelled": "Прокладка маршрута отменена.",
   "message.tacz_sewv.cruise.ordered.done": "с приказом идти маршрутом из %2$s путевых точек.",
   "message.tacz_sewv.cruise.ordered.none": "нет подходящей наземной техники.",

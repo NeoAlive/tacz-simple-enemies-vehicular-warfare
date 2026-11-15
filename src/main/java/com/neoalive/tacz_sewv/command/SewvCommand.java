@@ -79,6 +79,7 @@ import com.neoalive.tacz_sewv.spawn.SupportSpawner;
 import com.neoalive.tacz_sewv.spawn.SupportSpawner.SupportRole;
 import com.neoalive.tacz_sewv.spawn.TankSpawner;
 import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
+import com.neoalive.tacz_sewv.util.LoadedTerrain;
 import com.neoalive.tacz_sewv.util.VehicleDrops;
 import com.neoalive.tacz_sewv.util.WorldVehiclePools;
 
@@ -391,7 +392,7 @@ public class SewvCommand {
         int cz = origin.getZ() >> 4;
         for (int x = cx - 3; x <= cx + 3 && reported < 12; x++) {
             for (int z = cz - 3; z <= cz + 3 && reported < 12; z++) {
-                if (!level.hasChunk(x, z)) continue;
+                if (!LoadedTerrain.loaded(level, x, z)) continue;
                 for (var be : level.getChunk(x, z).getBlockEntities().values()) {
                     if (!(be instanceof CapturableBlockEntity capturable)) continue;
                     if (capturable.getBlockPos().distSqr(origin) > 64 * 64) continue;

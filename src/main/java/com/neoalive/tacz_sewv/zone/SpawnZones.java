@@ -9,6 +9,7 @@ import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.levelgen.Heightmap;
 
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.util.LoadedTerrain;
 
 /**
  * Spawn zone queries for every spawn path. A lookup is a hash read and touches no world state,
@@ -84,7 +85,7 @@ public final class SpawnZones {
         if (all.length == 0) return null;
         // Ring test first: it is arithmetic, the other two are lookups.
         long pick = ZoneGeometry.pickInRing(all, anchor.getX(), anchor.getZ(), min, max,
-                k -> !layers.beaconCovered(k) && level.hasChunk(ZoneGeometry.x(k), ZoneGeometry.z(k)),
+                k -> !layers.beaconCovered(k) && LoadedTerrain.loaded(level, ZoneGeometry.x(k), ZoneGeometry.z(k)),
                 random.nextDouble());
         if (pick == Long.MIN_VALUE) return null;
         int x = (ZoneGeometry.x(pick) << 4) + random.nextInt(16);

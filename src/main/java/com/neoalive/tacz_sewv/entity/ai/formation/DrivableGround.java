@@ -13,6 +13,7 @@ import net.minecraft.world.level.levelgen.Heightmap;
 
 import com.neoalive.tacz_sewv.compat.EnhancedFallingTreesCompat;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.util.LoadedTerrain;
 
 /**
  * Is a column somewhere a ground hull can stand: loaded, dry, and not the top of a tree. SERVER ONLY.
@@ -126,7 +127,7 @@ public final class DrivableGround {
 
     private static boolean onTree(Level level, double x, int y, double z, boolean felling) {
         BlockPos pos = BlockPos.containing(x, y, z);
-        if (!level.hasChunkAt(pos)) return false;
+        if (!LoadedTerrain.loadedAt(level, pos)) return false;
         BlockState state = level.getBlockState(pos);
         if (state.isAir()) state = level.getBlockState(pos.below());
         return treeBlock(state, felling);

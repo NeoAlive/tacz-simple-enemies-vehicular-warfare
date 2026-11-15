@@ -42,6 +42,7 @@ import com.neoalive.tacz_sewv.fob.FobManager;
 import com.neoalive.tacz_sewv.invasion.PmcOwnerSupport;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.order.OrderReport;
+import com.neoalive.tacz_sewv.util.LoadedTerrain;
 
 /**
  * Search equipment runner: each unit walks to one role item (on the ground or in a container), takes
@@ -199,7 +200,7 @@ public final class GearSearchTracker {
         int maxCz = SectionPos.blockToSectionCoord((int) Math.floor(box.maxZ));
         for (int cx = minCx; cx <= maxCx; cx++) {
             for (int cz = minCz; cz <= maxCz; cz++) {
-                if (!level.hasChunk(cx, cz)) continue;
+                if (!LoadedTerrain.loaded(level, cx, cz)) continue;
                 LevelChunk chunk = level.getChunk(cx, cz);
                 for (BlockEntity be : chunk.getBlockEntities().values()) {
                     BlockPos pos = be.getBlockPos();

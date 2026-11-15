@@ -24,6 +24,7 @@ import com.neoalive.tacz_sewv.entity.ai.formation.GroundSnap;
 import com.neoalive.tacz_sewv.entity.ai.support.BailOutSupport;
 import com.neoalive.tacz_sewv.fob.FobInstance;
 import com.neoalive.tacz_sewv.fob.FobManager;
+import com.neoalive.tacz_sewv.util.LoadedTerrain;
 
 /**
  * Whether a planned slot can actually take a mine. Ground mines need solid, dry, open footing at
@@ -72,13 +73,13 @@ public final class MineSites {
 
     /** Re-check at plant time: the ground may have changed while the engineer walked over. */
     public static boolean stillGround(ServerLevel level, BlockPos feet) {
-        return level.hasChunkAt(feet) && footing(level, feet);
+        return LoadedTerrain.loadedAt(level, feet) && footing(level, feet);
     }
 
     @Nullable
     private static BlockPos groundFeet(ServerLevel level, int x, int z, double anchorY) {
         BlockPos column = new BlockPos(x, Mth.floor(anchorY), z);
-        if (!level.hasChunkAt(column)) return null;
+        if (!LoadedTerrain.loadedAt(level, column)) return null;
         int y = (int) GroundSnap.groundY(level, x + 0.5, z + 0.5, anchorY);
         if (Math.abs(y - anchorY) > MAX_STEP) return null;
         BlockPos feet = new BlockPos(x, y, z);
@@ -107,7 +108,7 @@ public final class MineSites {
             for (int dz = -WALL_SEARCH; dz <= WALL_SEARCH; dz++) {
                 for (int dy = 0; dy <= 1; dy++) {
                     BlockPos air = base.offset(dx, dy, dz);
-                    if (!level.hasChunkAt(air) || !BailOutSupport.isPassable(level, air)) continue;
+                    if (!LoadedTerrain.loadedAt(level, air) || !BailOutSupport.isPassable(level, air)) continue;
                     if (!level.getBlockState(air).getFluidState().isEmpty()) continue;
                     for (Direction face : Direction.Plane.HORIZONTAL) {
                         BlockPos wall = air.relative(face.getOpposite());

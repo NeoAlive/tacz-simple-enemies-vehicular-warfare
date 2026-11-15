@@ -61,6 +61,7 @@ import com.neoalive.tacz_sewv.notify.HudNotify;
 import com.neoalive.tacz_sewv.order.OrderFailure;
 import com.neoalive.tacz_sewv.order.OrderReport;
 import com.neoalive.tacz_sewv.util.ChunkTicket;
+import com.neoalive.tacz_sewv.util.LoadedTerrain;
 import com.neoalive.tacz_sewv.wing.WingFlight;
 import com.neoalive.tacz_sewv.wing.WingRuntime;
 import com.neoalive.tacz_sewv.wing.guidance.WingModeSelector;
@@ -2951,7 +2952,7 @@ public class DrivePlaneGoal extends Goal {
                     if (r > 0 && Math.abs(dx) != r && Math.abs(dz) != r) continue;
                     int x = cx + dx;
                     int z = cz + dz;
-                    if (!level.hasChunkAt(x, z)) continue;
+                    if (!LoadedTerrain.loadedAt(level, x, z)) continue;
                     int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
                     if (y <= level.getMinBuildHeight()) continue;
                     BlockPos pad = new BlockPos(x, y, z);

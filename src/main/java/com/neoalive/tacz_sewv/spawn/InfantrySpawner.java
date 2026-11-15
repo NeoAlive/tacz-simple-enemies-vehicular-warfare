@@ -11,6 +11,7 @@ import net.minecraft.world.level.levelgen.Heightmap;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
 import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
+import com.neoalive.tacz_sewv.util.LoadedTerrain;
 import com.neoalive.tacz_sewv.zone.SpawnZones;
 
 /**
@@ -39,7 +40,7 @@ public final class InfantrySpawner {
         BlockPos spot = SpawnZones.snapToAllowed(level, new BlockPos(
                 anchor.getX() + level.random.nextInt(s * 2 + 1) - s, anchor.getY(),
                 anchor.getZ() + level.random.nextInt(s * 2 + 1) - s), ZONE_SNAP_CHUNKS);
-        if (spot == null || !level.hasChunk(spot.getX() >> 4, spot.getZ() >> 4)) return null;
+        if (spot == null || !LoadedTerrain.loaded(level, spot.getX() >> 4, spot.getZ() >> 4)) return null;
         AbstractUnit unit = TankSpawner.createCrewUnit(level, faction, ownerId);
         int x = spot.getX();
         int z = spot.getZ();

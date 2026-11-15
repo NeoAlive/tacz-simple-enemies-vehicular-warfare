@@ -8,6 +8,8 @@ import net.minecraft.world.level.chunk.DataLayer;
 import net.minecraft.world.level.lighting.LayerLightEventListener;
 import net.minecraft.world.level.lighting.LevelLightEngine;
 
+import com.neoalive.tacz_sewv.util.LoadedTerrain;
+
 /**
  * Rechecks every block-lit position in a square of loaded chunks, a few sections per tick. The
  * light engine drops whatever no real emitter supports, which clears light left behind by
@@ -62,7 +64,7 @@ public final class RelightJob {
             if (dx > radius) return true;
             int cx = centerX + dx;
             int cz = centerZ + dz;
-            if (level.hasChunk(cx, cz)) {
+            if (LoadedTerrain.loaded(level, cx, cz)) {
                 DataLayer data = blockLight.getDataLayerData(SectionPos.of(cx, sy, cz));
                 if (data != null && !data.isEmpty()) {
                     scan(engine, data, cx, sy, cz);

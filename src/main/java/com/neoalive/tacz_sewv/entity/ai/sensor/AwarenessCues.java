@@ -21,6 +21,7 @@ import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.sensor.AwarenessCueRegistry.SoundCue;
 import com.neoalive.tacz_sewv.entity.ai.sensor.AwarenessCueRegistry.TriggerKind;
 import com.neoalive.tacz_sewv.entity.ai.utility.Facts;
+import com.neoalive.tacz_sewv.util.LoadedTerrain;
 
 /**
  * Per-hull investigate layer: gunfire a crew can hear ({@link AwarenessCueRegistry}) and contacts its
@@ -108,7 +109,7 @@ public final class AwarenessCues {
         if (this.entitySpotId < 0) return;
         Entity e = unit.level().getEntity(this.entitySpotId);
         if (!(e instanceof LivingEntity living) || !living.isAlive()
-                || !unit.level().hasChunk(living.getBlockX() >> 4, living.getBlockZ() >> 4)
+                || !LoadedTerrain.loaded(unit.level(), living.getBlockX() >> 4, living.getBlockZ() >> 4)
                 || Facts.ticksSince(this.entitySpotSeen, now) >= Facts.CONTACT_MEMORY_TICKS) {
             dropEntitySpot();
             return;

@@ -29,6 +29,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import com.neoalive.tacz_sewv.compat.NpcVehicleOverrides;
 import com.neoalive.tacz_sewv.entity.ai.formation.GroundSnap;
 import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
+import com.neoalive.tacz_sewv.util.LoadedTerrain;
 import com.neoalive.tacz_sewv.util.WorldVehiclePools;
 import com.neoalive.tacz_sewv.zone.SpawnZones;
 
@@ -108,7 +109,7 @@ public final class EquipmentDeploy {
         if (!SpawnZones.allowsChunk(level, x >> 4, z >> 4)) return null;
         int y = (int) GroundSnap.groundY(level, x + 0.5, z + 0.5, unit.getY());
         BlockPos feet = new BlockPos(x, y, z);
-        if (!level.hasChunkAt(feet) || Math.abs(y - unit.getY()) > 3) return null;
+        if (!LoadedTerrain.loadedAt(level, feet) || Math.abs(y - unit.getY()) > 3) return null;
         if (!BailOutSupport.isStandable(level, feet)) return null;
         if (!level.getBlockState(feet).getFluidState().isEmpty()
                 || !level.getBlockState(feet.below()).getFluidState().isEmpty()) {

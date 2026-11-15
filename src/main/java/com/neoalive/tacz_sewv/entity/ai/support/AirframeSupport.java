@@ -10,6 +10,7 @@ import net.minecraft.world.level.levelgen.Heightmap;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
 import com.neoalive.tacz_sewv.util.ChunkTicket;
+import com.neoalive.tacz_sewv.util.LoadedTerrain;
 
 /** Shared low-level controls and terrain references for helicopter and plane pilots. */
 public final class AirframeSupport {
@@ -200,7 +201,7 @@ public final class AirframeSupport {
      * chunk is unloaded — callers treat that as "no sample" (clear for corridor routing).
      */
     public static int surfaceAtLoaded(Level level, int blockX, int blockZ) {
-        if (!level.hasChunk(blockX >> 4, blockZ >> 4)) return Integer.MIN_VALUE;
+        if (!LoadedTerrain.loaded(level, blockX >> 4, blockZ >> 4)) return Integer.MIN_VALUE;
         return level.getHeight(Heightmap.Types.WORLD_SURFACE, blockX, blockZ);
     }
 

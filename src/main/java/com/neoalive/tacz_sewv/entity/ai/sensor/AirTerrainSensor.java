@@ -13,6 +13,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
+import com.neoalive.tacz_sewv.util.LoadedTerrain;
 
 /**
  * Terrain sensing for {@link DriveHelicopterGoal}: what an airframe must not fly into.
@@ -71,7 +72,7 @@ public final class AirTerrainSensor extends TerrainSensor {
             int px = Mth.floor(sampleX);
             int pz = Mth.floor(sampleZ);
             // Never getBlockState into an unloaded chunk — that path managedBlock's the server.
-            if (!level.hasChunk(px >> 4, pz >> 4)) return false;
+            if (!LoadedTerrain.loaded(level, px >> 4, pz >> 4)) return false;
 
             if (!Double.isNaN(slabTop(level, pos, px, pz, yBottom, yTop))) return false;
 

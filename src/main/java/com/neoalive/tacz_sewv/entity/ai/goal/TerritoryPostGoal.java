@@ -11,6 +11,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import com.neoalive.tacz_sewv.bridge.ITerritoryPost;
 import com.neoalive.tacz_sewv.entity.ai.support.PmcDownedSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.TerritorySupport;
+import com.neoalive.tacz_sewv.util.LoadedTerrain;
 
 /**
  * On-foot Territory Mode: walk to the assigned chunk's centre and keep the unit on it.
@@ -94,7 +95,7 @@ public class TerritoryPostGoal extends Goal {
         int x = (int) Math.floor(TerritorySupport.centreX(post));
         int z = (int) Math.floor(TerritorySupport.centreZ(post));
         // An unloaded centre has no height to path to; wait for it rather than force-loading a chunk.
-        if (!level.hasChunkAt(x, z)) return;
+        if (!LoadedTerrain.loadedAt(level, x, z)) return;
         nextRepath = now + REPATH_TICKS;
         ((AbstractUnit) unit).releaseMovementLock();
         int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);

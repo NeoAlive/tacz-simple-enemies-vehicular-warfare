@@ -52,6 +52,7 @@ import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.formation.DrivableGround;
 import com.neoalive.tacz_sewv.init.ModGameRules;
 import com.neoalive.tacz_sewv.skin.VehicleSkinSupport;
+import com.neoalive.tacz_sewv.util.LoadedTerrain;
 import com.neoalive.tacz_sewv.util.VehicleEngineLoot;
 import com.neoalive.tacz_sewv.util.WorldVehiclePools;
 import com.neoalive.tacz_sewv.zone.SpawnZones;
@@ -1063,7 +1064,7 @@ public final class TankSpawner {
                     if (Math.max(Math.abs(dx), Math.abs(dz)) != r) continue; // ring perimeter only, nearest-first
                     int x = pos.getX() + dx, z = pos.getZ() + dz;
                     // Never sync-load: noCollision/getBlockState force-generate an unloaded column.
-                    if (!level.hasChunk(x >> 4, z >> 4)) continue;
+                    if (!LoadedTerrain.loaded(level, x >> 4, z >> 4)) continue;
                     if (!SpawnZones.allowsChunk(level, x >> 4, z >> 4)) {
                         zone = true;
                         continue;
@@ -1097,7 +1098,7 @@ public final class TankSpawner {
                 for (int dz = -r; dz <= r; dz++) {
                     if (Math.max(Math.abs(dx), Math.abs(dz)) != r) continue;
                     int x = pos.getX() + dx, z = pos.getZ() + dz;
-                    if (!level.hasChunk(x >> 4, z >> 4)) continue;
+                    if (!LoadedTerrain.loaded(level, x >> 4, z >> 4)) continue;
                     if (!SpawnZones.allowsChunk(level, x >> 4, z >> 4)) {
                         zone = true;
                         continue;
@@ -1138,7 +1139,7 @@ public final class TankSpawner {
                 for (int dz = -r; dz <= r; dz++) {
                     if (Math.max(Math.abs(dx), Math.abs(dz)) != r) continue;
                     int x = pos.getX() + dx, z = pos.getZ() + dz;
-                    if (!level.hasChunk(x >> 4, z >> 4)) continue; // same sync-load ban as findClearSpawn
+                    if (!LoadedTerrain.loaded(level, x >> 4, z >> 4)) continue; // same sync-load ban as findClearSpawn
                     if (!SpawnZones.allowsChunk(level, x >> 4, z >> 4)) {
                         zone = true;
                         continue;

@@ -25,6 +25,7 @@ import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.VehicleFormation;
 import com.neoalive.tacz_sewv.invasion.PmcOwnerSupport;
 import com.neoalive.tacz_sewv.map.MarkerOrder;
+import com.neoalive.tacz_sewv.util.LoadedTerrain;
 
 /**
  * Server half of dragging an order waypoint on the map. The anchor unit's point goes to the
@@ -164,7 +165,7 @@ public final class WaypointEdits {
     private static double groundY(Level level, double x, double z, double fallback) {
         int bx = (int) Math.floor(x);
         int bz = (int) Math.floor(z);
-        if (!level.hasChunk(bx >> 4, bz >> 4)) return fallback;
+        if (!LoadedTerrain.loaded(level, bx >> 4, bz >> 4)) return fallback;
         return level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, bx, bz);
     }
 }

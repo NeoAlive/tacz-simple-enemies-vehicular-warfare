@@ -8,6 +8,8 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.levelgen.Heightmap;
 import org.jetbrains.annotations.Nullable;
 
+import com.neoalive.tacz_sewv.util.LoadedTerrain;
+
 /**
  * Water queries shared by the ship pathfinder, sensor and drive goal: how deep a column is, and
  * where the nearest navigable water to an arbitrary point is.
@@ -101,7 +103,7 @@ public final class WaterSupport {
             double dist = radius * (0.3 + 0.7 * random.nextDouble());
             int x = anchor.getX() + (int) Math.round(Math.cos(angle) * dist);
             int z = anchor.getZ() + (int) Math.round(Math.sin(angle) * dist);
-            if (!level.hasChunkAt(new BlockPos(x, level.getMinBuildHeight(), z))) continue;
+            if (!LoadedTerrain.loadedAt(level, new BlockPos(x, level.getMinBuildHeight(), z))) continue;
             Integer y = surfaceY(level, x, z);
             if (y == null) continue;
             if (depthAt(level, x, y, z, 2) < 2) continue; // idle drifting stays off the shallows

@@ -6,6 +6,8 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.levelgen.Heightmap;
 
+import com.neoalive.tacz_sewv.util.LoadedTerrain;
+
 /**
  * Lays a march's road ahead of it, a leg at a time, from heightmap reads alone.
  *
@@ -150,7 +152,7 @@ public final class RouteScout {
     }
 
     private static boolean loaded(Level level, double x, double z) {
-        return level.hasChunk(Mth.floor(x) >> 4, Mth.floor(z) >> 4);
+        return LoadedTerrain.loaded(level, Mth.floor(x) >> 4, Mth.floor(z) >> 4);
     }
 
     private static int surfaceY(Level level, double x, double z) {

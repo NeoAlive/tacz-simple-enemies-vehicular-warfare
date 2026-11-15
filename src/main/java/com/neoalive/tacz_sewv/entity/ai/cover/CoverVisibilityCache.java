@@ -32,6 +32,7 @@ import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.debug.PathingPerf;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
+import com.neoalive.tacz_sewv.util.LoadedTerrain;
 
 /**
  * Killzone-style worst-case visibility table over Minecraft columns.
@@ -268,7 +269,7 @@ public final class CoverVisibilityCache {
             if (!cache.dirtySet.remove(ck)) continue;
             int cx = ChunkPosKey.x(ck);
             int cz = ChunkPosKey.z(ck);
-            if (!level.hasChunk(cx, cz)) continue;
+            if (!LoadedTerrain.loaded(level, cx, cz)) continue;
             ChunkCoverGrid grid = cache.grids.computeIfAbsent(ck, k -> new ChunkCoverGrid());
             long t0 = System.nanoTime();
             bakeChunk(level, cx, cz, grid);

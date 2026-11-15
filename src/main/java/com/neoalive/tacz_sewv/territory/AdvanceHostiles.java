@@ -18,6 +18,7 @@ import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.support.FrontlineMath;
 import com.neoalive.tacz_sewv.entity.ai.support.PmcDownedSupport;
 import com.neoalive.tacz_sewv.invasion.PmcOwnerSupport;
+import com.neoalive.tacz_sewv.util.LoadedTerrain;
 
 /**
  * "Is there a hostile unit inside this layer?" for the Advance Plan gate.
@@ -42,7 +43,7 @@ public final class AdvanceHostiles {
     public static boolean allLoaded(ServerLevel level, Set<Long> chunks) {
         for (long key : chunks) {
             FrontlineMath.Chunk c = FrontlineMath.unpack(key);
-            if (!level.hasChunk(c.x(), c.z())) return false;
+            if (!LoadedTerrain.loaded(level, c.x(), c.z())) return false;
         }
         return true;
     }

@@ -33,6 +33,7 @@ import com.neoalive.tacz_sewv.invasion.force.ForceKind;
 import com.neoalive.tacz_sewv.spawn.InfantrySpawner;
 import com.neoalive.tacz_sewv.spawn.TankSpawner;
 import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
+import com.neoalive.tacz_sewv.util.LoadedTerrain;
 import com.neoalive.tacz_sewv.util.VehicleClassify;
 
 /**
@@ -595,7 +596,7 @@ public final class InvasionSpawn {
         int cz = origin.getZ() >> 4;
         for (int x = cx - chunkRadius; x <= cx + chunkRadius; x++) {
             for (int z = cz - chunkRadius; z <= cz + chunkRadius; z++) {
-                if (!level.hasChunk(x, z)) continue;
+                if (!LoadedTerrain.loaded(level, x, z)) continue;
                 LevelChunk chunk = level.getChunk(x, z);
                 for (var be : chunk.getBlockEntities().values()) {
                     if (!(be instanceof CapturableBlockEntity zone)) continue;

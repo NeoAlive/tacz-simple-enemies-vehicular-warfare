@@ -28,6 +28,7 @@ import com.neoalive.tacz_sewv.entity.ai.support.MortarSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.OrderStandDown;
 import com.neoalive.tacz_sewv.entity.ai.support.SmallArmsSupport;
 import com.neoalive.tacz_sewv.entity.ai.utility.Facts;
+import com.neoalive.tacz_sewv.util.LoadedTerrain;
 
 /**
  * "Attack every contact of this class": the player's PMCs near the contacts are paired with them by
@@ -119,7 +120,7 @@ public final class SignalOrders {
 
     private static double groundY(Level level, double x, double z, double fallback) {
         int bx = (int) Math.floor(x), bz = (int) Math.floor(z);
-        if (!level.hasChunk(bx >> 4, bz >> 4)) return fallback;
+        if (!LoadedTerrain.loaded(level, bx >> 4, bz >> 4)) return fallback;
         return level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, bx, bz);
     }
 

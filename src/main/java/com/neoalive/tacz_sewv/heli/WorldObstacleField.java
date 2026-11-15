@@ -20,6 +20,7 @@ import com.neoalive.tacz_sewv.heli.avoid.AvoidForce;
 import com.neoalive.tacz_sewv.heli.avoid.ObstacleSet;
 import com.neoalive.tacz_sewv.heli.avoid.PathProbe;
 import com.neoalive.tacz_sewv.heli.guidance.HeliReference;
+import com.neoalive.tacz_sewv.util.LoadedTerrain;
 
 /**
  * Builds the barrier's {@link ObstacleSet} for one hull, once per tick (plan sections 4.9 and
@@ -103,7 +104,7 @@ public final class WorldObstacleField {
         double groundY = Double.NaN;
         if (groundBarrier) {
             int bx = hull.getBlockX(), bz = hull.getBlockZ();
-            if (level.hasChunk(bx >> 4, bz >> 4)) groundY = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, bx, bz);
+            if (LoadedTerrain.loaded(level, bx >> 4, bz >> 4)) groundY = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, bx, bz);
         }
         return new ObstacleSet(boxes, groundY);
     }
@@ -134,7 +135,7 @@ public final class WorldObstacleField {
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
         PathProbe.Terrain terrain = (x, z, yb, yt) -> {
             int px = (int) Math.floor(x), pz = (int) Math.floor(z);
-            if (!level.hasChunk(px >> 4, pz >> 4)) return Double.NaN;
+            if (!LoadedTerrain.loaded(level, px >> 4, pz >> 4)) return Double.NaN;
             return AirTerrainSensor.slabTop(level, pos, px, pz, (int) Math.floor(yb), (int) Math.floor(yt));
         };
         return PathProbe.probe(ref, hullV, halfWidth, height, terrain, traffic, hull.getId(), tieSide);
@@ -144,7 +145,7 @@ public final class WorldObstacleField {
     public static double groundUnder(VehicleEntity hull) {
         int bx = hull.getBlockX(), bz = hull.getBlockZ();
         Level level = hull.level();
-        if (!level.hasChunk(bx >> 4, bz >> 4)) return Double.POSITIVE_INFINITY;
+        if (!LoadedTerrain.loaded(level, bx >> 4, bz >> 4)) return Double.POSITIVE_INFINITY;
         return level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, bx, bz);
     }
 
@@ -167,7 +168,7 @@ public final class WorldObstacleField {
                             List<ObstacleSet.Box> boxes, Set<Long> keys) {
         for (double d = start; d <= start + reach; d += 1.0) {
             pos.set(Math.floor(ox + dx * d), Math.floor(oy + dy * d), Math.floor(oz + dz * d));
-            if (!level.hasChunk(pos.getX() >> 4, pos.getZ() >> 4)) return;
+            if (!LoadedTerrain.loaded(level, pos.getX() >> 4, pos.getZ() >> 4)) return;
             if (solid(level, pos)) {
                 addBlock(pos, boxes, keys);
                 return;

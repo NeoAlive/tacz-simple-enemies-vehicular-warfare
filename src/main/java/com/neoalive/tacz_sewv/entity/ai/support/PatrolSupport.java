@@ -25,6 +25,7 @@ import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.goal.DriveVehicleGoal;
 import com.neoalive.tacz_sewv.entity.ai.navigation.GroundVehicleNodeEvaluator;
+import com.neoalive.tacz_sewv.util.LoadedTerrain;
 
 /**
  * The area tasks a unit can be given, read by whichever goal moves it: the drive goals for a crew
@@ -564,7 +565,7 @@ public final class PatrolSupport {
     @Nullable
     private static BlockPos column(Level level, int x, int z, boolean air) {
         if (!air) return drivableColumn(level, x, z);
-        if (!level.hasChunkAt(x, z)) return null;
+        if (!LoadedTerrain.loadedAt(level, x, z)) return null;
         return new BlockPos(x, level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z), z);
     }
 
@@ -572,7 +573,7 @@ public final class PatrolSupport {
     // Unloaded columns answer null rather than being force-loaded.
     @Nullable
     public static BlockPos drivableColumn(Level level, int x, int z) {
-        if (!level.hasChunkAt(x, z)) return null;
+        if (!LoadedTerrain.loadedAt(level, x, z)) return null;
         int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
         return CLASSIFIER.getBlockPathType(level, x, y, z) == BlockPathTypes.WALKABLE
                 ? new BlockPos(x, y, z) : null;

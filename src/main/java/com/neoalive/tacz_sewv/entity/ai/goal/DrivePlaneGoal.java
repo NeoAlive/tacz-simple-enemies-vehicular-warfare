@@ -1661,7 +1661,7 @@ public class DrivePlaneGoal extends Goal {
         this.control.throttleUp();
         this.control.steerYaw(desiredBearing, TURN_YAW_SCALE);
         this.control.commandPitch(atCeiling() ? 0.0F : -CLIMB_AVOID_PITCH_DEG);
-        SewvDiag.plane("blocked cone, climbing to floor {}", this.avoidFloorY);
+        SewvDiag.planeThrottled(this.vehicle.level().getGameTime(), "blocked cone, climbing to floor {}", this.avoidFloorY);
     }
 
     /** The altitude actually held: the avoidance floor over it, the ceiling under both. */

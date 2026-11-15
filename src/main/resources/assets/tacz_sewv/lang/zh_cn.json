@@ -345,7 +345,6 @@
   "gui.tacz_sewv.tdt.voice.tip": "你的 PMC 乘员在无线电里说的语言，对你所有的乘员生效。",
   "gui.tacz_sewv.tdt.identity_reset": "默认",
   "gui.tacz_sewv.tdt.identity_revert": "撤销",
-  "gui.tacz_sewv.tdt.state.saved": "已全部保存",
   "gui.tacz_sewv.tdt.state.dirty": "有未保存的更改",
   "gui.tacz_sewv.tdt.state.discard": "再按一次 Esc 放弃更改",
   "message.tacz_sewv.heli.land_helipad.done": "已受令在停机坪降落。",

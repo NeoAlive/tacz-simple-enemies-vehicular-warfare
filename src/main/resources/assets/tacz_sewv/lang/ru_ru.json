@@ -345,7 +345,6 @@
   "gui.tacz_sewv.tdt.voice.tip": "Язык, на котором ваши экипажи PMC говорят по рации, для всех ваших экипажей.",
   "gui.tacz_sewv.tdt.identity_reset": "По умолчанию",
   "gui.tacz_sewv.tdt.identity_revert": "Отменить",
-  "gui.tacz_sewv.tdt.state.saved": "Всё сохранено",
   "gui.tacz_sewv.tdt.state.dirty": "Есть несохранённые изменения",
   "gui.tacz_sewv.tdt.state.discard": "Нажмите Esc ещё раз, чтобы отменить изменения",
   "message.tacz_sewv.heli.land_helipad.done": "с приказом сесть на площадку.",

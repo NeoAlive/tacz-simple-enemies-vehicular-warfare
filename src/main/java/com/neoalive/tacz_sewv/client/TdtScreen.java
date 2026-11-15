@@ -54,7 +54,6 @@ public class TdtScreen extends Screen {
     /** Pop-ups draw above every other layer; shadowed text sits slightly forward in depth. */
     private static final float POP_Z = 300.0F;
 
-    private static final int COL_SHADOW = 0x70000000;
     private static final int COL_BG = 0xFF161815;
     private static final int COL_HEADER = 0xFF1C1F1B;
     private static final int COL_FIELD = 0xFF0E100E;
@@ -66,7 +65,6 @@ public class TdtScreen extends Screen {
     private static final int COL_FAINT = 0xFF565A50;
     private static final int COL_ACCENT = 0xFFD9A441;
     private static final int COL_ACCENT_HI = 0xFFEBB955;
-    private static final int COL_ACCENT_DIM = 0xFFA77F36;
     private static final int COL_ON_ACCENT = 0xFF1B1406;
     private static final int COL_OK = 0xFF93C06E;
     private static final int COL_ERR = 0xFFE27A63;
@@ -699,10 +697,8 @@ public class TdtScreen extends Screen {
         int r = l + this.panelW;
         int t = this.panelTop;
         int b = this.panelBottom;
-        g.fill(l + 3, t + 3, r + 3, b + 3, COL_SHADOW);
         g.fill(l, t, r, b, COL_BG);
         g.fill(l, t, r, t + HEADER_H, COL_HEADER);
-        g.fill(l, t, r, t + 2, COL_ACCENT);
         g.fill(l, t + HEADER_H, r, t + HEADER_H + 1, COL_LINE);
         g.fill(l, b - FOOTER_H, r, b - FOOTER_H + 1, COL_LINE);
         outline(g, new Rect(l, t, this.panelW, b - t), COL_LINE);
@@ -723,7 +719,7 @@ public class TdtScreen extends Screen {
             Rect uf = urlField();
             field(g, uf, uf.has(mx, my), this.urlBox != null && this.urlBox.isFocused());
             boolean canLoad = pendingUrl == null && !urlText.isBlank();
-            drawButton(g, this.load, I18n.get("gui.tacz_sewv.tdt.web_load"), true, canLoad, this.load.has(mx, my));
+            drawButton(g, this.load, I18n.get("gui.tacz_sewv.tdt.web_load"), false, canLoad, this.load.has(mx, my));
             label(g, this.detail, "web_status");
             renderStatus(g, this.detail);
         } else {
@@ -749,13 +745,13 @@ public class TdtScreen extends Screen {
     private void renderHeader(GuiGraphics g) {
         int x = this.panelLeft + PAD;
         int y = this.panelTop + (HEADER_H - PREVIEW) / 2 + 1;
-        g.fill(x - 1, y - 1, x + PREVIEW + 1, y + PREVIEW + 1, COL_ACCENT_DIM);
+        g.fill(x - 1, y - 1, x + PREVIEW + 1, y + PREVIEW + 1, COL_LINE_HI);
         logo(g, draftPool, draftLogo, x, y, PREVIEW);
         int tx = x + PREVIEW + 10;
         int tw = this.panelLeft + this.panelW - PAD - tx;
-        g.drawString(this.font, this.title.getString().toUpperCase(Locale.ROOT), tx, y + 3, COL_ACCENT, false);
+        g.drawString(this.font, this.title, tx, y + 3, COL_TEXT, false);
         String sub = draftCompany.isEmpty() ? I18n.get("gui.tacz_sewv.tdt.subtitle.none") : draftCompany;
-        g.drawString(this.font, fit(sub, tw), tx, y + 16, draftCompany.isEmpty() ? COL_FAINT : COL_TEXT, false);
+        g.drawString(this.font, fit(sub, tw), tx, y + 16, draftCompany.isEmpty() ? COL_FAINT : COL_MUTED, false);
     }
 
     private void renderStatus(GuiGraphics g, Rect r) {
@@ -778,30 +774,19 @@ public class TdtScreen extends Screen {
             text = I18n.get("gui.tacz_sewv.tdt.web.idle");
             color = COL_MUTED;
         }
-        int y = r.y() + (ROW_H - 8) / 2;
-        g.fill(r.x(), y + 2, r.x() + 4, y + 6, color);
-        g.drawString(this.font, fit(text, r.w() - 10), r.x() + 9, y, color == COL_MUTED ? COL_MUTED : COL_TEXT, false);
+        g.drawString(this.font, fit(text, r.w()), r.x(), r.y() + (ROW_H - 8) / 2, color, false);
     }
 
     private void renderFooter(GuiGraphics g, int mx, int my) {
         boolean dirty = dirty();
         int ty = this.panelBottom - FOOTER_H + (FOOTER_H - 8) / 2;
         boolean discard = this.discardArmedAt >= 0 && Util.getMillis() - this.discardArmedAt <= DISCARD_WINDOW_MS;
-        String state;
-        int color;
-        if (discard && dirty) {
-            state = I18n.get("gui.tacz_sewv.tdt.state.discard");
-            color = COL_ERR;
-        } else if (dirty) {
-            state = I18n.get("gui.tacz_sewv.tdt.state.dirty");
-            color = COL_ACCENT;
-        } else {
-            state = I18n.get("gui.tacz_sewv.tdt.state.saved");
-            color = COL_FAINT;
+        if (dirty) {
+            String state = I18n.get(discard ? "gui.tacz_sewv.tdt.state.discard" : "gui.tacz_sewv.tdt.state.dirty");
+            int x = this.panelLeft + PAD;
+            g.drawString(this.font, fit(state, this.btnDefaults.x() - x - 8), x, ty, discard ? COL_ERR : COL_MUTED,
+                    false);
         }
-        int x = this.panelLeft + PAD;
-        g.fill(x, ty + 2, x + 4, ty + 6, color);
-        g.drawString(this.font, fit(state, this.btnDefaults.x() - x - 16), x + 9, ty, color, false);
 
         drawButton(g, this.btnDefaults, I18n.get("gui.tacz_sewv.tdt.identity_reset"), false, true,
                 this.btnDefaults.has(mx, my));
@@ -891,11 +876,7 @@ public class TdtScreen extends Screen {
     // --- Drawing helpers -----------------------------------------------------
 
     private void section(GuiGraphics g, int y, String key) {
-        String text = I18n.get("gui.tacz_sewv.tdt." + key).toUpperCase(Locale.ROOT);
-        int x = this.panelLeft + PAD;
-        g.drawString(this.font, text, x, y + 3, COL_ACCENT_DIM, false);
-        int lx = x + this.font.width(text) + 6;
-        g.fill(lx, y + 7, this.ctrlR, y + 8, COL_LINE);
+        g.drawString(this.font, I18n.get("gui.tacz_sewv.tdt." + key), this.panelLeft + PAD, y + 3, COL_TEXT, false);
     }
 
     private void label(GuiGraphics g, Rect row, String key) {
@@ -960,7 +941,6 @@ public class TdtScreen extends Screen {
     }
 
     private void popFrame(GuiGraphics g, Rect r) {
-        g.fill(r.x() + 2, r.y() + 2, r.r() + 2, r.b() + 2, COL_SHADOW);
         g.fill(r.x(), r.y(), r.r(), r.b(), COL_BG);
         outline(g, r, COL_LINE_HI);
     }

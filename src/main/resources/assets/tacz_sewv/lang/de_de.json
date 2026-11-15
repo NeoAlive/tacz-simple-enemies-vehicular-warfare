@@ -345,7 +345,6 @@
   "gui.tacz_sewv.tdt.voice.tip": "Die Sprache, in der deine PMC-Besatzungen funken, für alle deine Besatzungen.",
   "gui.tacz_sewv.tdt.identity_reset": "Standard",
   "gui.tacz_sewv.tdt.identity_revert": "Verwerfen",
-  "gui.tacz_sewv.tdt.state.saved": "Alles gespeichert",
   "gui.tacz_sewv.tdt.state.dirty": "Ungespeicherte Änderungen",
   "gui.tacz_sewv.tdt.state.discard": "Esc noch einmal drücken, um die Änderungen zu verwerfen",
   "message.tacz_sewv.heli.land_helipad.done": "zur Landung auf einem Landeplatz befohlen.",

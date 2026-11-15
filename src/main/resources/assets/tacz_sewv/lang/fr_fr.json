@@ -345,7 +345,6 @@
   "gui.tacz_sewv.tdt.voice.tip": "La langue que parlent vos équipages PMC à la radio, pour tous vos équipages.",
   "gui.tacz_sewv.tdt.identity_reset": "Par défaut",
   "gui.tacz_sewv.tdt.identity_revert": "Annuler",
-  "gui.tacz_sewv.tdt.state.saved": "Tout est enregistré",
   "gui.tacz_sewv.tdt.state.dirty": "Modifications non enregistrées",
   "gui.tacz_sewv.tdt.state.discard": "Appuyez encore sur Esc pour abandonner les modifications",
   "message.tacz_sewv.heli.land_helipad.done": "reçoivent l'ordre d'atterrir sur une hélisurface.",

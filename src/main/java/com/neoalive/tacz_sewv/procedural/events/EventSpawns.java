@@ -48,6 +48,14 @@ final class EventSpawns {
         return true;
     }
 
+    /**
+     * The layout axis for an event with two ends: across the player's line of sight, so both ends
+     * sit as close to the player as the centre does. True means the ends are offset along X.
+     */
+    static boolean acrossX(net.minecraft.server.level.ServerPlayer player, BlockPos center) {
+        return Math.abs(center.getZ() - player.getBlockZ()) >= Math.abs(center.getX() - player.getBlockX());
+    }
+
     /** One rifleman of {@code faction}, scattered up to {@code scatter} blocks around {@code anchor}. */
     @Nullable
     static AbstractUnit infantry(ServerLevel level, BlockPos anchor, TankSpawner.TankFaction faction, int scatter) {

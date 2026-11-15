@@ -62,7 +62,7 @@ public final class ConvoyEvent extends DynamicEvent {
         TankSpawner.TankFaction faction = EventSpawns.pickVehicleFaction(level);
         if (faction == null) return false;
         int desiredVehicles = 1 + level.random.nextInt(MAX_VEHICLES);
-        boolean alongX = level.random.nextBoolean();
+        boolean alongX = EventSpawns.acrossX(player, centerPos);
         int direction = level.random.nextBoolean() ? 1 : -1;
         int spawnedVehicles = 0;
         BlockPos firstVehiclePos = null;

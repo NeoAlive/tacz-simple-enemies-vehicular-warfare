@@ -86,7 +86,7 @@ public final class NavalBattleEvent extends DynamicEvent {
             return false;
         }
 
-        boolean alongX = level.random.nextBoolean();
+        boolean alongX = EventSpawns.acrossX(player, centerPos);
         int perSide = SewvConfig.NAVAL_SURFACE_PER_SIDE.get();
 
         int ru = deployLine(level, centerPos, TankSpawner.TankFaction.RU, alongX, 1, perSide);

@@ -88,7 +88,7 @@ public final class LargeCombatEvent extends DynamicEvent {
             return false;
         }
 
-        boolean alongX = level.random.nextBoolean();
+        boolean alongX = EventSpawns.acrossX(player, centerPos);
         BlockPos ruAnchor = TankSpawner.adjustHeight(level,
                 alongX ? centerPos.offset(SEPARATION, 0, 0) : centerPos.offset(0, 0, SEPARATION));
         BlockPos usAnchor = TankSpawner.adjustHeight(level,

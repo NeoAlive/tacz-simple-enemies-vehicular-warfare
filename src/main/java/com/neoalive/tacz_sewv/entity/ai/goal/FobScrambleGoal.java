@@ -127,6 +127,7 @@ public class FobScrambleGoal extends Goal {
                     && fob.assignedVehicles.contains(target.getUUID())) {
                 boarder.tacz_sewv$setBoarding(false);
                 boarder.tacz_sewv$setMountTargetId(-1);
+                FobSupport.clearScrambleBoarded(this.unit);
                 FobDebug.logEntity(this.unit, "scramble: no free seat, staying on foot");
             }
             return;
@@ -137,6 +138,7 @@ public class FobScrambleGoal extends Goal {
         boarder.tacz_sewv$setMountTargetId(best.getId());
         boarder.tacz_sewv$setBoarding(true);
         boarder.tacz_sewv$setPassengerOnly(false);
+        FobSupport.markScrambleBoarded(this.unit);
         FobDebug.logEntity(this.unit, "scramble: boarding assigned hull {}", best.getId());
     }
 

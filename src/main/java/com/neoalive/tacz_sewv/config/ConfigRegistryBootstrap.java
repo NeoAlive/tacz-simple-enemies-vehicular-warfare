@@ -799,6 +799,8 @@ final class ConfigRegistryBootstrap {
                 SewvConfig.PLAYER_SELF_RAPPEL_WITH_UNITS, SewvConfig.PLAYER_SELF_RAPPEL_WITH_UNITS::set);
         b.bool(ConfigScope.SERVER, "flight", "planeChunkLoading",
                 SewvConfig.PLANE_CHUNK_LOADING, SewvConfig.PLANE_CHUNK_LOADING::set);
+        b.bool(ConfigScope.SERVER, "flight", "planeParkedAirBail",
+                SewvConfig.PLANE_PARKED_AIR_BAIL, SewvConfig.PLANE_PARKED_AIR_BAIL::set);
         b.bool(ConfigScope.SERVER, "flight", "wingFlightModel",
                 SewvConfig.WING_FLIGHT_MODEL, SewvConfig.WING_FLIGHT_MODEL::set);
         b.doubleRange(ConfigScope.SERVER, "flight", "planeFarLodBlocks", 64.0, 1024.0,

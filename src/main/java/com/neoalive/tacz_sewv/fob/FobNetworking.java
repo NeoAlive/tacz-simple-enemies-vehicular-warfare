@@ -201,6 +201,7 @@ public final class FobNetworking {
             if (!(e instanceof PmcUnitEntity pmc)) continue;
             if (!fob.owner.equals(pmc.getOwnerUUID())) continue;
             dismountForRoute(pmc);
+            FobSupport.clearScrambleBoarded(pmc);
             orderRouteMove(pmc, parkDest, commandPos);
             infantry++;
         }

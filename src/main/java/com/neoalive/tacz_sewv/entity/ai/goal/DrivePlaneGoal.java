@@ -10,6 +10,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.Mth;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.entity.player.Player;
@@ -29,6 +30,7 @@ import com.neoalive.tacz_sewv.airport.RunwayTraffic;
 import com.neoalive.tacz_sewv.airport.StaticCarrierAirports;
 import com.neoalive.tacz_sewv.bridge.FireMission;
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
+import com.neoalive.tacz_sewv.bridge.IHullPressure;
 import com.neoalive.tacz_sewv.bridge.IMortarCrew;
 import com.neoalive.tacz_sewv.compat.NeoArmsCarrierAccess;
 import com.neoalive.tacz_sewv.compat.NpcVehicleOverrides;
@@ -51,6 +53,7 @@ import com.neoalive.tacz_sewv.entity.ai.plane.PlaneWeapons;
 import com.neoalive.tacz_sewv.entity.ai.sensor.AirTerrainSensor;
 import com.neoalive.tacz_sewv.entity.ai.support.AirLod;
 import com.neoalive.tacz_sewv.entity.ai.support.AirframeSupport;
+import com.neoalive.tacz_sewv.entity.ai.support.BailOutSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.DecoyEpisode;
 import com.neoalive.tacz_sewv.invasion.CaptureOrderSupport;
 import com.neoalive.tacz_sewv.item.PlaneAttackMode;
@@ -487,6 +490,34 @@ public class DrivePlaneGoal extends Goal {
     /** Altitude the current run was briefed at, held fixed for its duration (NaN = none). */
     private double runY = Double.NaN;
 
+    /** How recent a hull hit must be for a parked crew to bail. */
+    private static final long PARKED_BAIL_HIT_TICKS = 40L;
+
+    /**
+     * A parked aircraft cannot fight an air attack: it sits there with its pilot aboard until both
+     * die. When the hull has just been hit and the attacker, or the pilot's own target, is an enemy
+     * aircraft in the air, every crewman goes out through the normal bail path.
+     */
+    private boolean bailUnderAirAttack(long now) {
+        if (!SewvConfig.PLANE_PARKED_AIR_BAIL.get()) return false;
+        IHullPressure hit = (IHullPressure) this.vehicle;
+        if (hit.sewv$getPressureStamp() < now - PARKED_BAIL_HIT_TICKS) return false;
+        Entity attacker = hit.sewv$getHeavyAttackStamp() >= now - PARKED_BAIL_HIT_TICKS
+                ? this.unit.level().getEntity(hit.sewv$getHeavyAttackerId()) : null;
+        if (!airborneAircraft(attacker) && !airborneAircraft(this.unit.getTarget())) return false;
+        SewvDiag.plane("parked {}#{} under air attack, crew bailing",
+                this.vehicle.getName().getString(), this.vehicle.getId());
+        for (Entity passenger : List.copyOf(this.vehicle.getPassengers())) {
+            if (passenger instanceof AbstractUnit crew) BailOutSupport.triggerVehicleBail(crew, this.vehicle);
+        }
+        return true;
+    }
+
+    private static boolean airborneAircraft(@Nullable Entity e) {
+        if (e == null || !(e.getRootVehicle() instanceof VehicleEntity hull) || hull.onGround()) return false;
+        return HullFacts.isPlaneHull(hull) || HullFacts.isHelicopterHull(hull);
+    }
+
     /** Temporary altitude floor held while climbing out of a fully blocked cone. */
     private double avoidFloorY = Double.NaN;
     /** Absolute game time before the next RU/US emergency-pad search. */
@@ -651,6 +682,9 @@ public class DrivePlaneGoal extends Goal {
         this.kinematics.sample(this.vehicle, now);
         refreshAllies(now, AirLod.farTransit(this.vehicle,
                 SewvConfig.PLANE_FAR_LOD_BLOCKS.get(), isFarTransitMode(this.mode)));
+
+        // A parked aircraft out of fuel is just as exposed, so this comes before the unflyable test.
+        if (parked && bailUnderAirAttack(now)) return;
 
         // Unflyable: SBW is already taking the aircraft down, or there is nothing to fly it with.
         float max = this.vehicle.getMaxHealth();

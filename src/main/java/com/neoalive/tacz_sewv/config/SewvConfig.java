@@ -289,6 +289,7 @@ public final class SewvConfig {
     // heliCombatDebug/heliFlightDebug → ClientConfig (Config UI Client → Debug).
     public static final ForgeConfigSpec.BooleanValue HELI_CHUNK_LOADING;
     public static final ForgeConfigSpec.BooleanValue PLANE_CHUNK_LOADING;
+    public static final ForgeConfigSpec.BooleanValue PLANE_PARKED_AIR_BAIL;
     public static final ForgeConfigSpec.BooleanValue WING_FLIGHT_MODEL;
     public static final ForgeConfigSpec.DoubleValue PLANE_FAR_LOD_BLOCKS;
     public static final ForgeConfigSpec.DoubleValue HELI_FAR_LOD_BLOCKS;
@@ -1241,6 +1242,10 @@ public final class SewvConfig {
                         "Default true (matches mortarChunkLoading). Existing installs keep whatever",
                         "value is already in serverconfig/tacz_sewv-server.toml until that file is deleted.")
                 .define("planeChunkLoading", true);
+        PLANE_PARKED_AIR_BAIL = builder.comment(
+                        "A parked plane whose hull is hit by an enemy aircraft puts its crew out to take cover,",
+                        "instead of sitting on the ground with the pilot aboard. Off keeps parked crews aboard.")
+                .define("planeParkedAirBail", true);
         WING_FLIGHT_MODEL = builder.comment(
                         "Fly AI-crewed planes with this mod's own fixed-wing flight model (aerodynamics,",
                         "TECS/attitude controller, procedures) instead of SBW's engine, from liftoff to",

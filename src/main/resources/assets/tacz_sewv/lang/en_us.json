@@ -2128,6 +2128,8 @@
   "config.tacz_sewv.planeBombStickIntervalTicks.tooltip": "Ticks between bombs in a carpet drop. More spacing covers more ground. Values under 10 have no effect.",
   "config.tacz_sewv.planeChunkLoading": "Plane Chunk Loading",
   "config.tacz_sewv.planeChunkLoading.tooltip": "Keep AI planes active even when no player is nearby (uses chunk tickets).",
+  "config.tacz_sewv.planeParkedAirBail": "Parked Plane Air Bail",
+  "config.tacz_sewv.planeParkedAirBail.tooltip": "A parked plane hit by an enemy aircraft puts its crew out to take cover. Off keeps them aboard.",
   "config.tacz_sewv.wingFlightModel": "Fixed-Wing Flight Model",
   "config.tacz_sewv.wingFlightModel.tooltip": "Fly AI planes with this mod's own flight model from liftoff to touchdown instead of SBW's engine. Experimental.",
   "config.tacz_sewv.planeMaxRange": "Plane Max Range",

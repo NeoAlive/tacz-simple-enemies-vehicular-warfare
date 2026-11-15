@@ -34,6 +34,8 @@ public final class FobSupport {
      * remounting that unit until the alarm hysteresis clears.
      */
     public static final String TAG_SCRAMBLE_STOOD_DOWN = "sewv:fob_scramble_stood_down";
+    /** Set when a scramble sends a unit to a hull; only these crews get out when the recall arrives. */
+    public static final String TAG_SCRAMBLE_BOARDED = "sewv:fob_scramble_boarded";
 
     private FobSupport() {}
 
@@ -94,6 +96,18 @@ public final class FobSupport {
 
     public static boolean isStamped(Entity entity) {
         return entity.getPersistentData().contains(TAG_CMD);
+    }
+
+    public static void markScrambleBoarded(Entity entity) {
+        entity.getPersistentData().putBoolean(TAG_SCRAMBLE_BOARDED, true);
+    }
+
+    public static void clearScrambleBoarded(Entity entity) {
+        entity.getPersistentData().remove(TAG_SCRAMBLE_BOARDED);
+    }
+
+    public static boolean isScrambleBoarded(Entity entity) {
+        return entity.getPersistentData().getBoolean(TAG_SCRAMBLE_BOARDED);
     }
 
     public static void markScrambleStoodDown(Entity entity) {

@@ -98,7 +98,8 @@ public class FobRouteArrivalGoal extends Goal {
      * crewman's goal runs first fixes both ends at once, and the rest of the crew's routes are
      * cleared here rather than waiting for a goal of their own.
      *
-     * <p>A ground hull always empties. Only an <b>aircraft</b> has to be down first: the pad is a
+     * <p>Only crew the scramble put aboard get out; a hull crewed before the alarm stays crewed.
+     * A ground hull always qualifies. Only an <b>aircraft</b> has to be down first: the pad is a
      * horizontal box spanning the full world height, so a helicopter passing over it reads as "at
      * the parking standoff" too, and bailing its crew out there would drop them. The test is not
      * {@code onGround()} for everything, because a hull SBW is floating a fraction above the
@@ -108,15 +109,18 @@ public class FobRouteArrivalGoal extends Goal {
     private void disembark(VehicleEntity hull, FobInstance fob) {
         boolean aircraft = HullFacts.isHelicopterHull(hull) || HullFacts.isPlaneHull(hull);
         if (aircraft && !hull.onGround()) return;
-        FobDebug.logEntity(this.unit, "route arrival: crew dismount at parking standoff");
+        FobDebug.logEntity(this.unit, "route arrival: scramble crew dismount at parking standoff");
         for (Entity passenger : List.copyOf(hull.getPassengers())) {
             if (passenger instanceof Player) continue;
-            passenger.stopRiding();
+            // A crew that was aboard before the alarm keeps its seats.
+            boolean scrambled = FobSupport.isScrambleBoarded(passenger);
+            if (scrambled) passenger.stopRiding();
+            FobSupport.clearScrambleBoarded(passenger);
             FobSupport.clearRoutePending(passenger);
             if (passenger instanceof PmcUnitEntity crew) {
                 crew.setOrder(OrderType.FREE_FIRE);
             }
-            markStoodDownIfScrambling(passenger, fob);
+            if (scrambled) markStoodDownIfScrambling(passenger, fob);
         }
         finishRoute(fob);
     }

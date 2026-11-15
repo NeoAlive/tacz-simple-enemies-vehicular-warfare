@@ -18,6 +18,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
+import com.neoalive.tacz_sewv.entity.ai.sensor.ContactBoard;
 import com.neoalive.tacz_sewv.init.ModSounds;
 
 /**
@@ -29,6 +30,8 @@ public final class ThreatEvaluator {
     private static final double NEAR_WEIGHT = 2.5;
     /** Extra weight for a contact already shooting at the garrison. See {@link #urgency}. */
     private static final double ENGAGED_WEIGHT = 2.0;
+    /** A contact nobody on our side has seen counts for this much. */
+    private static final double UNSEEN_WEIGHT = 0.5;
 
     /**
      * Loop period: {@code alarm.ogg} is exactly 0.9 s (18 ticks) with its reverb tail wrapped onto
@@ -88,7 +91,8 @@ public final class ThreatEvaluator {
         double score = 0;
         for (LivingEntity h : hostiles) {
             // Current health: a rifleman bleeding out on 1 hp is not the threat a fresh one is.
-            score += Math.ceil(Math.max(0f, h.getHealth())) * urgency(fob, scan, h);
+            score += Math.ceil(Math.max(0f, h.getHealth())) * urgency(fob, scan, h)
+                    * (seen(level, perspective, fob, h) ? 1.0 : UNSEEN_WEIGHT);
         }
         for (VehicleEntity hull : armor) {
             // Weighed by what the hull actually is, the same input infantry is weighed by. A flat
@@ -174,6 +178,24 @@ public final class ThreatEvaluator {
         double closeness = Math.max(0.0, 1.0 - Math.sqrt(dx * dx + dz * dz) / half);
         double weight = 1.0 + (NEAR_WEIGHT - 1.0) * closeness;
         return engagingUs(contact, fob) ? weight * ENGAGED_WEIGHT : weight;
+    }
+
+    /**
+     * Whether our side knows this contact: it is shooting at us, it is on our contact board from a
+     * direct sighting, or someone of ours holds it as a target. Without the board every contact counts.
+     */
+    private static boolean seen(ServerLevel level, AbstractUnit perspective, FobInstance fob, LivingEntity contact) {
+        if (!ContactBoard.enabled()) return true;
+        if (engagingUs(contact, fob)) return true;
+        if (ContactBoard.holds(perspective, contact, ContactBoard.Source.DIRECT_SIGHT)) return true;
+        Entity hull = contact.getRootVehicle();
+        for (java.util.UUID id : fob.assignedLiving) {
+            if (level.getEntity(id) instanceof Mob mob) {
+                LivingEntity aim = mob.getTarget();
+                if (aim == contact || (aim != null && aim.getRootVehicle() == hull)) return true;
+            }
+        }
+        return false;
     }
 
     /** True when this contact — or its crew — is holding something of ours as a target. */

@@ -153,10 +153,10 @@ public final class SewvDebugDump {
         sb.append("sewvUsSpawns=").append(level.getGameRules().getBoolean(ModGameRules.US_SPAWNS)).append('\n');
         sb.append("sewvAmbientSpawns=").append(level.getGameRules().getBoolean(ModGameRules.AMBIENT_SPAWNS)).append('\n');
         sb.append("sewvPmcAmbientSpawns=").append(level.getGameRules().getBoolean(ModGameRules.PMC_AMBIENT_SPAWNS)).append('\n');
-        sb.append("farEventSpawns=").append(SewvConfig.FAR_EVENT_SPAWNS.get()).append('\n');
+        sb.append("legacyEventEngine=").append(SewvConfig.LEGACY_EVENT_ENGINE.get()).append('\n');
         sb.append("canMobsDamageVehicles=")
                 .append(level.getGameRules().getBoolean(ModGameRules.CAN_MOBS_DAMAGE_VEHICLES)).append('\n');
-        sb.append("note=Spawn gates remain gamerules; farEventSpawns is server config; debug is client config.\n");
+        sb.append("note=Spawn gates remain gamerules; legacyEventEngine is server config; debug is client config.\n");
         sb.append("individualTacticsDebug=")
                 .append(ClientConfig.flag(ClientConfig.INDIVIDUAL_TACTICS_DEBUG)).append('\n');
         sb.append('\n');

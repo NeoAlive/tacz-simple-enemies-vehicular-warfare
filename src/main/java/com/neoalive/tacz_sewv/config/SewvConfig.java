@@ -19,8 +19,14 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.BooleanValue ROTOR_IN_EVENTS;
     public static final ForgeConfigSpec.DoubleValue ROTOR_SPAWN_CHANCE_RU;
     public static final ForgeConfigSpec.DoubleValue ROTOR_SPAWN_CHANCE_US;
-    /** When on, SEM event spawn min/max distance is multiplied by 2.5. Formerly gamerule sewvFarEventSpawns. */
-    public static final ForgeConfigSpec.BooleanValue FAR_EVENT_SPAWNS;
+    /** SEM's own random roller instead of the event mark engine (procedural/marks). Replaces farEventSpawns. */
+    public static final ForgeConfigSpec.BooleanValue LEGACY_EVENT_ENGINE;
+    public static final ForgeConfigSpec.IntValue EVENT_MARKS_PER_PLAYER;
+    public static final ForgeConfigSpec.IntValue EVENT_MARK_EXPIRY_SECONDS;
+    public static final ForgeConfigSpec.DoubleValue EVENT_MARK_TRIGGER_CHANCE;
+    public static final ForgeConfigSpec.IntValue EVENT_MARK_COOLDOWN_SECONDS;
+    public static final ForgeConfigSpec.BooleanValue EVENT_MARK_CREEP;
+    public static final ForgeConfigSpec.IntValue EVENT_MARK_CREEP_IDLE_SECONDS;
     public static final ForgeConfigSpec.BooleanValue PLANES_IN_EVENTS;
     public static final ForgeConfigSpec.DoubleValue PLANE_SPAWN_CHANCE_RU;
     public static final ForgeConfigSpec.DoubleValue PLANE_SPAWN_CHANCE_US;
@@ -506,10 +512,28 @@ public final class SewvConfig {
         ROTOR_SPAWN_CHANCE_US = builder.comment("Chance a US helicopter appears when Simple Enemy Mod rolls a distant fight.",
                         "Rolled separately from the ground vehicle, so a fight can bring both.")
                 .defineInRange("rotorSpawnChanceUs", 0.06, 0.0, 1.0);
-        FAR_EVENT_SPAWNS = builder.comment(
-                        "Multiply SEM event spawn distance by 2.5 for wider, more spread-out fights.",
-                        "(This mod's events and SEM's own.) Off restores packed base ranges.")
-                .define("farEventSpawns", true);
+        LEGACY_EVENT_ENGINE = builder.comment(
+                        "Use Simple Enemy Mod's own random event roller (2.5x distance, placed inside the simulated",
+                        "area) instead of event marks. Marks pick a spot out past the simulated area and the event",
+                        "starts there once you walk into range. Servers simulating under 8 chunks always use legacy.")
+                .define("legacyEventEngine", false);
+        EVENT_MARKS_PER_PLAYER = builder.comment("Event marks kept out in the world per online player.")
+                .defineInRange("eventMarksPerPlayer", 3, 1, 8);
+        EVENT_MARK_EXPIRY_SECONDS = builder.comment(
+                        "How long a mark waits to be walked into before it is replaced. Shorter means more turnover",
+                        "and so more events for a player who travels.")
+                .defineInRange("eventMarkExpirySeconds", 600, 60, 3600);
+        EVENT_MARK_TRIGGER_CHANCE = builder.comment("Chance a mark fires its event when a player walks into range of it.")
+                .defineInRange("eventMarkTriggerChance", 0.6, 0.0, 1.0);
+        EVENT_MARK_COOLDOWN_SECONDS = builder.comment(
+                        "After an event fires for a player, marks cannot fire for that player for this long.")
+                .defineInRange("eventMarkCooldownSeconds", 180, 0, 3600);
+        EVENT_MARK_CREEP = builder.comment(
+                        "A player who stays in one area but keeps playing has their marks drift in toward them, so",
+                        "staying put is not a way to avoid events. Idle (AFK) players are never crept on.")
+                .define("eventMarkCreep", true);
+        EVENT_MARK_CREEP_IDLE_SECONDS = builder.comment("How long a player must stay within 32 blocks before marks creep in.")
+                .defineInRange("eventMarkCreepIdleSeconds", 300, 60, 1800);
         PLANES_IN_EVENTS = builder.comment("Allow rare RU/US planes to appear in combat events.").define("planesInEvents", true);
         PLANE_SPAWN_CHANCE_RU = builder.comment("Chance an RU plane appears when Simple Enemy Mod rolls a distant fight.")
                 .defineInRange("planeSpawnChanceRu", 0.02, 0.0, 1.0);

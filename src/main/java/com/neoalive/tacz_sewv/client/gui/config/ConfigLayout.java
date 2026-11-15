@@ -77,8 +77,9 @@ public final class ConfigLayout {
         rule("crew_ai", "idle", "idle");
         rule("crew_ai", "crew", "vehicleSkin", "camo", "ifv", "semCrew", "tankRider");
 
-        rule("events", "spawns", "groundSpawn", "groundIn", "rotorSpawn", "rotorIn", "planeSpawn", "farEvent", "planesIn",
+        rule("events", "spawns", "groundSpawn", "groundIn", "rotorSpawn", "rotorIn", "planeSpawn", "planesIn",
                 "garrison");
+        rule("events", "marks", "legacyEvent", "eventMark");
         rule("events", "structures", "structures", "nativeStructures");
         rule("events", "convoy", "convoy");
         rule("events", "large_combat", "largeCombat");

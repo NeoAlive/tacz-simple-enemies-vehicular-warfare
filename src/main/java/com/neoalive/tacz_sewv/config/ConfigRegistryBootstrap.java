@@ -281,8 +281,20 @@ final class ConfigRegistryBootstrap {
                 SewvConfig.ROTOR_SPAWN_CHANCE_RU, SewvConfig.ROTOR_SPAWN_CHANCE_RU::set);
         b.doubleRange(ConfigScope.SERVER, "events", "rotorSpawnChanceUs", 0.0, 1.0,
                 SewvConfig.ROTOR_SPAWN_CHANCE_US, SewvConfig.ROTOR_SPAWN_CHANCE_US::set);
-        b.bool(ConfigScope.SERVER, "events", "farEventSpawns",
-                SewvConfig.FAR_EVENT_SPAWNS, SewvConfig.FAR_EVENT_SPAWNS::set);
+        b.bool(ConfigScope.SERVER, "events", "legacyEventEngine",
+                SewvConfig.LEGACY_EVENT_ENGINE, SewvConfig.LEGACY_EVENT_ENGINE::set);
+        b.intRange(ConfigScope.SERVER, "events", "eventMarksPerPlayer", 1, 8,
+                SewvConfig.EVENT_MARKS_PER_PLAYER, SewvConfig.EVENT_MARKS_PER_PLAYER::set);
+        b.intRange(ConfigScope.SERVER, "events", "eventMarkExpirySeconds", 60, 3600,
+                SewvConfig.EVENT_MARK_EXPIRY_SECONDS, SewvConfig.EVENT_MARK_EXPIRY_SECONDS::set);
+        b.doubleRange(ConfigScope.SERVER, "events", "eventMarkTriggerChance", 0.0, 1.0,
+                SewvConfig.EVENT_MARK_TRIGGER_CHANCE, SewvConfig.EVENT_MARK_TRIGGER_CHANCE::set);
+        b.intRange(ConfigScope.SERVER, "events", "eventMarkCooldownSeconds", 0, 3600,
+                SewvConfig.EVENT_MARK_COOLDOWN_SECONDS, SewvConfig.EVENT_MARK_COOLDOWN_SECONDS::set);
+        b.bool(ConfigScope.SERVER, "events", "eventMarkCreep",
+                SewvConfig.EVENT_MARK_CREEP, SewvConfig.EVENT_MARK_CREEP::set);
+        b.intRange(ConfigScope.SERVER, "events", "eventMarkCreepIdleSeconds", 60, 1800,
+                SewvConfig.EVENT_MARK_CREEP_IDLE_SECONDS, SewvConfig.EVENT_MARK_CREEP_IDLE_SECONDS::set);
         b.bool(ConfigScope.SERVER, "events", "planesInEvents",
                 SewvConfig.PLANES_IN_EVENTS, SewvConfig.PLANES_IN_EVENTS::set);
         b.doubleRange(ConfigScope.SERVER, "events", "planeSpawnChanceRu", 0.0, 1.0,

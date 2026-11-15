@@ -4,6 +4,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.nekoyuni.SimpleEnemyMod.procedural.events.system.DynamicEvent;
+import net.nekoyuni.SimpleEnemyMod.world.data.EventProbabilityData;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -11,17 +12,19 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.notify.HudNotify;
 import com.neoalive.tacz_sewv.procedural.events.EventBand;
 import com.neoalive.tacz_sewv.procedural.events.EventSpots;
+import com.neoalive.tacz_sewv.procedural.marks.EventMarkEngine;
+import com.neoalive.tacz_sewv.procedural.marks.MarkEvents;
 import com.neoalive.tacz_sewv.spawn.AmbientSpawnGate;
 import com.neoalive.tacz_sewv.spawn.SpawnDeny;
 import com.neoalive.tacz_sewv.zone.SpawnZones;
 
 /**
- * Picks the spot every SEM event sets up at ({@link EventSpots}): the event's ring, scaled when
- * {@link SewvConfig#FAR_EVENT_SPAWNS} is on and clamped to the simulated radius. Lives here because
+ * The legacy event engine: SEM's own roller, with each event's ring scaled 2.5x and clamped to the
+ * simulated radius ({@link EventSpots}). While {@link EventMarkEngine} runs, the events it owns are
+ * skipped here and only the anchored ones (cave, base shelling) still roll. Lives here because
  * {@code DynamicEvent#getMinDistance}/{@code getMaxDistance} take no level and cannot read config
  * themselves — both the per-player roll ({@code tryEventForPlayer}) and {@code forceEvent} go
  * through the same call.
@@ -38,13 +41,6 @@ public abstract class MixinDynamicEventManager {
     private static final double FAR_SCALE = 2.5;
     private static final String CAVE_EVENT = "cave_extraction";
     private static final String NAVAL_EVENT = "naval_battle";
-    /**
-     * How far each wide event's pieces reach either side of its centre, laid across the line of
-     * sight: side anchor plus vehicle backset for large_combat, the side offset for naval_battle,
-     * the approach lane for asymmetric_invasion, a full column for convoy.
-     */
-    private static final java.util.Map<String, Integer> REACH = java.util.Map.of(
-            "large_combat", 88, "naval_battle", 60, "asymmetric_invasion", 70, "convoy", 54);
 
     @Inject(method = "forceEvent", at = @At("HEAD"), remap = false)
     private static void tacz_sewv$clearSpawnDeny(ServerLevel level, ServerPlayer player, String eventId,
@@ -59,6 +55,15 @@ public abstract class MixinDynamicEventManager {
         if (cir.getReturnValueZ() || player == null || SpawnDeny.unset()) return;
         player.sendSystemMessage(SpawnDeny.component());
         SpawnDeny.clear();
+    }
+
+    /** Events the mark engine owns do not roll here while it runs. {@code forceEvent} is unaffected. */
+    @Inject(method = "tryEventForPlayer", at = @At("HEAD"), cancellable = true, remap = false, require = 0)
+    private static void tacz_sewv$leaveToMarks(ServerLevel level, EventProbabilityData data, DynamicEvent event,
+            ServerPlayer player, CallbackInfoReturnable<Boolean> cir) {
+        if (MarkEvents.marked(event.getId()) && EventMarkEngine.running(level)) {
+            cir.setReturnValue(false);
+        }
     }
 
     @Inject(method = "tick", at = @At("HEAD"), cancellable = true, remap = false)
@@ -86,8 +91,7 @@ public abstract class MixinDynamicEventManager {
     }
 
     private static EventBand tacz_sewv$band(ServerLevel level, double min, double max, int reach) {
-        double scale = SewvConfig.FAR_EVENT_SPAWNS.get() ? FAR_SCALE : 1.0;
-        return EventSpots.band(level, (int) (min * scale), (int) (max * scale), reach);
+        return EventSpots.band(level, (int) (min * FAR_SCALE), (int) (max * FAR_SCALE), reach);
     }
 
     @Redirect(
@@ -100,7 +104,7 @@ public abstract class MixinDynamicEventManager {
     private static boolean tacz_sewv$notifyOnEventSuccess(
             DynamicEvent event, ServerLevel level, ServerPlayer player, BlockPos pos) {
         EventBand band = tacz_sewv$band(level, event.getMinDistance(), event.getMaxDistance(),
-                REACH.getOrDefault(event.getId(), 0));
+                MarkEvents.reach(event.getId()));
         // The cave event finds its own cave near the player and ignores the spot.
         if (!CAVE_EVENT.equals(event.getId())) {
             pos = EventSpots.pick(level, player, band, NAVAL_EVENT.equals(event.getId()), level.random);

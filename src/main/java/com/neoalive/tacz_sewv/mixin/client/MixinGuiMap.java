@@ -342,6 +342,7 @@ public abstract class MixinGuiMap extends Screen {
             return;
         }
 
+        if (ZoneViewClient.active()) return;
         if (button != 0 || this.viewed == null) return;
         if (!(this.viewed.getElement() instanceof VehicleMarker marker)) return;
         // OWN orders + HOSTILE designate (Attack this unit). FRIENDLY clicks fall through.
@@ -386,6 +387,8 @@ public abstract class MixinGuiMap extends Screen {
             cir.setReturnValue(true);
             return;
         }
+        // The spawn zone view is an operator tool, not a command map: no orders, panels or selection.
+        if (ZoneViewClient.active()) return;
         // RTS panel (only when Xaero + OpenPAC are both present): a press on the panel is the panel's, and an
         // armed Frontline Tool takes the map's clicks: left fires at the chunk under the cursor, right cancels.
         if (RtsPanel.enabled()) {
@@ -510,6 +513,7 @@ public abstract class MixinGuiMap extends Screen {
     /** The wheel over the RTS panel scrolls its roster instead of zooming the map beneath it. */
     @Inject(method = "mouseScrolled", at = @At("HEAD"), cancellable = true, remap = true)
     private void tacz_sewv$rtsScroll(double mouseX, double mouseY, double delta, CallbackInfoReturnable<Boolean> cir) {
+        if (ZoneViewClient.active()) return;
         if (OrderFlyout.mouseScrolled(mouseX, mouseY, delta) || UnitRibbon.mouseScrolled(mouseX, mouseY, delta)) {
             cir.setReturnValue(true);
             return;
@@ -552,6 +556,7 @@ public abstract class MixinGuiMap extends Screen {
     /** Panel toggle / Frontline keys. Never while a text box (Xaero's hop field) has focus. */
     @Inject(method = "keyPressed", at = @At("HEAD"), cancellable = true, remap = true)
     private void tacz_sewv$rtsKey(int keyCode, int scanCode, int modifiers, CallbackInfoReturnable<Boolean> cir) {
+        if (ZoneViewClient.active()) return;
         if (WaypointDrag.active() && keyCode == org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE) {
             WaypointDrag.cancel();
             cir.setReturnValue(true);
@@ -601,7 +606,7 @@ public abstract class MixinGuiMap extends Screen {
 
     @Inject(method = "render", at = @At("TAIL"), remap = true)
     private void tacz_sewv$drawRts(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks, CallbackInfo ci) {
-        if (!RtsPanel.enabled()) return;
+        if (!RtsPanel.enabled() || ZoneViewClient.active()) return;
         if (CruisePlot.armed() || GuardPlot.armed() || PathwayPlot.armed()) RtsPanel.cancelTool();
         tacz_sewv$syncRtsColumn();
         RtsPanel.sampleDrag(tacz_sewv$worldX(mouseX), tacz_sewv$worldZ(mouseY));
@@ -614,7 +619,7 @@ public abstract class MixinGuiMap extends Screen {
 
     @Inject(method = "getRightClickOptions", at = @At("RETURN"))
     private void tacz_sewv$orderOptions(CallbackInfoReturnable<ArrayList<RightClickOption>> cir) {
-        if (!ClientConfig.mapMarkersEnabled()) return;
+        if (!ClientConfig.mapMarkersEnabled() || ZoneViewClient.active()) return;
         ArrayList<RightClickOption> options = cir.getReturnValue();
         if (options == null) return;
 
@@ -643,6 +648,13 @@ public abstract class MixinGuiMap extends Screen {
 
     @Inject(method = "render", at = @At("TAIL"), remap = true)
     private void tacz_sewv$drawPlot(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks, CallbackInfo ci) {
+        if (ZoneViewClient.active()) {
+            UnitRibbon.hide();
+            OrderFlyout.close();
+            if (this.tacz_sewv$confirmButton != null) this.tacz_sewv$confirmButton.visible = false;
+            if (this.tacz_sewv$cancelButton != null) this.tacz_sewv$cancelButton.visible = false;
+            return;
+        }
         // The order-preview overlay draws independently of cruise plotting. Standing orders come
         // straight from the synced markers (so they clear themselves when an order is dismissed or
         // overridden); the live drag is the transient line being laid down right now.

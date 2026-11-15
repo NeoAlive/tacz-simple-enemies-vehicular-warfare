@@ -3,6 +3,7 @@
 build/
 !gradle/wrapper/gradle-wrapper.jar
 CLAUDE.md
+CLAUDE.md.bak
 .cursor
 .claude
 scripts/

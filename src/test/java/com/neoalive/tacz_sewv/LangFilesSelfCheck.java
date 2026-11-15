@@ -21,7 +21,7 @@ import com.google.gson.JsonParser;
 public final class LangFilesSelfCheck {
 
     private static final List<String> LOCALES = List.of(
-            "it_it", "de_de", "es_es", "es_mx", "ru_ru", "zh_cn");
+            "it_it", "de_de", "es_es", "es_mx", "ru_ru", "zh_cn", "pl_pl");
 
     private static final String GLYPHS = "➤⚑■⚡⊘⌖▲▼⚠◯⚔✸⛨⌂↻⚐↩✕⏏☂◎⇉✎↔★≈±";
     private static final String FORBIDDEN = "—–…→←↔⇒⟶⟵➔➜►▶▸➡⟹⇐↑↓⇑⇓";
@@ -77,7 +77,9 @@ public final class LangFilesSelfCheck {
             "es_es", List.of("es importante", "cabe destacar", "con el fin de", "ten en cuenta", "asegúrate", "asegurate", "simplemente"),
             "es_mx", List.of("es importante", "cabe destacar", "con el fin de", "ten en cuenta", "asegúrate", "asegurate", "simplemente"),
             "ru_ru", List.of("важно отметить", "следует отметить", "данный", "данная", "данное", "данного", "в целях", "обратите внимание"),
-            "zh_cn", List.of("值得注意的是", "请注意", "旨在", "简单来说", "为了确保", "进行"));
+            "zh_cn", List.of("值得注意的是", "请注意", "旨在", "简单来说", "为了确保", "进行"),
+            "pl_pl", List.of("warto zauważyć", "należy zauważyć", "ważne jest", "należy pamiętać",
+                    "proszę zwrócić uwagę", "upewnij się", "po prostu"));
 
     private static final Pattern ES_MX_EXTRA = Pattern.compile(
             "\\bvosotros\\b|\\bvosotras\\b|\\bvuestro\\b|\\bvuestra\\b|\\bvuestros\\b|\\bvuestras\\b"

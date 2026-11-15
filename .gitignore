@@ -22,7 +22,11 @@ scratchpad_sem/
 .project
 .settings/
 
-# Minecraft
+# OS
+.DS_Store
+Thumbs.db
+
+# Minecraft / Forge run dirs
 run/
 runs/
 run-data/
@@ -32,9 +36,19 @@ run-client-b/
 logs/
 run-server-dev/
 run-modded/
+run-neo/
+run-neo-client-a/
+run-neo-client-b/
+run-neo-server-dev/
 
 # Accidental decompiled / extracted classes
 net/
+org/
+META-INF/
+*.class
+
+# Accidental shell dumps
+q
 
 # Generated files
 out/
@@ -48,12 +62,18 @@ src/test/resources/lang/
 
 # Local dependencies
 libs/*.jar
+libs/backup-*/
+libs/backup-sem-0.1.6-beta/
+libs/com/
+libs-neo/
 libmods/.git_backup/
 libmods/
+
+# Local SEM checkout used for inspection / builds
+simpleenemymod/
 
 # Average-modpack jars for ./gradlew runModded (synced from Prism via syncModpack)
 modpack/
 
 wiki/
 temp/
-libs/backup-sem-0.1.6-beta/

@@ -114,6 +114,7 @@ public abstract class MixinPacketIssueOrder {
         }
         String feedbackId = com.neoalive.tacz_sewv.command.quick.QuickSemOrders.feedbackId(order);
         OrderReport.okEach(sender, feedbackId, "message.tacz_sewv.sem_order." + feedbackId, ChatFormatting.GREEN);
+        com.neoalive.tacz_sewv.order.OrderBatch.stamp(pmc);
 
         // Cleared for any ordered unit, mounted or not: an area task only means anything to a
         // driver, but clearing one that was never set costs nothing and never has to ask.

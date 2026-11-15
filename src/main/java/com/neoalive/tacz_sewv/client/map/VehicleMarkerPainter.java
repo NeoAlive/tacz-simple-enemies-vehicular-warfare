@@ -440,6 +440,20 @@ public final class VehicleMarkerPainter {
         return 0xFFFFAA00;
     }
 
+    /**
+     * The symbol alone, {@code size} px square, centred on (cx, cy): no heading, labels or vitals. For
+     * lists such as the map ribbon. Caller frames selection and hover itself.
+     */
+    public static void paintIcon(GuiGraphics guiGraphics, VehicleMarker marker, int cx, int cy, int size) {
+        PoseStack pose = guiGraphics.pose();
+        pose.pushPose();
+        pose.translate(cx, cy, 0.0F);
+        float s = (float) size / ICON_SIZE;
+        pose.scale(s, s, 1.0F);
+        drawSymbol(guiGraphics, marker, markerColor(marker));
+        pose.popPose();
+    }
+
     /** The APP-6 symbol, tinted: black strokes survive the multiply, the white fill becomes {@code color}. */
     private static void drawSymbol(GuiGraphics guiGraphics, VehicleMarker marker, int color) {
         PoseStack pose = guiGraphics.pose();

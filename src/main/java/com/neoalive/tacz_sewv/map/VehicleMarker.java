@@ -33,7 +33,9 @@ public record VehicleMarker(int driverId, int vehicleId, double x, double y, dou
                             /** 0xRRGGBB platoon colour, 0 = not in a platoon. OWN markers only. */
                             int platoonColorRgb,
                             /** Driver is a {@code PmcCommanderEntity}. OWN markers only. */
-                            boolean isCommanderUnit) {
+                            boolean isCommanderUnit,
+                            /** Ribbon grouping. {@link MarkerTags#NONE} on anything not OWN. */
+                            MarkerTags tags) {
 
     /** Sentinel: hull has no energy storage — do not draw an energy bar. */
     public static final float NO_ENERGY = -1.0F;

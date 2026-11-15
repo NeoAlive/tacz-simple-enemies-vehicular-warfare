@@ -1,8 +1,10 @@
 package com.neoalive.tacz_sewv.map;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -37,6 +39,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
 
 import com.neoalive.tacz_sewv.airport.HelipadRegistry;
+import com.neoalive.tacz_sewv.bridge.IFormationMember;
 import com.neoalive.tacz_sewv.bridge.ISweepInfantry;
 import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.client.MapMarkers;
@@ -52,6 +55,7 @@ import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.support.DroneSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.GuardSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.MortarSupport;
+import com.neoalive.tacz_sewv.entity.ai.support.OrderStandDown;
 import com.neoalive.tacz_sewv.entity.ai.support.SupportRole;
 import com.neoalive.tacz_sewv.entity.ai.support.Type63Support;
 import com.neoalive.tacz_sewv.entity.unit.PmcCommanderEntity;
@@ -137,6 +141,32 @@ public final class OwnedVehicleTracker {
                              ResourceKey<Level> dimension, float healthFrac, float energyFrac,
                              int tintRgb, boolean hasGuard, int platoonColorRgb, boolean isCommanderUnit) {}
 
+    /** Ribbon tags per driver id, rebuilt each pass before any marker is made. Server thread only. */
+    private static final Map<Integer, MarkerTags> TAGS = new HashMap<>();
+
+    private static MarkerTags tagsOf(ServerLevel level, PmcUnitEntity pmc) {
+        IFormationMember member = (IFormationMember) pmc;
+        long formation = member.sewv$getFormationGroup();
+        if (formation == 0L) formation = member.sewv$getFormationLeads();
+        Platoon p = PlatoonRegistry.platoonOf(level, pmc.getId());
+        return new MarkerTags(formation, p != null ? p.groupId() : 0, stanceOf(pmc), OrderBatch.of(pmc));
+    }
+
+    private static MarkerTags.Stance stanceOf(PmcUnitEntity pmc) {
+        if (OrderStandDown.hasStandingTask(pmc)) return MarkerTags.Stance.TASK;
+        OrderType order = pmc.getOrder();
+        if (order == null) return MarkerTags.Stance.NONE;
+        return switch (order) {
+            case FOLLOW_COMMANDER -> MarkerTags.Stance.FOLLOW;
+            case HOLD_POSITION -> MarkerTags.Stance.HOLD;
+            case MOVE_TO_POSITION -> MarkerTags.Stance.MOVE;
+            case FORM_WEDGE, FORM_COLUMN -> MarkerTags.Stance.FORM;
+            case CEASE_FIRE -> MarkerTags.Stance.CEASE_FIRE;
+            case FREE_FIRE -> MarkerTags.Stance.FREE_FIRE;
+            case ATTACK_THAT_TARGET -> MarkerTags.Stance.ATTACK;
+        };
+    }
+
     /** Platoon colour for this driver, or 0 (not in a platoon). */
     private static int platoonColorOf(ServerLevel level, int driverId) {
         Platoon p = PlatoonRegistry.platoonOf(level, driverId);
@@ -159,6 +189,14 @@ public final class OwnedVehicleTracker {
         for (ServerLevel level : event.getServer().getAllLevels()) {
             collect(level, candidates);
             if (infantry) collectInfantry(level, candidates);
+        }
+        TAGS.clear();
+        for (Candidate c : candidates) {
+            if (c.driverId() == MapMarkers.NO_DRIVER || c.faction() != CrewFacts.Faction.PMC) continue;
+            ServerLevel level = event.getServer().getLevel(c.dimension());
+            if (level != null && level.getEntity(c.driverId()) instanceof PmcUnitEntity pmc) {
+                TAGS.put(c.driverId(), tagsOf(level, pmc));
+            }
         }
 
         double spotRadius = SewvConfig.MAP_SPOT_RADIUS.get();
@@ -601,7 +639,8 @@ public final class OwnedVehicleTracker {
         return new VehicleMarker(c.driverId(), c.vehicleId(), c.x(), c.y(), c.z(), c.yaw(),
                 kind, allegiance, c.faction(), order, c.dimension(),
                 c.healthFrac(), c.energyFrac(), role, groupId, playRole, c.tintRgb(), c.hasGuard(),
-                own ? c.platoonColorRgb() : 0, own && c.isCommanderUnit());
+                own ? c.platoonColorRgb() : 0, own && c.isCommanderUnit(),
+                own ? TAGS.getOrDefault(c.driverId(), MarkerTags.NONE) : MarkerTags.NONE);
     }
 
     private static VehicleMarker.PlayRole playRoleOf(@javax.annotation.Nullable Assignment.Role role) {

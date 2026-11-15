@@ -72,16 +72,15 @@ public final class RtsPanel {
     /** A drag can capture at most this many chunks (the wire cap); past it further chunks are ignored. */
     private static final int MAX_CAPTURED = 1024;
 
-    private static final int BG = 0xD0121820;
-    private static final int BORDER = 0xFF3A4A5A;
-    private static final int ACCENT = 0xFF55DD55;
-    private static final int AMBER = 0xFFFFAA00;
-    private static final int TEXT = 0xFFE6E6E6;
-    private static final int DIM = 0xFF8A94A0;
-    private static final int SELECT_BG = 0x4055AAFF;
-    /** Row backgrounds: neutral when idle, a subtle amber tint when the row's tool is armed. Amber means "attention". */
-    private static final int ROW_BG = 0x30303840;
-    private static final int ARMED_BG = 0x50E5A045;
+    // Xaero's own menu palette (see XaeroTheme), so the panel reads as part of the map.
+    private static final int BG = XaeroTheme.BG;
+    private static final int ACCENT = XaeroTheme.GOLD;
+    private static final int AMBER = XaeroTheme.GOLD;
+    private static final int TEXT = XaeroTheme.TEXT;
+    private static final int DIM = XaeroTheme.DIM;
+    /** Row backgrounds: none when idle, a soft gold tint when the row's tool is armed. Gold means "attention". */
+    private static final int ROW_BG = 0;
+    private static final int ARMED_BG = XaeroTheme.GOLD_SOFT;
     private static final float DISABLED_ALPHA = 0.4f;
 
     // Roster row columns (all rows share them, so bars and chips line up down the list).
@@ -249,6 +248,18 @@ public final class RtsPanel {
     /** True while a map tool owns the mouse: the Frontline Tool or Advance Plan painting. */
     public static boolean toolArmed() {
         return toolArmed || planPainting;
+    }
+
+    /** Screen width the panel takes from the right edge (rail or full panel), 0 when unavailable. */
+    public static int reservedRight(int w, int h) {
+        if (!enabled()) return 0;
+        Layout l = layout(w, h);
+        return w - l.x0;
+    }
+
+    /** The panel is open beside the map (not the collapsed rail). */
+    public static boolean expanded() {
+        return enabled() && expanded;
     }
 
     public static boolean planPainting() {
@@ -1071,11 +1082,7 @@ public final class RtsPanel {
         boolean on = TerritoryClient.modeOn();
 
         // ---- stage 1: fills
-        g.fill(l.x0, l.y0, l.x1, l.y1, BG);
-        g.fill(l.x0, l.y0, l.x1, l.y0 + 1, BORDER);
-        g.fill(l.x0, l.y1 - 1, l.x1, l.y1, BORDER);
-        g.fill(l.x0, l.y0, l.x0 + 1, l.y1, BORDER);
-        g.fill(l.x1 - 1, l.y0, l.x1, l.y1, BORDER);
+        XaeroTheme.panel(g, l.x0, l.y0, l.x1 - l.x0, l.y1 - l.y0, expanded);
 
         if (!expanded) {
             drawRail(g, font, l, on);
@@ -1089,13 +1096,20 @@ public final class RtsPanel {
         Set<Integer> selected = selection();
         int shown = l.visibleRows();
 
-        rowBackground(g, l, l.modeY, ROW_BG);
-        rowBackground(g, l, l.toolY, toolArmed ? ARMED_BG : ROW_BG);
-        rowBackground(g, l, l.planY, planPainting ? ARMED_BG : ROW_BG);
-        rowBackground(g, l, l.rosterY, ROW_BG);
-        rowBackground(g, l, l.helpY, ROW_BG);
+        g.fill(l.x0 + 1, l.headerY, l.x1 - 1, l.headerY + 14, XaeroTheme.GOLD);
+        rowBackground(g, l, l.modeY, hoverRow(l, l.modeY, mx, my) ? XaeroTheme.ROW_HOVER : ROW_BG);
+        rowBackground(g, l, l.toolY, toolArmed ? ARMED_BG : hoverRow(l, l.toolY, mx, my) ? XaeroTheme.ROW_HOVER : ROW_BG);
+        rowBackground(g, l, l.planY, planPainting ? ARMED_BG : hoverRow(l, l.planY, mx, my) ? XaeroTheme.ROW_HOVER : ROW_BG);
+        rowBackground(g, l, l.rosterY, hoverRow(l, l.rosterY, mx, my) ? XaeroTheme.ROW_HOVER : ROW_BG);
+        rowBackground(g, l, l.helpY, hoverRow(l, l.helpY, mx, my) ? XaeroTheme.ROW_HOVER : ROW_BG);
+        for (int y : new int[]{l.modeY, l.toolY, l.planY, l.rosterY}) {
+            XaeroTheme.separator(g, l.x0 + 4, y + ROW_H, l.x1 - l.x0 - 8);
+        }
+        XaeroTheme.separator(g, l.x0 + 4, l.helpY, l.x1 - l.x0 - 8);
         for (int i = 0; i < shown && scroll + i < rows.size(); i++) {
-            if (selected.contains(rows.get(scroll + i).id())) rowBackground(g, l, l.listTop + i * ROW_H, SELECT_BG);
+            int ry = l.listTop + i * ROW_H;
+            boolean sel = selected.contains(rows.get(scroll + i).id());
+            XaeroTheme.row(g, l.x0 + 4, ry + 1, l.x1 - l.x0 - 8, ROW_H - 2, hoverRow(l, ry, mx, my), sel);
         }
         g.flush();
 
@@ -1114,29 +1128,30 @@ public final class RtsPanel {
 
         // ---- stage 3: text and bars
         int labelX = l.x0 + 6 + SPRITE + 6;
-        g.drawString(font, Component.translatable("gui.tacz_sewv.rts.title"), l.x0 + 6, l.headerY + 3, TEXT, false);
-        g.drawString(font, ">", l.x1 - 12, l.headerY + 3, DIM, false);
+        g.drawString(font, Component.translatable("gui.tacz_sewv.rts.title"), l.x0 + 6, l.headerY + 3,
+                XaeroTheme.ON_GOLD, false);
+        g.drawString(font, ">", l.x1 - 12, l.headerY + 3, XaeroTheme.ON_GOLD, false);
 
-        g.drawString(font, Component.translatable("gui.tacz_sewv.rts.mode"), labelX, l.modeY + 6, TEXT, false);
+        g.drawString(font, Component.translatable("gui.tacz_sewv.rts.mode"), labelX, l.modeY + 6, TEXT, true);
 
         int toolText = enabled ? TEXT : scaleAlpha(TEXT, DISABLED_ALPHA);
-        g.drawString(font, Component.translatable("gui.tacz_sewv.rts.tool"), labelX, l.toolY + 6, toolText, false);
+        g.drawString(font, Component.translatable("gui.tacz_sewv.rts.tool"), labelX, l.toolY + 6, toolText, true);
         if (hasLine) {
             boolean hot = mx >= l.x1 - 20 && mx < l.x1 - 4 && my >= l.toolY && my < l.toolY + ROW_H;
-            g.drawString(font, "x", l.x1 - 14, l.toolY + 6, hot ? 0xFFFF6666 : DIM, false);
+            g.drawString(font, "x", l.x1 - 14, l.toolY + 6, hot ? 0xFFFF6666 : DIM, true);
         }
         PlanView plan = TerritoryClient.plan();
         g.drawString(font, Component.translatable("gui.tacz_sewv.rts.plan"), labelX, l.planY + 6,
-                on ? TEXT : scaleAlpha(TEXT, DISABLED_ALPHA), false);
+                on ? TEXT : scaleAlpha(TEXT, DISABLED_ALPHA), true);
         if (plan != null && !planPainting) {
             boolean running = plan.state() == PLAN_RUNNING;
             boolean go = running || startable(plan);
             int bx = l.x1 - 20 - PLAN_BTN_W - 2;
-            g.fill(bx, l.planY + 4, bx + PLAN_BTN_W, l.planY + ROW_H - 4, running ? 0xFF8A5A1F : (go ? 0xFF2F7F55 : 0xFF3A4048));
+            g.fill(bx, l.planY + 4, bx + PLAN_BTN_W, l.planY + ROW_H - 4, running ? 0xFF8A5A1F : (go ? 0xFF2F7F55 : XaeroTheme.ROW_HOVER));
             g.drawCenteredString(font, Component.translatable(running ? "gui.tacz_sewv.rts.plan.stop" : "gui.tacz_sewv.rts.plan.start"),
                     bx + PLAN_BTN_W / 2, l.planY + 6, go ? CHIP_LIGHT : DIM);
             boolean hot = mx >= l.x1 - 20 && mx < l.x1 - 4 && my >= l.planY && my < l.planY + ROW_H;
-            g.drawString(font, "x", l.x1 - 14, l.planY + 6, hot ? 0xFFFF6666 : DIM, false);
+            g.drawString(font, "x", l.x1 - 14, l.planY + 6, hot ? 0xFFFF6666 : DIM, true);
             if (running) drawSkipButton(g, font, l, mx, my);
         } else {
             skipHoldStart = -1;
@@ -1146,21 +1161,21 @@ public final class RtsPanel {
         if (planPainting) {
             int n = painted.size(), cap = TerritoryClient.planCap();
             g.drawString(font, Component.translatable("gui.tacz_sewv.rts.plan.painting", n, cap), l.x0 + 8, l.reasonY,
-                    n >= cap ? 0xFFFF6666 : LINE_AMBER, false);
+                    n >= cap ? 0xFFFF6666 : LINE_AMBER, true);
         } else if (toolArmed) {
-            g.drawString(font, Component.translatable("gui.tacz_sewv.rts.armed"), l.x0 + 8, l.reasonY, LINE_AMBER, false);
+            g.drawString(font, Component.translatable("gui.tacz_sewv.rts.armed"), l.x0 + 8, l.reasonY, LINE_AMBER, true);
         } else if (plan != null) {
             boolean held = plan.state() == PLAN_RUNNING && plan.hold() > 0 && plan.hold() < HOLD_KEYS.length;
-            g.drawString(font, planStatus(plan), l.x0 + 8, l.reasonY, held ? LINE_AMBER : DIM, false);
+            g.drawString(font, planStatus(plan), l.x0 + 8, l.reasonY, held ? LINE_AMBER : DIM, true);
         } else if (!enabled) {
             Component reason = Component.translatable(on ? "gui.tacz_sewv.rts.need_selection" : "gui.tacz_sewv.rts.need_mode");
-            g.drawString(font, reason, l.x0 + 8, l.reasonY, DIM, false);
+            g.drawString(font, reason, l.x0 + 8, l.reasonY, DIM, true);
         }
 
         g.drawString(font, Component.translatable("gui.tacz_sewv.rts.roster", TerritoryClient.roster().size()),
-                labelX, l.rosterY + 6, TEXT, false);
+                labelX, l.rosterY + 6, TEXT, true);
         Component filter = Component.translatable("gui.tacz_sewv.rts.filter");
-        g.drawString(font, filter, l.x1 - 6 - SPRITE - 4 - font.width(filter), l.rosterY + 6, DIM, false);
+        g.drawString(font, filter, l.x1 - 6 - SPRITE - 4 - font.width(filter), l.rosterY + 6, DIM, true);
 
         for (int i = 0; i < shown && scroll + i < rows.size(); i++) {
             drawRow(g, font, rows.get(scroll + i), l, l.listTop + i * ROW_H, mx, my);
@@ -1169,11 +1184,11 @@ public final class RtsPanel {
             int trackH = l.listBottom - l.listTop;
             int thumbH = Math.max(6, trackH * shown / rows.size());
             int thumbY = l.listTop + (trackH - thumbH) * scroll / Math.max(1, maxScroll(l, rows.size()));
-            g.fill(l.x1 - 3, thumbY, l.x1 - 1, thumbY + thumbH, BORDER);
+            g.fill(l.x1 - 3, thumbY, l.x1 - 1, thumbY + thumbH, XaeroTheme.TRIM);
         }
 
-        g.drawString(font, Component.translatable("gui.tacz_sewv.rts.keys"), labelX, l.helpY + 6, TEXT, false);
-        g.drawString(font, helpOpen ? "v" : "^", l.x1 - 14, l.helpY + 6, DIM, false);
+        g.drawString(font, Component.translatable("gui.tacz_sewv.rts.keys"), labelX, l.helpY + 6, TEXT, true);
+        g.drawString(font, helpOpen ? "v" : "^", l.x1 - 14, l.helpY + 6, DIM, true);
         if (helpOpen) drawHelp(g, font, l);
 
         if (toolArmed) {
@@ -1242,13 +1257,18 @@ public final class RtsPanel {
 
     /** A row's background: inset 4 px each side and 1 px top and bottom, so adjacent 20 px rows read as separate. */
     private static void rowBackground(GuiGraphics g, Layout l, int y, int argb) {
+        if (argb == 0) return;
         g.fill(l.x0 + 4, y + 1, l.x1 - 4, y + ROW_H - 1, argb);
+    }
+
+    private static boolean hoverRow(Layout l, int y, int mx, int my) {
+        return mx >= l.x0 + 4 && mx < l.x1 - 4 && my >= y && my < y + ROW_H;
     }
 
     /** A 16 px monochrome sprite, tinted near-white and faded by {@code alpha} (40% when its row is disabled). */
     private static void sprite(GuiGraphics g, ResourceLocation texture, int x, int y, float alpha) {
         RenderSystem.enableBlend();
-        g.setColor(0.92f, 0.92f, 0.92f, alpha);
+        g.setColor(1f, 1f, 1f, alpha);
         g.blit(texture, x, y, SPRITE, SPRITE, 0, 0, 16, 16, 16, 16);
         g.setColor(1f, 1f, 1f, 1f);
     }
@@ -1303,7 +1323,7 @@ public final class RtsPanel {
     private static void drawRow(GuiGraphics g, Font font, Row r, Layout l, int y, int mx, int my) {
         int ty = y + (ROW_H - 8) / 2;
         int nameX = l.x0 + 6 + SPRITE + 4;
-        g.drawString(font, font.plainSubstrByWidth(r.name(), NAME_W), nameX, ty, ineligible(r) ? DIM : TEXT, false);
+        g.drawString(font, font.plainSubstrByWidth(r.name(), NAME_W), nameX, ty, ineligible(r) ? DIM : TEXT, true);
 
         int barX = nameX + NAME_W + 4;
         healthBar(g, barX, y + (ROW_H - BAR_H) / 2, r.health());
@@ -1313,7 +1333,7 @@ public final class RtsPanel {
 
         if (r.posted()) {
             boolean hot = mx >= l.x1 - 14 && mx < l.x1 - 5 && my >= y && my < y + ROW_H;
-            g.drawString(font, "x", l.x1 - 12, ty, hot ? 0xFFFF6666 : DIM, false);
+            g.drawString(font, "x", l.x1 - 12, ty, hot ? 0xFFFF6666 : DIM, true);
         }
     }
 
@@ -1366,12 +1386,12 @@ public final class RtsPanel {
         int first = helpScroll;
         int fit = Math.max(1, l.helpBodyH / HELP_ENTRY_H);
         for (int i = first; i < HELP_ENTRIES && i < first + fit; i++, y += HELP_ENTRY_H) {
-            g.drawString(font, "[" + glyph[i] + "]", l.x0 + 8, y, ACCENT, false);
+            g.drawString(font, "[" + glyph[i] + "]", l.x0 + 8, y, ACCENT, true);
             int gx = l.x0 + 8 + font.width("[" + glyph[i] + "]") + 4;
-            g.drawString(font, Component.translatable("gui.tacz_sewv.rts.help." + name[i]), gx, y, TEXT, false);
+            g.drawString(font, Component.translatable("gui.tacz_sewv.rts.help." + name[i]), gx, y, TEXT, true);
             g.drawString(font, font.plainSubstrByWidth(
                     Component.translatable("gui.tacz_sewv.rts.help." + name[i] + ".desc").getString(), PANEL_W - 16),
-                    l.x0 + 8, y + 10, DIM, false);
+                    l.x0 + 8, y + 10, DIM, true);
         }
     }
 }

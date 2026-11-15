@@ -374,6 +374,11 @@ public final class VehicleDriver {
         // correction, and ageing it while parked forced a full search on every re-drive.
         this.pathAge++;
         if (repairLocked()) { stop(); return; }
+        // An emplacement cannot move: no path, no steering, no stuck recovery.
+        if (this.sbw != null && HullFacts.engineType(this.sbw) == com.atsuishio.superbwarfare.data.vehicle.subdata.EngineType.FIXED) {
+            stop();
+            return;
+        }
         if (checkSubmergedFailsafe()) return;
         if (tickArrivalHysteresis(dest)) return;
         // Bank-lip reverse: face the blocked destination (usually into the water) and reverse off
@@ -507,6 +512,11 @@ public final class VehicleDriver {
      */
     public void retreatFrom(BlockPos targetPos, double retreatRadius, double distanceSq) {
         if (repairLocked()) { stop(); return; }
+        // An emplacement cannot move: no path, no steering, no stuck recovery.
+        if (this.sbw != null && HullFacts.engineType(this.sbw) == com.atsuishio.superbwarfare.data.vehicle.subdata.EngineType.FIXED) {
+            stop();
+            return;
+        }
         if (checkSubmergedFailsafe()) return;
         navigateTo(VehicleTargeting.computeStandoffPoint(this.vehicle, this.input::forwardDirection, targetPos, retreatRadius, 0.0),
                 distanceSq);

@@ -824,6 +824,8 @@ public class DriveHelicopterGoal extends Goal {
     }
 
     private void fireAssist(LivingEntity target) {
+        // An unarmed seat (a transport pilot) has nothing to fire; door gunners fire through SBW's own seat loop.
+        if (this.heldWeaponSlot < 0) return;
         // A nose-aimed weapon is judged against its lead point (target motion over the time of flight,
         // plus drop), the same point the bunt pitches and yaws the nose onto.
         Vec3 aim = noseAimed() ? aimPoint(target) : null;

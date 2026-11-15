@@ -62,8 +62,13 @@ public class HelipadBlockEntity extends BlockEntity {
     @Override
     public void onLoad() {
         super.onLoad();
-        if (this.cleared && this.level instanceof ServerLevel server) {
-            HelipadRegistry.get(server).note(this.worldPosition);
+        if (this.level instanceof ServerLevel server) {
+            if (HelipadRegistry.get(server).takeStale(this.worldPosition)) {
+                // The volume was obstructed while this chunk was away.
+                server.getServer().execute(this::clearClearance);
+            } else if (this.cleared) {
+                HelipadRegistry.get(server).note(this.worldPosition);
+            }
         }
     }
 

@@ -22,11 +22,14 @@ public class HelipadRegistry extends SavedData {
     private static final String DATA_NAME = "tacz_sewv_helipads";
 
     private final Set<Long> pads = new HashSet<>();
+    /** Pads voided while their block entity was unloaded; it un-clears itself on load. */
+    private final Set<Long> stale = new HashSet<>();
 
     public static HelipadRegistry load(CompoundTag nbt) {
         HelipadRegistry data = new HelipadRegistry();
         ListTag list = nbt.getList("Pads", Tag.TAG_LONG);
         for (Tag t : list) data.pads.add(((LongTag) t).getAsLong());
+        for (long p : nbt.getLongArray("Stale")) data.stale.add(p);
         return data;
     }
 
@@ -35,6 +38,7 @@ public class HelipadRegistry extends SavedData {
         ListTag list = new ListTag();
         for (long pos : this.pads) list.add(LongTag.valueOf(pos));
         nbt.put("Pads", list);
+        nbt.putLongArray("Stale", this.stale.stream().mapToLong(Long::longValue).toArray());
         return nbt;
     }
 
@@ -48,6 +52,20 @@ public class HelipadRegistry extends SavedData {
 
     public void forget(BlockPos pad) {
         if (this.pads.remove(pad.asLong())) setDirty();
+    }
+
+    /** Forgets a pad whose block entity is not loaded and remembers to un-clear it on load. */
+    public void invalidateUnloaded(BlockPos pad) {
+        this.pads.remove(pad.asLong());
+        this.stale.add(pad.asLong());
+        setDirty();
+    }
+
+    /** True once for a pad voided while unloaded. */
+    public boolean takeStale(BlockPos pad) {
+        if (!this.stale.remove(pad.asLong())) return false;
+        setDirty();
+        return true;
     }
 
     /** Cheap membership test — prefer this over {@link #pads()} when the caller wants one answer. */

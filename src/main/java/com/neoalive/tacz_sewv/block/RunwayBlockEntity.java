@@ -196,8 +196,13 @@ public class RunwayBlockEntity extends BlockEntity {
     @Override
     public void onLoad() {
         super.onLoad();
-        if (level instanceof ServerLevel serverLevel && airport() != null) {
-            AirportRegistry.get(serverLevel).note(worldPosition, airport());
+        if (level instanceof ServerLevel serverLevel) {
+            if (AirportRegistry.get(serverLevel).takeStale(worldPosition)) {
+                // The strip was damaged while this chunk was away.
+                serverLevel.getServer().execute(this::clearClearance);
+            } else if (airport() != null) {
+                AirportRegistry.get(serverLevel).note(worldPosition, airport());
+            }
         }
     }
 

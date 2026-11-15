@@ -41,6 +41,8 @@ public class AirportRegistry extends SavedData {
     }
 
     private final Map<Long, Airport> airports = new HashMap<>();
+    /** Strips voided while their runway block entity was unloaded; it un-clears itself on load. */
+    private final java.util.Set<Long> stale = new java.util.HashSet<>();
 
     public AirportRegistry() {}
 
@@ -61,6 +63,7 @@ public class AirportRegistry extends SavedData {
                     entry.getDouble("BufferFactor"),
                     entry.getDouble("ExtraFactor")));
         }
+        for (long p : nbt.getLongArray("Stale")) data.stale.add(p);
         return data;
     }
 
@@ -81,6 +84,7 @@ public class AirportRegistry extends SavedData {
             list.add(entry);
         }
         nbt.put("Airports", list);
+        nbt.putLongArray("Stale", this.stale.stream().mapToLong(Long::longValue).toArray());
         return nbt;
     }
 
@@ -95,6 +99,25 @@ public class AirportRegistry extends SavedData {
 
     public void forget(BlockPos runwayPos) {
         if (airports.remove(runwayPos.asLong()) != null) setDirty();
+    }
+
+    /** Forgets a strip whose runway block entity is not loaded and remembers to un-clear it on load. */
+    public void invalidateUnloaded(BlockPos runwayPos) {
+        airports.remove(runwayPos.asLong());
+        stale.add(runwayPos.asLong());
+        setDirty();
+    }
+
+    /** True once for a strip voided while unloaded. */
+    public boolean takeStale(BlockPos runwayPos) {
+        if (!stale.remove(runwayPos.asLong())) return false;
+        setDirty();
+        return true;
+    }
+
+    /** Runway block position to cleared strip, read only. */
+    public Map<Long, Airport> entries() {
+        return java.util.Collections.unmodifiableMap(airports);
     }
 
     /** Closest cleared airport whose touchdown is within {@code radius}; {@code radius <= 0} disables. */

@@ -115,7 +115,7 @@ public class HelipadScreen extends Screen {
         } else if (this.blocker != null) {
             r = 1.0f; g = 0.2f; b = 0.2f;
         }
-        AirportPreview.set(HelipadClearance.volume(this.pos), this.blocker, r, g, b);
+        AirportPreview.set(this.pos, HelipadClearance.volume(this.pos), this.blocker, r, g, b);
     }
 
     @Override

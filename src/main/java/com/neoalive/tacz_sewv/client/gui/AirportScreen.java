@@ -287,7 +287,7 @@ public class AirportScreen extends Screen {
             r = 0.2f; g = 0.9f; b = 0.3f;
         }
         int airY = this.pos.getY() + 1;
-        AirportPreview.set(
+        AirportPreview.set(this.pos,
                 new AABB(minX, airY, minZ, maxX + 1, airY + 1, maxZ + 1),
                 this.blocker,
                 r, g, b);

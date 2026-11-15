@@ -105,6 +105,7 @@ public class TaczSewv {
         MinecraftForge.EVENT_BUS.register(MapIdentity.class);
         MinecraftForge.EVENT_BUS.register(FobTickHandler.class);
         MinecraftForge.EVENT_BUS.register(FobLifecycleEvents.class);
+        MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.airport.RunwayIntegrity.class);
         MinecraftForge.EVENT_BUS.register(GraceTickHandler.class);
         MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.invasion.InvasionSession.class);
         MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.invasion.InvasionHudTracker.class);

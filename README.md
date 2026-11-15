@@ -17,6 +17,8 @@ This project depends on the following projects:
 
 - [Default642172](https://www.planetminecraft.com/member/default642172/) and his outstanding skins, used in this project. 
 
+- Audio clips and SFX used strictly for non-commercial, non-profit purposes. Original rights belong to their respective creators (attributed where identifiable). If you are a rights holder and wish to be credited or have material removed, please contact iinovsyy1@gmail.com.
+
 This project was also developed with reference to and inspiration from
 [SBW: Superb Recruits](https://github.com/LogicalMaximus/SuperbRecruitz) by **LogicalMaximus**,
 which is licensed under the MIT License. While this project does not include any assets from

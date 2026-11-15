@@ -40,8 +40,28 @@ public final class PlaneGuidanceSelfCheck {
         checkPitchSign();
         checkModes();
         checkDubins();
+        checkHoldRadius();
 
         System.out.println("plane guidance self-check: OK");
+    }
+
+    /**
+     * A plane flying its hold circle shows exactly that circle's turn rate, so each lap feeds the
+     * last circle back as the next "demonstrated" radius. Uncapped at factor 2 that doubles per lap
+     * (measured live: 521-540 blocks against a 384 range limit, HOLD/RTB every 8-11 s). The cap must
+     * hold the circle inside the range limit no matter how many laps run.
+     */
+    private static void checkHoldRadius() {
+        double maxRange = 384.0;
+        double r = 96.0;
+        for (int lap = 0; lap < 20; lap++) {
+            r = PlaneNav.holdRadius(r, 2.0, 96.0, maxRange);
+            assert r <= maxRange * PlaneNav.HOLD_RANGE_SHARE + 1.0E-9 : "hold radius grew to " + r;
+        }
+        assert r < 0.8 * maxRange : "orbit about the anchor must sit inside the RTB release ring";
+        assert PlaneNav.holdRadius(10.0, 2.0, 96.0, maxRange) == 96.0 : "floor";
+        assert PlaneNav.holdRadius(300.0, 2.0, 96.0, 0.0) == 600.0 : "no range limit, no cap";
+        assert PlaneNav.holdRadius(300.0, 2.0, 96.0, 100.0) == 96.0 : "cap never undercuts the floor";
     }
 
     /**

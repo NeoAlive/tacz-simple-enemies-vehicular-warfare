@@ -1225,23 +1225,35 @@ public class DrivePlaneGoal extends Goal {
      * pointing away from the target and the aircraft arrives there facing the wrong way.
      */
     private boolean establishedForRun(LivingEntity target, Vec3 bearing) {
-        return establishedForRun(bearing);
+        return establishedForRun(target.position(), bearing);
     }
 
     private boolean establishedForRun(Vec3 mark, Vec3 bearing) {
-        return establishedForRun(bearing);
-    }
-
-    private boolean establishedForRun(Vec3 bearing) {
         if (PlaneNav.headingErrorDeg(this.kinematics.forwardFlat(), bearing) <= RUN_ALIGN_DEG) {
             return true;
         }
         if (Double.isNaN(this.runInDirX)) {
-            Vec3 heading = this.kinematics.forwardFlat();
-            this.runInDirX = heading.x;
-            this.runInDirZ = heading.z;
+            Vec3 out = repositionHeading(mark);
+            this.runInDirX = out.x;
+            this.runInDirZ = out.z;
         }
         return false;
+    }
+
+    /**
+     * Which way to fly the reposition leg. The leg runs a full engage radius past the target and
+     * then turns, so flown along whatever heading the aircraft had it could end past
+     * {@code planeMaxRange} from the nearest player, and the range limit then forced RTB before the
+     * run began, every pass. Pointed from the target toward that player instead, the leg heads
+     * home and the turn back onto the run happens inside the limit. With no player to measure
+     * from there is no limit, so the old answer (the aircraft's own heading) stands.
+     */
+    private Vec3 repositionHeading(Vec3 mark) {
+        Vec3 heading = this.kinematics.forwardFlat();
+        Player near = this.unit.level().getNearestPlayer(mark.x, mark.y, mark.z, -1.0, e -> !e.isSpectator());
+        if (near == null) return heading;
+        Vec3 home = new Vec3(near.getX() - mark.x, 0.0, near.getZ() - mark.z);
+        return home.lengthSqr() > 1.0 ? home.normalize() : heading;
     }
 
     private void onModeChange(PlaneMode from, PlaneMode to, @Nullable LivingEntity target) {
@@ -1581,10 +1593,11 @@ public class DrivePlaneGoal extends Goal {
     /**
      * Circle radius sized off the hull's own demonstrated agility. A fixed radius is either
      * unflyable for a heavy jet (which then spirals outward, drifting) or needlessly wide for a
-     * nimble one.
+     * nimble one. Capped inside the range limit (see {@link PlaneNav#holdRadius}).
      */
     private double holdRadius() {
-        return Math.max(HOLD_RADIUS_MIN, this.kinematics.turnRadius() * HOLD_RADIUS_FACTOR);
+        return PlaneNav.holdRadius(this.kinematics.turnRadius(), HOLD_RADIUS_FACTOR, HOLD_RADIUS_MIN,
+                SewvConfig.PLANE_MAX_RANGE.get());
     }
 
     /** Entity-id parity, so two aircraft holding the same anchor turn opposite ways. */

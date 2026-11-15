@@ -20,6 +20,7 @@ import com.neoalive.tacz_sewv.compat.AshAmmoCompat;
 import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
+import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleWeapons;
 import com.neoalive.tacz_sewv.item.PlaneAttackMode;
 import com.neoalive.tacz_sewv.util.WarnOnce;
@@ -221,6 +222,11 @@ public final class PlaneWeapons {
      * quietly never fires the thing the aircraft is actually carrying.
      */
     public void ensureSelected(LivingEntity target, double range) {
+        // A pick made for the last target can outrank this one (a bomb kept for an aircraft).
+        if (this.selected != null && this.mode == PlaneAttackMode.AUTO
+                && this.selected.kind().tier() > targetTier(target)) {
+            this.selected = null;
+        }
         if (this.selected == null) select(target, range);
     }
 
@@ -382,11 +388,19 @@ public final class PlaneWeapons {
     /** Vehicles justify the heavy tier, faction infantry the medium, everything else the gun. */
     private static int targetTier(@Nullable LivingEntity target) {
         if (target == null) return Kind.BOMB.tier();
+        // Ground-attack stores cannot hit an aircraft in flight: guns only.
+        if (airborneAircraft(target)) return Kind.CANNON.tier();
         return switch (VehicleWeapons.classifyTarget(target)) {
             case VEHICLE -> Kind.GUIDED.tier();
             case FACTION_UNIT -> Kind.ROCKET.tier();
             default -> Kind.CANNON.tier();
         };
+    }
+
+    /** Riding a plane or helicopter that is off the ground. */
+    static boolean airborneAircraft(LivingEntity target) {
+        return target.getRootVehicle() instanceof VehicleEntity hull && !hull.onGround()
+                && (HullFacts.isPlaneHull(hull) || HullFacts.isHelicopterHull(hull));
     }
 
     private boolean ready(Weapon w) {

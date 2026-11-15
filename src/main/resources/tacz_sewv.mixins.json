@@ -33,6 +33,7 @@
     "MixinVehicleFireCooldown",
     "MixinSbwBulletSuppression",
     "MixinVehicleHullPressure",
+    "MixinDestroyableProjectileSiblingBlast",
     "MixinSemCombatDecision",
     "MixinSemTargetAcquisition",
     "MixinUnitAcquisitionState",

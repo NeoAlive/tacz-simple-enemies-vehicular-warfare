@@ -417,4 +417,20 @@ public final class PlaneNav {
         double b = Math.atan2(to.x, to.z);
         return Math.abs(Mth.degreesDifference((float) Math.toDegrees(a), (float) Math.toDegrees(b)));
     }
+
+    /** Share of the hard range limit a hold circle may use, so the orbit never crosses it. */
+    public static final double HOLD_RANGE_SHARE = 0.5;
+
+    /**
+     * Hold circle radius: {@code factor} times the demonstrated turn radius, floored at
+     * {@code min}, and capped at {@link #HOLD_RANGE_SHARE} of the range limit. Without the cap the
+     * radius feeds itself: a plane flying the circle shows exactly the circle's own turn rate, so
+     * the next circle is {@code factor} times wider, until the orbit crosses {@code maxRange} and
+     * the range limit forces RTB every lap.
+     */
+    public static double holdRadius(double turnRadius, double factor, double min, double maxRange) {
+        double wanted = Math.max(min, turnRadius * factor);
+        if (maxRange <= 0.0) return wanted;
+        return Math.min(wanted, Math.max(min, maxRange * HOLD_RANGE_SHARE));
+    }
 }

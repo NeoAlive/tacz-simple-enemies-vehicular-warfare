@@ -3,6 +3,8 @@ package com.neoalive.tacz_sewv.mixin;
 import java.util.List;
 import java.util.function.Predicate;
 
+import com.atsuishio.superbwarfare.entity.projectile.DestroyableProjectile;
+import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.level.Level;
@@ -15,6 +17,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import com.neoalive.tacz_sewv.bridge.IObbHitIndex;
 import com.neoalive.tacz_sewv.entity.ai.core.ObbHitIndex;
+import com.neoalive.tacz_sewv.entity.ai.core.ProjectileOwners;
 
 /**
  * Answers a projectile's {@code getEntities(except, box, predicate)} without SBW's world scan.
@@ -60,8 +63,24 @@ public abstract class MixinLevelObbHitIndex implements IObbHitIndex {
         if (!(except instanceof Projectile)) return;
 
         Level self = (Level) (Object) this;
-        List<Entity> out = self.getEntities((Entity) null, box, e -> e != except && predicate.test(e));
-        ObbHitIndex.appendObbHits(self, out, except, box, predicate);
+        Predicate<? super Entity> test = tacz_sewv$siblingFilter(except, predicate);
+        List<Entity> out = self.getEntities((Entity) null, box, e -> e != except && test.test(e));
+        ObbHitIndex.appendObbHits(self, out, except, box, test);
         cir.setReturnValue(out);
+    }
+
+    /**
+     * SBW bombs are shootable (pickable, with health) and SBW finds hits through this very query,
+     * so the next bomb of a stick hits the one ahead of it. A shootable projectile from an
+     * SEM-crewed hull does not see shootable projectiles from the same hull.
+     */
+    @Unique
+    private static Predicate<? super Entity> tacz_sewv$siblingFilter(Entity except,
+                                                                    Predicate<? super Entity> predicate) {
+        if (!(except instanceof DestroyableProjectile)) return predicate;
+        VehicleEntity hull = ProjectileOwners.crewedHull(except);
+        if (hull == null) return predicate;
+        return e -> !(e instanceof DestroyableProjectile && ProjectileOwners.crewedHull(e) == hull)
+                && predicate.test(e);
     }
 }

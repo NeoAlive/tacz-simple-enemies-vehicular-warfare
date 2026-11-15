@@ -182,12 +182,11 @@ public class FobManager extends SavedData {
         while (it.hasNext()) {
             UUID id = it.next();
             Entity e = findEntity(level, id);
-            if (e == null || !e.isAlive()) {
+            // Not loaded is not gone. Destruction is caught as it happens by FobLifecycleEvents.
+            if (e == null) continue;
+            if (!e.isAlive() || !(e instanceof VehicleEntity hull)) {
                 it.remove();
-                continue;
-            }
-            if (!(e instanceof VehicleEntity hull)) {
-                it.remove();
+                FobDebug.logEntity(e, "unassigned from FOB: dead or not a vehicle");
                 continue;
             }
             // Stolen: an RU/US crew took it, or another player's PMC now crews it.
@@ -203,8 +202,29 @@ public class FobManager extends SavedData {
         while (it.hasNext()) {
             UUID id = it.next();
             Entity e = findEntity(level, id);
-            if (e == null || !e.isAlive()) it.remove();
+            if (e != null && !e.isAlive()) {
+                it.remove();
+                FobDebug.logEntity(e, "unassigned from FOB: dead");
+            }
         }
+    }
+
+    /** Drops an entity that has left the world for good. True when a FOB listed it. */
+    public boolean forget(UUID id) {
+        boolean changed = false;
+        for (FobInstance fob : this.fobs.values()) {
+            changed |= fob.assignedLiving.remove(id);
+            changed |= fob.assignedVehicles.remove(id);
+        }
+        if (changed) setDirty();
+        return changed;
+    }
+
+    /** Re-lists a stamped entity its FOB lost track of. Called on join. */
+    public void relist(FobInstance fob, Entity e, boolean vehicle) {
+        if (vehicle) fob.assignedVehicles.add(e.getUUID());
+        else fob.assignedLiving.add(e.getUUID());
+        setDirty();
     }
 
     public boolean assignLiving(BlockPos commandPos, UUID entityId, ServerLevel level) {

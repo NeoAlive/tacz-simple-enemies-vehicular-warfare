@@ -149,7 +149,7 @@ public final class FobSupport {
 
     public static boolean blocksOrders(PmcUnitEntity pmc) {
         FobInstance fob = fobForEntity(pmc, pmc.level());
-        return fob != null && fob.fobCommandActive && isStamped(pmc);
+        return fob != null && fob.fobCommandActive && fob.assignedLiving.contains(pmc.getUUID());
     }
 
     @Nullable

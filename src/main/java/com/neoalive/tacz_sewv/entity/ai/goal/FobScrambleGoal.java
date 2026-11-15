@@ -100,6 +100,7 @@ public class FobScrambleGoal extends Goal {
      * happens to be closest to the barracks.
      */
     private void tryBoard(ServerLevel level, FobInstance fob) {
+        java.util.Map<Integer, Integer> pending = pendingBoarders(level, fob);
         VehicleEntity best = null;
         boolean bestEmpty = false;
         double bestDist = Double.MAX_VALUE;
@@ -107,7 +108,7 @@ public class FobScrambleGoal extends Goal {
             if (!(level.getEntity(id) instanceof VehicleEntity hull)) continue;
             if (!hull.isAlive() || hull.isWreck()) continue;
             if (NpcVehicleOverrides.refusesNpcRiders(hull)) continue; // would refuse the crew
-            int occupied = hull.getPassengers().size();
+            int occupied = hull.getPassengers().size() + pending.getOrDefault(hull.getId(), 0);
             if (occupied >= Math.max(1, hull.getMaxPassengers())) continue;
             boolean empty = occupied == 0;
             double d = hull.distanceToSqr(this.unit);
@@ -118,9 +119,18 @@ public class FobScrambleGoal extends Goal {
                 bestDist = d;
             }
         }
-        if (best == null) return;
-
         IVehicleBoarder boarder = (IVehicleBoarder) this.unit;
+        if (best == null) {
+            // Every seat is taken or spoken for: stay on foot and fight rather than queue at a full hull.
+            if (boarder.tacz_sewv$isBoarding()
+                    && level.getEntity(boarder.tacz_sewv$getMountTargetId()) instanceof VehicleEntity target
+                    && fob.assignedVehicles.contains(target.getUUID())) {
+                boarder.tacz_sewv$setBoarding(false);
+                boarder.tacz_sewv$setMountTargetId(-1);
+                FobDebug.logEntity(this.unit, "scramble: no free seat, staying on foot");
+            }
+            return;
+        }
         if (boarder.tacz_sewv$isBoarding() && boarder.tacz_sewv$getMountTargetId() == best.getId()) {
             return;
         }
@@ -128,6 +138,19 @@ public class FobScrambleGoal extends Goal {
         boarder.tacz_sewv$setBoarding(true);
         boarder.tacz_sewv$setPassengerOnly(false);
         FobDebug.logEntity(this.unit, "scramble: boarding assigned hull {}", best.getId());
+    }
+
+    /** Other garrison units already walking to each hull, by hull id. */
+    private java.util.Map<Integer, Integer> pendingBoarders(ServerLevel level, FobInstance fob) {
+        java.util.Map<Integer, Integer> out = new java.util.HashMap<>();
+        for (UUID id : fob.assignedLiving) {
+            if (id.equals(this.unit.getUUID())) continue;
+            if (!(level.getEntity(id) instanceof PmcUnitEntity other) || other.isPassenger()) continue;
+            IVehicleBoarder b = (IVehicleBoarder) other;
+            if (!b.tacz_sewv$isBoarding()) continue;
+            out.merge(b.tacz_sewv$getMountTargetId(), 1, Integer::sum);
+        }
+        return out;
     }
 
     @Nullable

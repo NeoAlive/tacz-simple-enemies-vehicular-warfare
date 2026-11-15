@@ -36,6 +36,11 @@ public final class ThreatEvaluator {
      */
     public static final int ALARM_TICKS = 18;
 
+    /** Contacts already shooting at us count out to this many buffer half-widths from the post. */
+    private static final double STANDOFF_REACH = 3.0;
+    /** A scramble that has not escalated for this long silences its siren (it stays scrambled). */
+    private static final long QUIET_TICKS = 1200L;
+
     private ThreatEvaluator() {}
 
     public static void evaluate(ServerLevel level, FobInstance fob, long gameTime) {
@@ -57,16 +62,22 @@ public final class ThreatEvaluator {
             return;
         }
 
+        // Inside the buffer anything hostile counts; past it, out to the standoff ring, only what
+        // is already shooting at us. Armour holds its standoff well outside a 50-block buffer.
+        AABB buffer = scan;
+        AABB reach = standoffBox(fob, scan);
         List<LivingEntity> hostiles = new ArrayList<>();
-        level.getEntitiesOfClass(AbstractUnit.class, scan, unit -> {
+        level.getEntitiesOfClass(AbstractUnit.class, reach, unit -> {
             if (!unit.isAlive() || unit == perspective) return false;
-            return !VehicleTargeting.isNonHostile(perspective, unit);
+            if (VehicleTargeting.isNonHostile(perspective, unit)) return false;
+            return counts(fob, buffer, unit);
         }).forEach(hostiles::add);
 
-        List<VehicleEntity> armor = level.getEntitiesOfClass(VehicleEntity.class, scan, v -> {
+        List<VehicleEntity> armor = level.getEntitiesOfClass(VehicleEntity.class, reach, v -> {
             if (!v.isAlive() || v.isWreck()) return false;
             if (!(v.getFirstPassenger() instanceof AbstractUnit passenger)) return false;
-            return !VehicleTargeting.isNonHostile(perspective, passenger);
+            if (VehicleTargeting.isNonHostile(perspective, passenger)) return false;
+            return counts(fob, buffer, v);
         });
         for (VehicleEntity vehicle : armor) {
             if (vehicle.getFirstPassenger() instanceof LivingEntity living && !hostiles.contains(living)) {
@@ -76,7 +87,8 @@ public final class ThreatEvaluator {
 
         double score = 0;
         for (LivingEntity h : hostiles) {
-            score += Math.ceil(h.getMaxHealth()) * urgency(fob, scan, h);
+            // Current health: a rifleman bleeding out on 1 hp is not the threat a fresh one is.
+            score += Math.ceil(Math.max(0f, h.getHealth())) * urgency(fob, scan, h);
         }
         for (VehicleEntity hull : armor) {
             // Weighed by what the hull actually is, the same input infantry is weighed by. A flat
@@ -84,13 +96,14 @@ public final class ThreatEvaluator {
             // threshold of 100 — the single most dangerous thing that can turn up outside a base
             // could not raise the alarm on its own. Scaled down by ten because SBW hull health is
             // on a completely different scale from a rifleman's.
-            score += Math.max(20.0, Math.ceil(hull.getMaxHealth() / 10.0))
+            score += Math.max(20.0, Math.ceil(hull.getHealth() / 10.0))
                     * urgency(fob, scan, hull);
         }
         score += hostiles.size();
 
         int threshold = Math.max(1, SewvConfig.FOB_THREAT_THRESHOLD.get());
         fob.threatScore = (int) Math.round(score);
+        boolean was = fob.scrambleActive;
         if (fob.threatScore >= threshold) {
             fob.scrambleActive = true;
         } else if (fob.threatScore < threshold / 2) {
@@ -100,6 +113,42 @@ public final class ThreatEvaluator {
             // wide that is close to "never".
             fob.scrambleActive = false;
         }
+        if (fob.scrambleActive && (!was || fob.threatScore > fob.scoreHighWater
+                || garrisonHurtWithin(level, fob, gameTime, interval))) {
+            fob.scoreHighWater = Math.max(was ? fob.scoreHighWater : 0, fob.threatScore);
+            fob.lastEscalationTime = gameTime;
+        }
+    }
+
+    /** True once a scramble has gone {@link #QUIET_TICKS} without the score rising or anyone of ours hit. */
+    public static boolean quiet(FobInstance fob, long gameTime) {
+        return fob.lastEscalationTime > 0 && gameTime - fob.lastEscalationTime >= QUIET_TICKS;
+    }
+
+    private static boolean garrisonHurtWithin(ServerLevel level, FobInstance fob, long gameTime, int ticks) {
+        for (java.util.UUID id : fob.assignedLiving) {
+            if (level.getEntity(id) instanceof LivingEntity living
+                    && living.getLastHurtByMob() != null
+                    && living.tickCount - living.getLastHurtByMobTimestamp() <= ticks) {
+                return true;
+            }
+        }
+        for (java.util.UUID id : fob.assignedVehicles) {
+            if (level.getEntity(id) instanceof com.neoalive.tacz_sewv.bridge.IHullPressure hull
+                    && hull.sewv$getPressureStamp() >= gameTime - ticks) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static AABB standoffBox(FobInstance fob, AABB buffer) {
+        double half = (buffer.maxX - buffer.minX) / 2.0;
+        return buffer.inflate(half * (STANDOFF_REACH - 1.0), 0.0, half * (STANDOFF_REACH - 1.0));
+    }
+
+    private static boolean counts(FobInstance fob, AABB buffer, Entity contact) {
+        return buffer.contains(contact.getX(), contact.getY(), contact.getZ()) || engagingUs(contact, fob);
     }
 
     /**

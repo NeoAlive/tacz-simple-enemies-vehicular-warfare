@@ -898,7 +898,7 @@
   "message.tacz_sewv.quick_route_fob.started.none": "没有可前往的。",
   "command.tacz_sewv.spawn.success": "已生成 %s，位置 %s",
   "command.tacz_sewv.spawn.fail": "这里没能生成。",
-  "command.tacz_sewv.spawn.fail.grace": "无法生成：和平期仍在进行。",
+  "command.tacz_sewv.spawn.fail.grace": "无法生成：和平期尚未结束。",
   "command.tacz_sewv.spawn.fail.ambient": "无法生成：环境生成已关闭（gamerule sewvAmbientSpawns）。",
   "command.tacz_sewv.spawn.fail.nozone": "无法生成：这个区块是禁生成区。",
   "command.tacz_sewv.spawn.fail.priority": "无法生成：只能在优先区生成。",

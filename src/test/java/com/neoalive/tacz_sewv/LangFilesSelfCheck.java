@@ -34,6 +34,16 @@ public final class LangFilesSelfCheck {
     private static final Pattern ACRONYM = Pattern.compile(
             "\\b(?:SBW|PMC|FOB|RTS|TOWs?|CAS|IFVs?|SEM|SEWV|CFG|BURST|PACK|RU|US|TaCZ|TACZ|OP|FE|AI|NPC|HUD|Shift|Ctrl|Alt|Esc)\\b");
 
+    /** Acronyms a locale writes in its own language. Any listed form satisfies the acronym rule. */
+    private static final Map<String, Map<String, List<String>>> ACRONYM_LOCAL = Map.of(
+            "AI", Map.of(
+                    "it_it", List.of("IA"),
+                    "es_es", List.of("IA"),
+                    "es_mx", List.of("IA"),
+                    "de_de", List.of("KI"),
+                    "ru_ru", List.of("ИИ"),
+                    "zh_cn", List.of("人工智能")));
+
     private static final String[] PHRASES = {
             "Simple Enemy Mod Config",
             "Simple Enemy Mod",
@@ -48,7 +58,7 @@ public final class LangFilesSelfCheck {
             "Xaero's Minimap",
             "Xaero",
             "berezka",
-            "Corpse"
+            "CorpseMod"
     };
 
     private static final Map<String, String[]> EXTRA = Map.of(
@@ -57,7 +67,9 @@ public final class LangFilesSelfCheck {
             "command.tacz_sewv.diplomacy.bad_kind", new String[]{"\\bplayer\\b", "\\bfaction\\b", "\\bside\\b"},
             "command.tacz_sewv.diplomacy.unknown_side", new String[]{"\\bru\\b", "\\bus\\b"},
             "command.tacz_sewv.zones.bad_type", new String[]{"\\bprioritization\\b", "\\bnozone\\b"},
-            "command.tacz_sewv.zones.bad_scope", new String[]{"\\ball\\b", "\\bnearby\\b"});
+            "command.tacz_sewv.zones.bad_scope", new String[]{"\\ball\\b", "\\bnearby\\b"},
+            // The mod's name here; the "Unit Corpse" labels are the plain word and translate.
+            "config.tacz_sewv.unitCorpseCompat.tooltip", new String[]{"\\bCorpse\\b"});
 
     private static final Map<String, List<String>> BANNED = Map.of(
             "it_it", List.of("è importante", "si prega", "al fine di", "vale la pena", "tieni presente", "assicurati"),
@@ -173,7 +185,7 @@ public final class LangFilesSelfCheck {
                 problems.add(where + ": dropped " + phrase);
             }
         }
-        requirePattern(ACRONYM, src, dst, where, problems);
+        requireAcronyms(locale, src, dst, where, problems);
         requirePattern(TECHNICAL, src, dst, where, problems);
         String[] extra = EXTRA.get(key);
         if (extra != null) {
@@ -201,6 +213,19 @@ public final class LangFilesSelfCheck {
         }
         return Pattern.compile("(?<!\\p{L})" + Pattern.quote(phrase) + "(?!\\p{L})",
                 Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE).matcher(folded).find();
+    }
+
+    private static void requireAcronyms(String locale, String src, String dst, String where, List<String> problems) {
+        Matcher matcher = ACRONYM.matcher(src);
+        while (matcher.find()) {
+            String token = matcher.group();
+            if (dst.contains(token)) continue;
+            // Locales without an English -s plural write the bare acronym (IFVs -> IFV).
+            if (token.endsWith("s") && dst.contains(token.substring(0, token.length() - 1))) continue;
+            List<String> local = ACRONYM_LOCAL.getOrDefault(token, Map.of()).getOrDefault(locale, List.of());
+            if (local.stream().anyMatch(dst::contains)) continue;
+            problems.add(where + ": dropped " + token);
+        }
     }
 
     private static void requirePattern(Pattern pattern, String src, String dst, String where, List<String> problems) {
@@ -243,16 +268,10 @@ public final class LangFilesSelfCheck {
             }
             i += matcher.end();
         }
+        // An index gap is legal (orderFeedback passes args a text names positionally); a
+        // translation that drifts from en is caught by the equality check in checkLine.
         if (explicit && implicit) {
             problems.add(where + ": mixed positional placeholders");
-        }
-        if (explicit) {
-            for (int n = 1; n <= out.size(); n++) {
-                if (!out.containsKey(n)) {
-                    problems.add(where + ": placeholder index gap");
-                    break;
-                }
-            }
         }
         return out;
     }

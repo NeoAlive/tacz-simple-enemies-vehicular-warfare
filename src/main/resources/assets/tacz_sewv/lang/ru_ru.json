@@ -900,7 +900,7 @@
   "command.tacz_sewv.spawn.fail": "Здесь ничего не создано.",
   "command.tacz_sewv.spawn.fail.grace": "Спавн отклонён: льготный период ещё идёт.",
   "command.tacz_sewv.spawn.fail.ambient": "Спавн отклонён: окружающие спавны выключены (gamerule sewvAmbientSpawns).",
-  "command.tacz_sewv.spawn.fail.nozone": "Спавн отклонён: этот чанк — зона без спавна.",
+  "command.tacz_sewv.spawn.fail.nozone": "Спавн отклонён: этот чанк в зоне без спавна.",
   "command.tacz_sewv.spawn.fail.priority": "Спавн отклонён: спавн только в приоритетных зонах.",
   "command.tacz_sewv.spawn.fail.colony": "Спавн отклонён: точка внутри колонии.",
   "command.tacz_sewv.spawn.fail.gamerule": "Спавн отклонён: спавн %s выключен.",

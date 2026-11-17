@@ -9,6 +9,7 @@ CLAUDE.md.bak
 scripts/
 tools/
 .mcp.json
+.pt_work/
 
 # IDE
 .idea/

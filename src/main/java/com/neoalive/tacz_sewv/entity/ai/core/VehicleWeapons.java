@@ -309,6 +309,15 @@ public final class VehicleWeapons {
                     ? (hull.getMaxHealth() >= ARMORED_HEALTH ? VS_ARMORED : VS_LIGHT_VEHICLE)
                     : com.neoalive.tacz_sewv.compat.TripodCompat.isTripod(target) ? VS_ARMORED
                     : (target.getMaxHealth() < SOFT_HEALTH ? VS_SOFT_MOB : VS_INFANTRY);
+            // Against a hull the shell is picked by what each round does to that hull's own
+            // damage rules; the max-health doctrine above is only the fallback.
+            if (target.getVehicle() instanceof VehicleEntity hull && slot[WEAPON_CANNON] >= 0) {
+                String[] ranked = ShellRanking.rank(vehicle, seatIndex, slot[WEAPON_CANNON], hull);
+                if (ranked != null) {
+                    candidates = List.of(new WeaponCandidate(WEAPON_CANNON, ranked),
+                            new WeaponCandidate(WEAPON_MG, null));
+                }
+            }
 
             chosen = -1;
             String[] chosenAmmo = null;

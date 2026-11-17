@@ -21,7 +21,7 @@ import com.google.gson.JsonParser;
 public final class LangFilesSelfCheck {
 
     private static final List<String> LOCALES = List.of(
-            "it_it", "de_de", "es_es", "es_mx", "ru_ru", "zh_cn", "pl_pl");
+            "it_it", "de_de", "es_es", "es_mx", "ru_ru", "zh_cn", "pl_pl", "pt_pt", "pt_br");
 
     private static final String GLYPHS = "➤⚑■⚡⊘⌖▲▼⚠◯⚔✸⛨⌂↻⚐↩✕⏏☂◎⇉✎↔★≈±";
     private static final String FORBIDDEN = "—–…→←↔⇒⟶⟵➔➜►▶▸➡⟹⇐↑↓⇑⇓";
@@ -40,6 +40,8 @@ public final class LangFilesSelfCheck {
                     "it_it", List.of("IA"),
                     "es_es", List.of("IA"),
                     "es_mx", List.of("IA"),
+                    "pt_pt", List.of("IA"),
+                    "pt_br", List.of("IA"),
                     "de_de", List.of("KI"),
                     "ru_ru", List.of("ИИ"),
                     "zh_cn", List.of("人工智能")));
@@ -71,15 +73,19 @@ public final class LangFilesSelfCheck {
             // The mod's name here; the "Unit Corpse" labels are the plain word and translate.
             "config.tacz_sewv.unitCorpseCompat.tooltip", new String[]{"\\bCorpse\\b"});
 
-    private static final Map<String, List<String>> BANNED = Map.of(
-            "it_it", List.of("è importante", "si prega", "al fine di", "vale la pena", "tieni presente", "assicurati"),
-            "de_de", List.of("es ist wichtig", "bitte beachten", "darüber hinaus", "nicht zuletzt", "im wesentlichen"),
-            "es_es", List.of("es importante", "cabe destacar", "con el fin de", "ten en cuenta", "asegúrate", "asegurate", "simplemente"),
-            "es_mx", List.of("es importante", "cabe destacar", "con el fin de", "ten en cuenta", "asegúrate", "asegurate", "simplemente"),
-            "ru_ru", List.of("важно отметить", "следует отметить", "данный", "данная", "данное", "данного", "в целях", "обратите внимание"),
-            "zh_cn", List.of("值得注意的是", "请注意", "旨在", "简单来说", "为了确保", "进行"),
-            "pl_pl", List.of("warto zauważyć", "należy zauważyć", "ważne jest", "należy pamiętać",
-                    "proszę zwrócić uwagę", "upewnij się", "po prostu"));
+    private static final Map<String, List<String>> BANNED = Map.ofEntries(
+            Map.entry("it_it", List.of("è importante", "si prega", "al fine di", "vale la pena", "tieni presente", "assicurati")),
+            Map.entry("de_de", List.of("es ist wichtig", "bitte beachten", "darüber hinaus", "nicht zuletzt", "im wesentlichen")),
+            Map.entry("es_es", List.of("es importante", "cabe destacar", "con el fin de", "ten en cuenta", "asegúrate", "asegurate", "simplemente")),
+            Map.entry("es_mx", List.of("es importante", "cabe destacar", "con el fin de", "ten en cuenta", "asegúrate", "asegurate", "simplemente")),
+            Map.entry("ru_ru", List.of("важно отметить", "следует отметить", "данный", "данная", "данное", "данного", "в целях", "обратите внимание")),
+            Map.entry("zh_cn", List.of("值得注意的是", "请注意", "旨在", "简单来说", "为了确保", "进行")),
+            Map.entry("pl_pl", List.of("warto zauważyć", "należy zauważyć", "ważne jest", "należy pamiętać",
+                    "proszę zwrócić uwagę", "upewnij się", "po prostu")),
+            Map.entry("pt_pt", List.of("é importante", "vale a pena", "tenha em mente", "certifique-se",
+                    "simplesmente", "além disso", "note que", "por favor note")),
+            Map.entry("pt_br", List.of("é importante", "vale a pena", "tenha em mente", "certifique-se",
+                    "simplesmente", "além disso", "note que", "por favor note")));
 
     private static final Pattern ES_MX_EXTRA = Pattern.compile(
             "\\bvosotros\\b|\\bvosotras\\b|\\bvuestro\\b|\\bvuestra\\b|\\bvuestros\\b|\\bvuestras\\b"
@@ -92,6 +98,8 @@ public final class LangFilesSelfCheck {
         List<String> problems = new ArrayList<>();
         JsonObject es = null;
         JsonObject mx = null;
+        JsonObject pt = null;
+        JsonObject br = null;
         for (String locale : LOCALES) {
             Path file = dir.resolve(locale + ".json");
             if (!Files.isRegularFile(file)) {
@@ -105,11 +113,21 @@ public final class LangFilesSelfCheck {
             if ("es_mx".equals(locale)) {
                 mx = tr;
             }
+            if ("pt_pt".equals(locale)) {
+                pt = tr;
+            }
+            if ("pt_br".equals(locale)) {
+                br = tr;
+            }
             checkLocale(locale, en, tr, problems);
         }
         if (es != null && mx != null && Files.readString(dir.resolve("es_es.json")).equals(
                 Files.readString(dir.resolve("es_mx.json")))) {
             problems.add("es_es.json and es_mx.json are identical");
+        }
+        if (pt != null && br != null && Files.readString(dir.resolve("pt_pt.json")).equals(
+                Files.readString(dir.resolve("pt_br.json")))) {
+            problems.add("pt_pt.json and pt_br.json are identical");
         }
         if (!problems.isEmpty()) {
             int shown = Math.min(problems.size(), 80);

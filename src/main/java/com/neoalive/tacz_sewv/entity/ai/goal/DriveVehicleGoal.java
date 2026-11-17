@@ -4,6 +4,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 
+import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineType;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -18,6 +19,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
 
 import com.neoalive.tacz_sewv.compat.AshMissileSupport;
+import com.neoalive.tacz_sewv.compat.TripodCompat;
 import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.CrewRadio;
@@ -31,18 +33,23 @@ import com.neoalive.tacz_sewv.entity.ai.core.VehicleDriver;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleWeapons;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleWeapons.TargetCategory;
+import com.neoalive.tacz_sewv.entity.ai.cover.BattlePosition;
 import com.neoalive.tacz_sewv.entity.ai.formation.GroundSnap;
 import com.neoalive.tacz_sewv.entity.ai.march.March;
 import com.neoalive.tacz_sewv.entity.ai.march.MarchRegistry;
 import com.neoalive.tacz_sewv.entity.ai.sensor.AwarenessCues;
 import com.neoalive.tacz_sewv.entity.ai.support.AirLod;
 import com.neoalive.tacz_sewv.entity.ai.support.ArtillerySupport;
+import com.neoalive.tacz_sewv.entity.ai.support.BailOutSupport;
+import com.neoalive.tacz_sewv.entity.ai.support.CoverHoldOrders;
 import com.neoalive.tacz_sewv.entity.ai.support.DismountSequence;
 import com.neoalive.tacz_sewv.entity.ai.support.DroneSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.FireMissionSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.GuardSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.IdleGroupSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
+import com.neoalive.tacz_sewv.entity.ai.support.SuppressOrders;
+import com.neoalive.tacz_sewv.entity.ai.support.SuppressiveFire;
 import com.neoalive.tacz_sewv.entity.ai.support.TowRecoverySupport;
 import com.neoalive.tacz_sewv.entity.ai.support.TreeFellingSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.VehicleMortarSupport;
@@ -112,6 +119,10 @@ public class DriveVehicleGoal extends Goal {
     private boolean taskDriving;
     /** Game time the run-start smoke volley's decoy hold ends; {@link Long#MIN_VALUE} = none open. */
     private long smokeUntil = Long.MIN_VALUE;
+    /** Game ticks a Cover and Hold drive may go without closing on its spot before it holds where it is. */
+    private static final long COVER_STALL_TICKS = 1200;
+    private double coverBestDistSq = Double.MAX_VALUE;
+    private long coverProgressTick = Long.MIN_VALUE;
     /** Long enough for SBW to register the held decoy input and fire one volley. */
     private static final long RUN_SMOKE_TICKS = 10;
     /** Blocks past the hull's half-width at which a posture waypoint counts as reached. */
@@ -138,6 +149,13 @@ public class DriveVehicleGoal extends Goal {
     private int selectedRole = VehicleWeapons.UNCLASSIFIED;
     /** Standoff Schmitt state: 0 hold, 1 closing, -1 opening. See {@link #maintainVehicleStandoff}. */
     private byte standoffPhase;
+    /** The point the hull is parked on (see {@link #parkedOn}), or null while driving. */
+    private Vec3 parkedDest;
+    /** {@link #getTargetPos} memo: resolved once per game tick, however many of canUse/canContinueToUse/tick ask. */
+    private long targetPosTick = Long.MIN_VALUE;
+    private BlockPos targetPosMemo;
+    /** Backing off a tripod: released only past standoff + margin, so an idle hull can't hover on the line. */
+    private boolean tripodRetreat;
     /** Throttle for posture override logs (game time of last line). */
     private long lastPostureSteerLog = Long.MIN_VALUE;
     /** Previous scored/idle plan — edge-detect RU/US order_dispatch. */
@@ -178,6 +196,8 @@ public class DriveVehicleGoal extends Goal {
         this.breaker.attach(v);
         if (TowRecoverySupport.hasTowOrder(this.unit)) return true;
         if (seekCoverWantsDrive()) return true;
+        if (SuppressOrders.active(this.unit, this.unit.level().getGameTime()) != null) return true;
+        if (CoverHoldOrders.has(this.unit)) return true;
         return getTargetPos() != null; // only drive if there's somewhere to go
     }
 
@@ -195,6 +215,8 @@ public class DriveVehicleGoal extends Goal {
                 && (this.dismount.active()
                         || TowRecoverySupport.hasTowOrder(this.unit)
                         || seekCoverWantsDrive()
+                        || SuppressOrders.active(this.unit, this.unit.level().getGameTime()) != null
+                        || CoverHoldOrders.has(this.unit)
                         || getTargetPos() != null);
     }
 
@@ -220,7 +242,7 @@ public class DriveVehicleGoal extends Goal {
         this.selectedRole = VehicleWeapons.UNCLASSIFIED;
         this.standoffPhase = 0;
         this.allyAssist.clear();
-        this.driver.clear();
+        this.driver.softClear(); // keeps the route: see VehicleDriver.softClear
         this.breaker.clear();
         // taskLatch / taskDriving deliberately survive a stop: the goal stops whenever the crew is briefly
         // between targets with nowhere to go, and resetting them re-ran the run start (log line + smoke volley)
@@ -290,6 +312,10 @@ public class DriveVehicleGoal extends Goal {
 
         LivingEntity target = this.unit.getTarget();
 
+        // Tripod Invasion: RU/US never sit inside a tripod's standoff. Ahead of the scorer and every
+        // posture steer, like the stalemate breaker: no datapack weight may park a hull under a heat ray.
+        if (tripodStandoffTick(target)) return;
+
         // An IFV halts and puts its squad out against ARMOUR. Ahead of the posture steers on
         // purpose: once the halt has started, nothing may drive the hull off until the last man
         // is out. Deliberately NOT screened with smoke first: it would fire on every such contact,
@@ -298,6 +324,12 @@ public class DriveVehicleGoal extends Goal {
             dismountTick(target);
             return;
         }
+
+        // The player's Suppress Area order outranks the crew's own posture and plan, short of
+        // self-defence (see SuppressOrders).
+        if (orderedSuppressTick()) return;
+        // Cover and Hold: drive to the ordered cover and stay on it (see CoverHoldOrders).
+        if (coverHoldTick(target)) return;
 
         // Posture hard steers on the main tick so area-hold / lost-target still honour them.
         if (trySteerSeekCover()) return;
@@ -399,10 +431,13 @@ public class DriveVehicleGoal extends Goal {
             return;
         }
         if (idlePlan() == Action.IDLE_TRAVEL && marchTick()) return;
+        if (idlePlan() == Action.SUPPRESS && suppressTick()) return;
         // A line crew with nothing in its sights yet still walks the line: the advance is the group's decision.
         if (inCohesiveLine() && marchTick()) return;
         BlockPos destination = switch (idlePlan()) {
-            case SEARCH_LAST_KNOWN -> {
+            // SUPPRESS lands here only when the gun cannot rake the spot after all (claim lost, gunner
+            // gone): go and look instead, rather than sit out the plan.
+            case SEARCH_LAST_KNOWN, SUPPRESS -> {
                 BlockPos seen = this.brain.facts().memory.lastEnemyPos;
                 yield seen != null ? seen : standing;
             }
@@ -427,6 +462,89 @@ public class DriveVehicleGoal extends Goal {
     }
 
     /**
+     * Put fire on the player's ordered point: hold the hull and work the machine gun on it. False with
+     * no live order, in self-defence, or when no seat can fire on it, so the tick goes on as normal.
+     */
+    private boolean orderedSuppressTick() {
+        long now = this.unit.level().getGameTime();
+        BlockPos point = SuppressOrders.active(this.unit, now);
+        if (point == null || SuppressOrders.selfDefence(this.unit, SuppressOrders.CREW_SELF_DEFENCE)) return false;
+        int seat = SuppressiveFire.machineGunSeat(this.vehicle, now);
+        if (!SuppressiveFire.tick(this.unit, this.vehicle, seat, point, now, true)) return false;
+        // This early return skips the per-tick decoy release below.
+        if (now >= this.smokeUntil) this.vehicle.setDecoyInputDown(false);
+        this.driver.stop();
+        this.driver.clearRecovery(); // holding on purpose — not stuck
+        return true;
+    }
+
+    /**
+     * The player's Cover and Hold order: drive to the spot picked by {@code CoverQuery.suggestHoldCover}, then
+     * hold it with the front armour on the target (or downrange, with none) while the turret works. On the way
+     * only self-defence hands the tick back to the plan. A hull that stops closing on its spot for
+     * {@link #COVER_STALL_TICKS} holds where it is. Every branch issues input.
+     */
+    private boolean coverHoldTick(@javax.annotation.Nullable LivingEntity target) {
+        long now = this.unit.level().getGameTime();
+        CoverHoldOrders.Order order = CoverHoldOrders.active(this.unit, now);
+        if (order == null || order.spot() == null) {
+            this.coverProgressTick = Long.MIN_VALUE;
+            return false;
+        }
+        if (!order.holding() && SuppressOrders.selfDefence(this.unit, SuppressOrders.CREW_SELF_DEFENCE)) return false;
+        if (target != null) {
+            selectWeaponForTarget(this.vehicle.getSeatIndex(this.unit), target);
+            fireAssistIfSpecial(target);
+        }
+        // This early return skips the per-tick decoy release below.
+        if (now >= this.smokeUntil) this.vehicle.setDecoyInputDown(false);
+
+        Vec3 spot = Vec3.atBottomCenterOf(order.spot());
+        double dx = spot.x - this.vehicle.getX();
+        double dz = spot.z - this.vehicle.getZ();
+        double distSq = dx * dx + dz * dz;
+        if (!parkedOn(spot, distSq, BattlePosition.arriveRadius(this.vehicle))) {
+            if (!order.holding()) {
+                if (this.coverProgressTick == Long.MIN_VALUE || distSq < this.coverBestDistSq - 4.0) {
+                    this.coverBestDistSq = distSq;
+                    this.coverProgressTick = now;
+                } else if (now - this.coverProgressTick > COVER_STALL_TICKS) {
+                    CoverHoldOrders.setSpot(this.unit, this.vehicle.blockPosition(), true);
+                    CoverHoldOrders.arrive(this.unit, now);
+                    this.driver.stop();
+                    return true;
+                }
+            }
+            this.driver.navigateTo(order.spot(), this.vehicle.distanceToSqr(spot));
+            return true;
+        }
+        CoverHoldOrders.arrive(this.unit, now);
+        Vec3 look = target != null ? target.position() : order.threat();
+        Vec3 facing = new Vec3(look.x - this.vehicle.getX(), 0.0, look.z - this.vehicle.getZ());
+        this.driver.holdStation(facing.lengthSqr() > 1.0E-4 ? facing.normalize() : null);
+        this.driver.clearRecovery(); // on station on purpose, not stuck
+        return true;
+    }
+
+    /**
+     * Hold and rake the spot the target vanished from ({@link SuppressiveFire}). The hold is a real
+     * instruction every tick, like every other branch. False once the window has passed or the gun
+     * cannot rake it, which hands the tick to the search fallback.
+     */
+    private boolean suppressTick() {
+        Facts facts = this.brain.facts();
+        BlockPos spot = facts.memory.lastEnemyPos;
+        long now = this.unit.level().getGameTime();
+        if (spot == null || Facts.ticksSince(facts.memory.lastContactTick, now) > SuppressiveFire.WINDOW_TICKS) {
+            return false;
+        }
+        if (!SuppressiveFire.tick(this.unit, this.vehicle, facts.suppressSeat, spot, now, false)) return false;
+        this.driver.stop();
+        this.driver.clearRecovery(); // holding on purpose — not stuck
+        return true;
+    }
+
+    /**
      * Keep this hull's place in its march. Moving: steer down the road ahead of the slot with the speed held to
      * the march pace (faster when behind, slower when ahead), so the column moves at a walk however fast its
      * hulls are. Waiting: a straggler closes onto its slot, everyone else stops where they stand. Every branch
@@ -444,8 +562,7 @@ public class DriveVehicleGoal extends Goal {
                 this.driver.stop();
                 this.driver.clearRecovery(); // waiting for the column — not stuck
             } else {
-                BlockPos dest = BlockPos.containing(slot.x(),
-                        GroundSnap.groundY(this.unit.level(), slot.x(), slot.z(), this.vehicle.getY()), slot.z());
+                BlockPos dest = GroundSnap.hullSlot(this.unit.level(), slot.x(), slot.z(), this.vehicle.getY());
                 this.driver.navigateTo(dest, this.vehicle.distanceToSqr(Vec3.atBottomCenterOf(dest)));
             }
             return true;
@@ -455,7 +572,7 @@ public class DriveVehicleGoal extends Goal {
                 * Math.max(MARCH_PACE_MIN, Math.min(MARCH_PACE_MAX, 1.0 + lag / slot.spacing())));
         double cx = slot.x() + slot.fx() * MARCH_CARROT;
         double cz = slot.z() + slot.fz() * MARCH_CARROT;
-        BlockPos carrot = BlockPos.containing(cx, GroundSnap.groundY(this.unit.level(), cx, cz, this.vehicle.getY()), cz);
+        BlockPos carrot = GroundSnap.hullSlot(this.unit.level(), cx, cz, this.vehicle.getY());
         this.driver.navigateTo(carrot, this.vehicle.distanceToSqr(Vec3.atBottomCenterOf(carrot)));
         return true;
     }
@@ -485,7 +602,7 @@ public class DriveVehicleGoal extends Goal {
         double dx = destination.getX() + 0.5 - this.vehicle.getX();
         double dz = destination.getZ() + 0.5 - this.vehicle.getZ();
         double arrive = VehicleTargeting.arrivalDistance(this.unit, this.vehicle);
-        if (dx * dx + dz * dz > arrive * arrive) {
+        if (!parkedOn(Vec3.atBottomCenterOf(destination), dx * dx + dz * dz, arrive)) {
             this.driver.navigateTo(destination, distanceSq);
         } else {
             parkOnStation(facing);
@@ -523,7 +640,7 @@ public class DriveVehicleGoal extends Goal {
             return;
         }
         if (now - this.pendingDispatchSince < PLAN_DISPATCH_HOLD_TICKS) return;
-        CrewRadio.play(this.vehicle, CrewRadio.Line.ORDER_DISPATCH_PLAN);
+        CrewRadio.onPlan(this.vehicle, plan);
         this.lastSpokenPlan = plan;
         this.pendingDispatchPlan = null;
         this.pendingDispatchSince = Long.MIN_VALUE;
@@ -569,7 +686,7 @@ public class DriveVehicleGoal extends Goal {
         TargetCategory category = VehicleWeapons.classifyTarget(target);
         // The ring this crew wants to hold against this kind of target — the same number the
         // scorer measured its too-close/too-far signals against.
-        double ring = Facts.preferredRange(category);
+        double ring = Facts.preferredRange(this.unit, target, category);
 
         selectWeaponForTarget(this.vehicle.getSeatIndex(this.unit), target);
         fireAssistIfSpecial(target);
@@ -583,6 +700,12 @@ public class DriveVehicleGoal extends Goal {
 
         if (plan != Action.RETREAT && plan != Action.DEPLOY_SMOKE) {
             BlockPos orbit = this.breaker.update(target, combatPos, ring);
+            // A crew on a battle position answers the breaker by moving to its alternate, not by orbiting into the
+            // open; with no alternate left the orbit runs exactly as before, so the watchdog still always wins.
+            if (orbit != null && this.posture.answerBreaker(this.unit.level().getGameTime())
+                    && occupyBattlePosition(target)) {
+                return;
+            }
             if (orbit != null) {
                 this.brain.force(breakerGoesLeft() ? Action.FLANK_LEFT : Action.FLANK_RIGHT,
                         this.unit.level().getGameTime());
@@ -627,7 +750,7 @@ public class DriveVehicleGoal extends Goal {
                     distanceSq);
 
             case HOLD -> {
-                holdTaskedStation();
+                if (!occupyBattlePosition(target)) holdTaskedStation();
                 this.driver.clearRecovery(); // holding on purpose — not stuck
             }
 
@@ -636,25 +759,61 @@ public class DriveVehicleGoal extends Goal {
             // standing still in the middle of a tank battle.
             case CALL_MORTARS -> {
                 requestSupport(target, FireMissionSupport.Kind.MORTAR);
-                maintainVehicleStandoff(combatPos, distanceSq, dist, category);
+                if (!occupyBattlePosition(target)) maintainVehicleStandoff(combatPos, distanceSq, dist, category);
             }
             case CALL_TOW -> {
                 requestSupport(target, FireMissionSupport.Kind.TOW);
-                maintainVehicleStandoff(combatPos, distanceSq, dist, category);
+                if (!occupyBattlePosition(target)) maintainVehicleStandoff(combatPos, distanceSq, dist, category);
             }
             case CALL_CAS -> {
                 requestSupport(target, FireMissionSupport.Kind.CAS);
-                maintainVehicleStandoff(combatPos, distanceSq, dist, category);
+                if (!occupyBattlePosition(target)) maintainVehicleStandoff(combatPos, distanceSq, dist, category);
             }
             case DELEGATE_TARGET -> {
                 delegateTarget(target);
-                maintainVehicleStandoff(combatPos, distanceSq, dist, category);
+                if (!occupyBattlePosition(target)) maintainVehicleStandoff(combatPos, distanceSq, dist, category);
             }
 
             // Hold the standoff band for the target's type: close when beyond it, open when
             // inside it, sit still on it and let the turret work.
-            case ATTACK -> maintainVehicleStandoff(combatPos, distanceSq, dist, category);
+            case ATTACK -> {
+                if (!occupyBattlePosition(target)) maintainVehicleStandoff(combatPos, distanceSq, dist, category);
+            }
         }
+    }
+
+    /**
+     * Park/drive hysteresis shared by every drive-then-park site ({@link VehicleTargeting#holdsArrival}). The wider
+     * leave band only holds while the destination is still the one parked on: a destination that moved more than the
+     * arrival radius is a new one, and is arrived at from scratch.
+     */
+    private boolean parkedOn(Vec3 dest, double distSq, double arrive) {
+        boolean was = this.parkedDest != null
+                && (this.parkedDest.x - dest.x) * (this.parkedDest.x - dest.x)
+                        + (this.parkedDest.z - dest.z) * (this.parkedDest.z - dest.z) <= arrive * arrive;
+        boolean parked = VehicleTargeting.holdsArrival(was, distSq, arrive);
+        this.parkedDest = parked ? dest : null;
+        return parked;
+    }
+
+    /**
+     * Fight from the latched battle position ({@link TacticalPosture#battlePosition}): drive there, then hold it with
+     * the front armour on the target while the turret works. False when there is none, and the caller keeps its own
+     * geometry. Every branch issues input, like the rest of the dispatch.
+     */
+    private boolean occupyBattlePosition(LivingEntity target) {
+        Vec3 bp = this.posture.battlePosition();
+        if (bp == null) return false;
+        double dx = bp.x - this.vehicle.getX();
+        double dz = bp.z - this.vehicle.getZ();
+        if (!parkedOn(bp, dx * dx + dz * dz, BattlePosition.arriveRadius(this.vehicle))) {
+            this.driver.navigateTo(BlockPos.containing(bp), this.vehicle.distanceToSqr(bp));
+            return true;
+        }
+        Vec3 facing = new Vec3(target.getX() - this.vehicle.getX(), 0.0, target.getZ() - this.vehicle.getZ());
+        this.driver.holdStation(facing.lengthSqr() > 1.0E-4 ? facing.normalize() : null);
+        this.driver.clearRecovery(); // on station — not stuck
+        return true;
     }
 
     /**
@@ -681,6 +840,13 @@ public class DriveVehicleGoal extends Goal {
         double[] point = TaskedDestination.pointFor(assign, plan);
         boolean drive = point != null && this.taskLatch.shouldDrive(assign.role(), assign.flankSide(),
                 point[0], point[1], this.vehicle.getX(), this.vehicle.getZ());
+        if (drive && this.taskLatch.stalled(point[0], point[1], this.vehicle.getX(), this.vehicle.getZ(),
+                this.unit.level().getGameTime())) {
+            drive = false;
+            SewvDiag.crew("{}#{} tasked dest ABANDON (no progress) role={} plan={} point={}",
+                    this.unit.getType().toShortString(), this.unit.getId(), assign.role(), plan.key,
+                    String.format("%.0f,%.0f", point[0], point[1]));
+        }
         if (drive != this.taskDriving) {
             this.taskDriving = drive;
             // A flank run or a withdrawal starts behind one smoke volley — once per run, never a standing screen.
@@ -787,7 +953,7 @@ public class DriveVehicleGoal extends Goal {
         double dx = point.x - this.vehicle.getX();
         double dz = point.z - this.vehicle.getZ();
         double arrive = this.vehicle.getBbWidth() * 0.5 + POSTURE_ARRIVE_PAD;
-        if (dx * dx + dz * dz <= arrive * arrive) {
+        if (parkedOn(point, dx * dx + dz * dz, arrive)) {
             this.driver.stop();
             this.driver.clearRecovery(); // on station — not stuck
             return;
@@ -814,7 +980,11 @@ public class DriveVehicleGoal extends Goal {
         }
 
         Vec3 shield = this.posture.infantryShieldPoint(now);
-        if (shield != null
+        // Never over a decision to move: the scorer chose to close or work round the flank, and parking the hull
+        // in front of its own squad instead glued every tank to its infantry at walking pace (the playtest showed
+        // the shield steering over FLANK_* more than a hundred times in five minutes).
+        boolean planMoves = plan == Action.ADVANCE || plan == Action.FLANK_LEFT || plan == Action.FLANK_RIGHT;
+        if (shield != null && !planMoves
                 && this.posture.active().contains(TacticalPosture.Tactic.INFANTRY_COVER)
                 && !taskedToMove()) {
             this.driver.setInfantryPace(this.posture.throttleInfantryPace());
@@ -883,7 +1053,10 @@ public class DriveVehicleGoal extends Goal {
      * locked onto a missile it could not launch.
      */
     private void fireAssistIfSpecial(LivingEntity target) {
-        if (this.selectedRole != VehicleWeapons.WEAPON_SPECIAL) return;
+        if (this.selectedRole != VehicleWeapons.WEAPON_SPECIAL) {
+            VehicleWeapons.tryTripodShieldShot(this.vehicle, this.unit, target);
+            return;
+        }
         VehicleWeapons.tryAiFireAssist(this.vehicle, this.unit, target,
                 EasyMode.aiFireAssistConeDeg());
     }
@@ -943,6 +1116,35 @@ public class DriveVehicleGoal extends Goal {
     }
 
     /**
+     * RU/US hull inside a tripod's standoff ({@link TripodCompat}): drive out to standoff + margin,
+     * fighting on the way. An emplacement cannot drive, so its crew bails and walks out
+     * ({@code TripodStandoffGoal}); the scavenge goals will not send them back to it.
+     */
+    private boolean tripodStandoffTick(LivingEntity target) {
+        double radius = TripodCompat.standoff() + (this.tripodRetreat ? TripodCompat.MARGIN : 0.0);
+        Entity tripod = TripodCompat.threatening(this.unit, this.vehicle, radius);
+        this.tripodRetreat = tripod != null;
+        if (tripod == null) return false;
+
+        if (HullFacts.engineType(this.vehicle) == EngineType.FIXED) {
+            for (Entity rider : List.copyOf(this.vehicle.getPassengers())) {
+                if (rider instanceof AbstractUnit crew && TripodCompat.appliesStandoff(crew)) {
+                    BailOutSupport.triggerVehicleBail(crew, this.vehicle);
+                }
+            }
+            return true;
+        }
+        if (target != null) {
+            selectWeaponForTarget(this.vehicle.getSeatIndex(this.unit), target);
+            fireAssistIfSpecial(target);
+        }
+        BlockPos from = tripod.blockPosition();
+        this.driver.retreatFrom(from, TripodCompat.standoff() + TripodCompat.MARGIN,
+                this.vehicle.distanceToSqr(from.getX() + 0.5, from.getY(), from.getZ() + 0.5));
+        return true;
+    }
+
+    /**
      * Hold an armored target at the far standoff ring: close in when beyond it, open the
      * distance back out when inside it, and hold when on it. This is what stops two hulls from
      * creeping into a point-blank standstill where the cannon/TOW can't be brought to bear —
@@ -954,7 +1156,7 @@ public class DriveVehicleGoal extends Goal {
      */
     private void maintainVehicleStandoff(BlockPos targetPos, double distanceSq, double dist,
                                          TargetCategory category) {
-        double ring = Facts.preferredRange(category);
+        double ring = Facts.preferredRange(this.unit, this.unit.getTarget(), category);
         double band = Facts.rangeDeadband(category);
         double leave = category == TargetCategory.VEHICLE ? band + 4.0 : band;
 
@@ -1013,7 +1215,7 @@ public class DriveVehicleGoal extends Goal {
 
         BlockPos threatPos = threat.blockPosition();
         double distanceSq = this.vehicle.distanceToSqr(threatPos.getX(), threatPos.getY(), threatPos.getZ());
-        double breakDistance = Facts.preferredRange(category) + TacticalScale.of(PRESERVE_RETREAT_MARGIN);
+        double breakDistance = Facts.preferredRange(this.unit, threat, category) + TacticalScale.of(PRESERVE_RETREAT_MARGIN);
 
         if (Math.sqrt(distanceSq) > breakDistance) {
             // Clear of the ring — far enough to be safe. Hold here (still smoking) so we
@@ -1080,6 +1282,15 @@ public class DriveVehicleGoal extends Goal {
     }
 
     private BlockPos getTargetPos() {
+        long now = this.unit.level().getGameTime();
+        if (now != this.targetPosTick) {
+            this.targetPosTick = now;
+            this.targetPosMemo = resolveTargetPos();
+        }
+        return this.targetPosMemo;
+    }
+
+    private BlockPos resolveTargetPos() {
         // A named destination — MOVE / FOB / FOLLOW / FORM — is not a suggestion the utility
         // layer gets to improve on. The three plans below all substitute a destination of their
         // own (the last place an enemy was seen, an idle hold, an idle leg), and any of them

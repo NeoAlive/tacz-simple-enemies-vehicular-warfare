@@ -23,6 +23,8 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
 import org.slf4j.Logger;
 
+import com.neoalive.tacz_sewv.crew.CrewRadio;
+
 /**
  * Weapon doctrine for AI crews. Ground crews ({@link DriveVehicleGoal}) classify
  * the target and pick the slot for it — special/cannon against armor, range-split
@@ -228,6 +230,8 @@ public final class VehicleWeapons {
         // A VehicleEntity isn't a LivingEntity, so it can never be the target itself
         // the AI targets the crew riding inside; armor makes the MG useless against them.
         if (target.getVehicle() instanceof VehicleEntity) return TargetCategory.VEHICLE;
+        // A Tripod Invasion walker is armour in everything but class: IFV dismount, AT, rings.
+        if (com.neoalive.tacz_sewv.compat.TripodCompat.isTripod(target)) return TargetCategory.VEHICLE;
         // Riding an armoured Limitless Vehicles hull reads the same: false when LV is absent.
         if (com.neoalive.tacz_sewv.compat.lv.LvCompat.isArmouredHull(target.getVehicle())) return TargetCategory.VEHICLE;
         if (target instanceof RUunitEntity || target instanceof USunitEntity) return TargetCategory.FACTION_UNIT;
@@ -303,7 +307,17 @@ public final class VehicleWeapons {
         } else {
             List<WeaponCandidate> candidates = target.getVehicle() instanceof VehicleEntity hull
                     ? (hull.getMaxHealth() >= ARMORED_HEALTH ? VS_ARMORED : VS_LIGHT_VEHICLE)
+                    : com.neoalive.tacz_sewv.compat.TripodCompat.isTripod(target) ? VS_ARMORED
                     : (target.getMaxHealth() < SOFT_HEALTH ? VS_SOFT_MOB : VS_INFANTRY);
+            // Against a hull the shell is picked by what each round does to that hull's own
+            // damage rules; the max-health doctrine above is only the fallback.
+            if (target.getVehicle() instanceof VehicleEntity hull && slot[WEAPON_CANNON] >= 0) {
+                String[] ranked = ShellRanking.rank(vehicle, seatIndex, slot[WEAPON_CANNON], hull);
+                if (ranked != null) {
+                    candidates = List.of(new WeaponCandidate(WEAPON_CANNON, ranked),
+                            new WeaponCandidate(WEAPON_MG, null));
+                }
+            }
 
             chosen = -1;
             String[] chosenAmmo = null;
@@ -330,10 +344,25 @@ public final class VehicleWeapons {
         // Nothing on this seat is usable (every slot is a placeholder) — leave the
         // index alone rather than parking the crew on a turret-breaking slot.
         if (chosen < 0) return new WeaponSelection(UNCLASSIFIED, null);
+        int previous = vehicle.getWeaponIndex(seatIndex);
         vehicle.setWeaponIndex(seatIndex, chosen);
         String switchedAmmo = null;
         if (ammo != null) switchedAmmo = selectCannonAmmo(vehicle, seatIndex, chosen, ammo);
-        return new WeaponSelection(roleOf(slot, chosen), switchedAmmo);
+        int role = roleOf(slot, chosen);
+        if (shooter != null) {
+            if (switchedAmmo != null) CrewRadio.onAmmoSwitch(vehicle, switchedAmmo);
+            else if (previous != chosen && role == WEAPON_SPECIAL) CrewRadio.onMissileSelected(vehicle);
+        }
+        return new WeaponSelection(role, switchedAmmo);
+    }
+
+    /** The physical slot filling {@code role} (WEAPON_CANNON / _MG / _SPECIAL) on this seat, or -1. */
+    public static int slotForRole(VehicleEntity vehicle, int seatIndex, int role) {
+        if (seatIndex < 0 || role < 0 || role >= WEAPON_COUNT) return -1;
+        SeatInfo seat = vehicle.getSeat(seatIndex);
+        int weaponCount = seat == null ? 0 : seat.weapons().size();
+        if (weaponCount <= 0) return -1;
+        return resolveRoleSlots(vehicle, seatIndex, weaponCount)[role];
     }
 
     // Which role does this physical slot fill? UNCLASSIFIED if it fills none.
@@ -765,6 +794,33 @@ public final class VehicleWeapons {
     public static boolean tryAiFireAssist(VehicleEntity vehicle, AbstractUnit unit,
                                           LivingEntity target, double coneDeg) {
         return tryAiFireAssistResult(vehicle, unit, target, coneDeg) == FireGate.FIRED;
+    }
+
+    /**
+     * A tripod whose shield is up is damaged wherever the shell is struck, so a gun pinned at its
+     * elevation (or depression) stop still has a shot: fire when the barrel's own line meets the
+     * shield ({@link com.neoalive.tacz_sewv.compat.TripodCompat#shieldInLine}). SBW's native 4° gate
+     * measures to the body and never opens there, which is what left a close MBT silent. Same RPM
+     * instants and {@code canShoot} verdict as the fire assist; with the shield down this never fires.
+     *
+     * @return true if a shot was fired
+     */
+    public static boolean tryTripodShieldShot(VehicleEntity vehicle, AbstractUnit unit, LivingEntity target) {
+        if (!com.neoalive.tacz_sewv.compat.TripodCompat.isTripod(target)) return false;
+        try {
+            int rpm = Math.max(1, vehicle.vehicleWeaponRpm(unit));
+            if (vehicle.tickCount % Math.max(1, (int) Math.ceil(1200.0F / rpm)) != 0) return false;
+            // ponytail: a straight line, no drop; a shell lobbed past ~150 blocks may land short of the shell.
+            if (!com.neoalive.tacz_sewv.compat.TripodCompat.shieldInLine(target,
+                    vehicle.getShootPos(unit, 1.0F), vehicle.getShootDirectionForHud(unit, 1.0F))) {
+                return false;
+            }
+            if (!vehicle.canShoot(unit)) return false;
+            vehicle.vehicleShoot(unit, target.getUUID(), null);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     /** Why {@link #tryAiFireAssist} did or did not shoot — for heli combat debug. */

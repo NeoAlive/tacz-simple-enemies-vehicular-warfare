@@ -15,6 +15,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
+import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
@@ -25,7 +26,9 @@ import net.neoforged.neoforge.server.ServerLifecycleHooks;
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
+import com.neoalive.tacz_sewv.command.quick.scavenge.ScavengeTracker;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
+import com.neoalive.tacz_sewv.entity.ai.support.CoverHoldOrders;
 import com.neoalive.tacz_sewv.entity.ai.support.VehicleFormation;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketOrderQueueState;
@@ -120,6 +123,17 @@ public final class OrderQueue {
         }
     }
 
+    /** Whether any unit of the entry still holds a Cover and Hold; a crew's lives on its driver. */
+    private static boolean anyCoverHold(ServerPlayer player, Entry e) {
+        for (int id : e.units) {
+            if (!(player.level().getEntity(id) instanceof PmcUnitEntity pmc) || !pmc.isAlive()) continue;
+            Entity taker = pmc.getVehicle() instanceof VehicleEntity hull && hull.getFirstPassenger() != null
+                    ? hull.getFirstPassenger() : pmc;
+            if (taker instanceof AbstractUnit unit && CoverHoldOrders.has(unit)) return true;
+        }
+        return false;
+    }
+
     private static void sync(ServerPlayer player, State s) {
         List<String> labels = new ArrayList<>(s.entries.size());
         for (Entry e : s.entries) labels.add(e.label);
@@ -133,6 +147,12 @@ public final class OrderQueue {
      * say) carries it on rather than replacing it.
      */
     private static boolean done(ServerPlayer player, Entry e) {
+        if (QuickCommandRegistry.isSwapRole(e.pipelineId)) return true;
+        if (QuickCommandRegistry.isDeployEquipment(e.pipelineId)) return true;
+        if (QuickCommandRegistry.isMinefield(e.pipelineId)) return !MinefieldTracker.isActive(player.getUUID());
+        if (QuickCommandRegistry.isSearchGear(e.pipelineId)) return !GearSearchTracker.isActive(player.getUUID());
+        // A timed hold completes when the last unit is released; a forever hold waits for a skip.
+        if (QuickCommandRegistry.ID_QUICK_COVER_HOLD.equals(e.pipelineId)) return !anyCoverHold(player, e);
         switch (e.pipelineId) {
             case QuickCommandRegistry.ID_QUICK_DISMOUNT:
             case QuickCommandRegistry.ID_BAIL_OUT:
@@ -140,8 +160,9 @@ public final class OrderQueue {
             case QuickCommandRegistry.ID_DISMISS:
             case QuickCommandRegistry.ID_SET_GUARD:
                 return true;
+            case QuickCommandRegistry.ID_QUICK_SCAVENGE:
             case QuickCommandRegistry.ID_QUICK_REFILL:
-                return !QuickRefillTracker.isActive(player.getUUID());
+                return !ScavengeTracker.isActive(player.getUUID());
             case QuickCommandRegistry.ID_QUICK_EVAC:
                 return !QuickEvacTracker.isActive(player.getUUID());
             case QuickCommandRegistry.ID_QUICK_MOVE:

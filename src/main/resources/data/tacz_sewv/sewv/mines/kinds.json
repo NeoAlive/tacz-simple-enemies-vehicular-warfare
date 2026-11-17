@@ -1,0 +1,6 @@
+{
+  "superbwarfare:tm_62": { "entity": "superbwarfare:tm_62", "placement": "ground", "spacing": 4.0 },
+  "superbwarfare:blu_43_mine": { "entity": "superbwarfare:blu_43", "placement": "ground", "spacing": 3.0 },
+  "superbwarfare:claymore_mine": { "entity": "superbwarfare:claymore", "placement": "directional", "spacing": 3.0 },
+  "superbwarfare:edd": { "entity": "superbwarfare:edd", "placement": "wall", "spacing": 4.0 }
+}

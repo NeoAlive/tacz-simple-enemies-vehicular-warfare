@@ -25,6 +25,7 @@ import com.neoalive.tacz_sewv.entity.ai.command.CrewAssignment;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleWeapons;
+import com.neoalive.tacz_sewv.entity.ai.plane.PlaneRoleFilter;
 import com.neoalive.tacz_sewv.entity.ai.sensor.AwarenessCues;
 import com.neoalive.tacz_sewv.entity.ai.sensor.ContactBoard;
 import com.neoalive.tacz_sewv.entity.ai.sensor.ContactSight;
@@ -32,6 +33,7 @@ import com.neoalive.tacz_sewv.entity.ai.sensor.HullLocalScan;
 import com.neoalive.tacz_sewv.entity.ai.sensor.VehicleScanBand;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.TowSupport;
+import com.neoalive.tacz_sewv.entity.ai.suppression.HullPressure;
 
 /**
  * Target acquisition for mounted crews: a flat cylinder scan around the VEHICLE
@@ -65,6 +67,12 @@ public class VehicleTargetScanGoal extends Goal {
     // so nothing leaks through the wall while the lock lingers.
     // 60 goal ticks ≈ 6 s wall clock: goals tick every other game tick.
     private static final int LOS_GRACE_TICKS = 60;
+    /**
+     * A lock this crew cannot see is re-examined this often (goal ticks, ~2 s): if anything valid is in plain view,
+     * the gun goes to it. Without this a board-held lock (refreshed by the wide scan, so it never expires) kept an
+     * Abrams staring at a T-90 behind a ridge while another T-90 and a BMP flanked it in the open.
+     */
+    private static final int BLIND_RECHECK_TICKS = 20;
 
     /** Board contacts a direct-fire crew will acquire: heard-and-relayed hearsay is for indirect fire. */
     private static final ContactBoard.Source DIRECT_FIRE_MIN = ContactBoard.Source.PROXIMITY;
@@ -75,6 +83,8 @@ public class VehicleTargetScanGoal extends Goal {
     private LivingEntity pendingTarget;
     private int scanCooldown;
     private int ticksWithoutLos;
+    /** Goal ticks the held lock has gone unseen, for {@link #BLIND_RECHECK_TICKS}. */
+    private int blindTicks;
     /** Game time before this crew next re-reports a target it is watching to the contact board. */
     private long nextPublishTime;
 
@@ -93,6 +103,14 @@ public class VehicleTargetScanGoal extends Goal {
         LivingEntity current = this.unit.getTarget();
         if (current != null && current.isAlive()) return false; // already engaged — don't retarget every scan
 
+        // No lock, but something just hurt the hull: answer it before (and regardless of) the scan throttle.
+        LivingEntity shooter = retaliationTarget(v);
+        if (shooter != null) {
+            this.vehicle = v;
+            this.pendingTarget = shooter;
+            return true;
+        }
+
         // Throttle: the AABB query + sort is the expensive part, so it only runs
         // every N ticks; the cheap mounted/target checks above still run per tick.
         if (this.scanCooldown > 0) {
@@ -108,7 +126,7 @@ public class VehicleTargetScanGoal extends Goal {
             this.pendingTarget = copyDriverLockOrRareScan(v);
         } else {
             this.scanCooldown = EasyMode.scanIntervalTicks(this.unit, SewvConfig.VEHICLE_TARGET_SCAN_INTERVAL_TICKS.get());
-            this.pendingTarget = scanCylinder(v);
+            this.pendingTarget = scanCylinder(v, true);
         }
 
         SewvDiag.scan(
@@ -144,7 +162,7 @@ boolean needLos = EasyMode.vehicleTargetRequireLos()
         }
         // No usable shared lock (absent, invalid, or occluded from this seat) — rare own scan.
         this.scanCooldown = EasyMode.scanIntervalTicks(this.unit, SewvConfig.VEHICLE_TARGET_SCAN_INTERVAL_TICKS.get() * 2);
-        return scanCylinder(v);
+        return scanCylinder(v, true);
     }
 
     @Override
@@ -162,6 +180,7 @@ boolean needLos = EasyMode.vehicleTargetRequireLos()
                 after == this.pendingTarget);
         this.pendingTarget = null;
         this.ticksWithoutLos = 0;
+        this.blindTicks = 0;
     }
 
     @Override
@@ -190,7 +209,7 @@ if (EasyMode.vehicleTargetRequireLos()
                     this.nextPublishTime = now + PUBLISH_INTERVAL_TICKS;
                     ContactBoard.publish(this.unit, target, ContactBoard.Source.DIRECT_SIGHT);
                 }
-            } else if (waivesLos(target)) {
+            } else if (isCombatant(target) && waivesLos(target)) {
                 // Beyond the close-in band and known to our side: hold the lock. The fire-time gate in
                 // MixinVehicleFireCooldown still refuses every shot until this crew sees it itself.
                 this.ticksWithoutLos = 0;
@@ -217,6 +236,70 @@ if (EasyMode.vehicleTargetRequireLos()
                 && this.vehicle.getY() - target.getY() <= down;
     }
 
+    /** While holding a lock: turn on a shooter that just landed a heavy hit, if it is the better target. */
+    @Override
+    public void tick() {
+        if (this.vehicle == null) return;
+        LivingEntity shooter = retaliationTarget(this.vehicle);
+        if (shooter == null) {
+            switchOffBlindLock(this.vehicle);
+            return;
+        }
+        SewvDiag.scan("VehicleTargetScanGoal.retaliate unit={}#{} from={}#{} to={}#{}",
+                this.unit.getClass().getSimpleName(), this.unit.getId(),
+                this.unit.getTarget() == null ? "null" : this.unit.getTarget().getClass().getSimpleName(),
+                this.unit.getTarget() == null ? -1 : this.unit.getTarget().getId(),
+                shooter.getClass().getSimpleName(), shooter.getId());
+        this.unit.setTarget(shooter);
+        this.ticksWithoutLos = 0;
+    }
+
+    /** A unit, a player, or anything riding a hull: what a crew may hold a lock on without seeing it. */
+    public static boolean isCombatant(LivingEntity e) {
+        return e instanceof AbstractUnit || e instanceof Player || e.getVehicle() instanceof VehicleEntity;
+    }
+
+    /** Every {@link #BLIND_RECHECK_TICKS} the lock goes unseen, move the gun to the nearest target in plain view. */
+    private void switchOffBlindLock(VehicleEntity v) {
+        LivingEntity current = this.unit.getTarget();
+        if (current == null || !EasyMode.vehicleTargetRequireLos() || DriveHelicopterGoal.inFiringRun(v)
+                || this.unit.getSensing().hasLineOfSight(current)) {
+            this.blindTicks = 0;
+            return;
+        }
+        if (++this.blindTicks < BLIND_RECHECK_TICKS) return;
+        this.blindTicks = 0;
+        LivingEntity seen = scanCylinder(v, false); // quiet: only an actual switch is worth a log line
+        if (seen == null || seen == current || !this.unit.getSensing().hasLineOfSight(seen)) return;
+        SewvDiag.scan("VehicleTargetScanGoal.blindSwitch unit={}#{} from={}#{} to={}#{}",
+                this.unit.getClass().getSimpleName(), this.unit.getId(),
+                current.getClass().getSimpleName(), current.getId(),
+                seen.getClass().getSimpleName(), seen.getId());
+        this.unit.setTarget(seen);
+        this.ticksWithoutLos = 0;
+    }
+
+    /**
+     * The shooter that just landed a heavy hit on this hull, if the crew should turn on it
+     * ({@link HullPressure#shouldRetaliate}); else null. A rocket on the hull never reaches the crew's own
+     * hurt-by goal, since the hull takes the damage, so without this a crew under AT fire felt the hits (and
+     * backed off on the pressure they raise) while its gun stayed on whatever it had locked before.
+     */
+    @Nullable
+    private LivingEntity retaliationTarget(VehicleEntity v) {
+        LivingEntity shooter = HullPressure.recentHeavyAttacker(v, this.unit.level().getGameTime());
+        if (shooter == null || !isValidTarget(v, shooter)) return null;
+        LivingEntity current = this.unit.getTarget();
+        boolean hasCurrent = current != null && current.isAlive();
+        boolean currentVisible = hasCurrent && this.unit.getSensing().hasLineOfSight(current);
+        boolean currentArmour = hasCurrent
+                && VehicleWeapons.classifyTarget(current) == VehicleWeapons.TargetCategory.VEHICLE;
+        boolean closer = !hasCurrent || v.distanceToSqr(shooter) < v.distanceToSqr(current);
+        boolean act = HullPressure.shouldRetaliate(this.unit.getSensing().hasLineOfSight(shooter), shooter == current,
+                currentVisible, currentArmour, closer);
+        return act ? shooter : null;
+    }
+
     @Override
     public void stop() {
         // Vanilla TargetGoal contract: releasing the TARGET flag clears the target,
@@ -231,9 +314,9 @@ if (EasyMode.vehicleTargetRequireLos()
     // then the horizontal-distance filter rounds the corners off into a cylinder.
     // LOS raycasts (when enabled) only run down the sorted list until the first
     // visible candidate, not against everything found.
-    private LivingEntity scanCylinder(VehicleEntity v) {
+    private LivingEntity scanCylinder(VehicleEntity v, boolean log) {
         List<LivingEntity> candidates = collectCylinderCandidates(v, DriveHelicopterGoal.inFiringRun(v));
-        SewvDiag.scan(
+        if (log) SewvDiag.scan(
                 "VehicleTargetScanGoal.scanCylinder unit={}#{} rawCandidates={} ids={}",
                 this.unit.getClass().getSimpleName(), this.unit.getId(),
                 candidates.size(),
@@ -254,32 +337,47 @@ if (EasyMode.vehicleTargetRequireLos()
 boolean needLos = EasyMode.vehicleTargetRequireLos()
                 && !DriveHelicopterGoal.inFiringRun(v);
         LivingEntity foliageOnly = null;
+        // A board contact beyond the close band may be locked without a raycast, but only as a last resort: the
+        // nearest-first order used to hand the gun to a closer hull hiding behind a ridge (board-known, so "seen")
+        // over a farther one standing in the open, and the fire gate then refused every shot at it.
+        LivingEntity blindKnown = null;
         for (LivingEntity candidate : candidates) {
-            boolean los = !needLos || waivesLos(candidate)
-                    || this.unit.getSensing().hasLineOfSight(candidate);
+            boolean los = !needLos || this.unit.getSensing().hasLineOfSight(candidate);
             if (los) {
-                SewvDiag.scan("VehicleTargetScanGoal.scanCylinder PICK unit={}#{} candidate={}#{} needLos={}",
+                if (log) SewvDiag.scan("VehicleTargetScanGoal.scanCylinder PICK unit={}#{} candidate={}#{} needLos={}",
                         this.unit.getClass().getSimpleName(), this.unit.getId(),
                         candidate.getClass().getSimpleName(), candidate.getId(), needLos);
                 return candidate;
+            }
+            // Blind locks are for combatants only. A mob the side saw once (a Drowned underwater, say) is not worth
+            // a gun pointed at a wall; six crews held one for 20 s while a hostile hull was the real fight.
+            if (blindKnown == null && isCombatant(candidate) && waivesLos(candidate)) {
+                blindKnown = candidate;
+                continue;
             }
             // Leaves only: presence without a lock → DISTANT_CONTACT via AwarenessCues, keep looking
             // for a clear engageable candidate further down the list.
             if (needLos && ContactSight.between(this.unit, candidate) == ContactSight.Kind.UNCERTAIN) {
                 if (foliageOnly == null) foliageOnly = candidate;
-                SewvDiag.scan("VehicleTargetScanGoal.scanCylinder FOLIAGE unit={}#{} candidate={}#{}",
+                if (log) SewvDiag.scan("VehicleTargetScanGoal.scanCylinder FOLIAGE unit={}#{} candidate={}#{}",
                         this.unit.getClass().getSimpleName(), this.unit.getId(),
                         candidate.getClass().getSimpleName(), candidate.getId());
             } else {
-                SewvDiag.scan("VehicleTargetScanGoal.scanCylinder SKIP_LOS unit={}#{} candidate={}#{}",
+                if (log) SewvDiag.scan("VehicleTargetScanGoal.scanCylinder SKIP_LOS unit={}#{} candidate={}#{}",
                         this.unit.getClass().getSimpleName(), this.unit.getId(),
                         candidate.getClass().getSimpleName(), candidate.getId());
             }
         }
+        if (blindKnown != null) {
+            if (log) SewvDiag.scan("VehicleTargetScanGoal.scanCylinder PICK_BLIND unit={}#{} candidate={}#{} (board, no LOS)",
+                    this.unit.getClass().getSimpleName(), this.unit.getId(),
+                    blindKnown.getClass().getSimpleName(), blindKnown.getId());
+            return blindKnown;
+        }
         if (foliageOnly != null) {
             AwarenessCues.offerFoliageContact(v, foliageOnly);
         }
-        SewvDiag.scan("VehicleTargetScanGoal.scanCylinder NO_PICK unit={}#{} (empty or all failed LOS)",
+        if (log) SewvDiag.scan("VehicleTargetScanGoal.scanCylinder NO_PICK unit={}#{} (empty or all failed LOS)",
                 this.unit.getClass().getSimpleName(), this.unit.getId());
         return null;
     }
@@ -412,6 +510,7 @@ boolean inRun = DriveHelicopterGoal.inFiringRun(v);
             return false;
         }
         if (e.getVehicle() == v) return false; // riding our own hull — crewmate or min-range hugger
+        if (PlaneRoleFilter.rejects(this.unit, e)) return false;
         // A TOW's own scan only ever freelances onto armor — a launcher round on an infantryman
         // is a wasted missile. Infantry/monsters remain reachable, just not through this scan:
         // a radio fire mission (FireMissionSupport) sets the target through SEM's own

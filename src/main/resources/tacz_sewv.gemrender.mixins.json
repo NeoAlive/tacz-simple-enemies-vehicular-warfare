@@ -1,0 +1,16 @@
+{
+  "required": false,
+  "minVersion": "0.8",
+  "package": "com.neoalive.tacz_sewv.mixin.gemrender",
+  "plugin": "com.neoalive.tacz_sewv.mixin.GemRenderMixinPlugin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [],
+  "client": [
+    "GltfPaletteLayoutAccessor",
+    "MixinBedrockImporterParts"
+  ],
+  "server": [],
+  "injectors": {
+    "defaultRequire": 0
+  }
+}

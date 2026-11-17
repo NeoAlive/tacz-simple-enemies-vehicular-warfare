@@ -2,6 +2,8 @@ package com.neoalive.tacz_sewv.client.map;
 
 import java.util.List;
 
+import javax.annotation.Nullable;
+
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
@@ -104,8 +106,9 @@ public final class MapOverlayPainter {
         // Same smoothed position the icon is drawn at, so a line never trails its unit by a sync.
         float partialTicks = Minecraft.getInstance().getTimer().getGameTimeDeltaPartialTick(false);
         for (VehicleMarker marker : MapMarkers.markers()) {
-            MarkerOrder order = marker.order();
+            MarkerOrder order = MapMarkers.effectiveOrder(marker);
             if (order.type() == MarkerOrder.Type.NONE || !dim.equals(marker.dimension())) continue;
+            if (order.type() == MarkerOrder.Type.MOVE && order.reached()) continue;
 
             int[] unit = project.toScreen(MarkerMotion.x(marker, partialTicks), MarkerMotion.z(marker, partialTicks));
             if (!project.onScreen(unit)) continue;
@@ -134,6 +137,25 @@ public final class MapOverlayPainter {
                 }
                 case NONE -> { }
             }
+        }
+    }
+
+    /**
+     * Draggable order waypoints (World Map only): a small square per handle, outlined white when
+     * hovered or held. Drawn after the standing previews so it sits on top of their nodes.
+     */
+    public static void drawWaypointHandles(GuiGraphics guiGraphics, MapProjection project,
+                                           List<WaypointHandles.Handle> handles,
+                                           @Nullable WaypointHandles.Handle hot) {
+        int color = ClientConfig.parseColor(ClientConfig.COLOR_PMC.get(), 0xFF55FF55);
+        for (WaypointHandles.Handle h : handles) {
+            int[] at = project.toScreen(h.point());
+            if (!project.onScreen(at)) continue;
+            boolean lit = WaypointHandles.same(h, hot);
+            int r = lit ? 4 : 3;
+            guiGraphics.fill(at[0] - r - 1, at[1] - r - 1, at[0] + r + 1, at[1] + r + 1,
+                    lit ? 0xFFFFFFFF : 0xFF000000);
+            guiGraphics.fill(at[0] - r, at[1] - r, at[0] + r, at[1] + r, color);
         }
     }
 

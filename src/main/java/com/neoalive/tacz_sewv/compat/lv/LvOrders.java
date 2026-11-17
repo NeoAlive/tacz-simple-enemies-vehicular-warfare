@@ -53,8 +53,11 @@ final class LvOrders {
             }
             case FORM_WEDGE:
             case FORM_COLUMN: {
+                // A UNIT formation is laid on its leader, not the player, and needs no player online.
                 Player leader = commander(pmc);
-                return leader == null ? null : VehicleFormation.formationSlotPos(unit.level(), pmc, leader.position());
+                if (leader == null && !VehicleFormation.isUnitFollower(pmc)) return null;
+                return VehicleFormation.formationSlotPos(unit.level(), pmc,
+                        leader != null ? leader.position() : unit.position());
             }
             default:
                 return null; // HOLD_POSITION, CEASE_FIRE and anything newer: hold

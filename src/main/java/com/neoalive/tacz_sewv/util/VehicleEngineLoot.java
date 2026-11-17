@@ -16,15 +16,12 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
-import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.storage.loot.LootParams;
 import net.minecraft.world.level.storage.loot.LootTable;
 import net.minecraft.world.level.storage.loot.parameters.LootContextParamSets;
 import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
-import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
-import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
 import net.neoforged.neoforge.items.IItemHandler;
 import net.neoforged.neoforge.items.IItemHandlerModifiable;
 
@@ -56,12 +53,7 @@ public final class VehicleEngineLoot {
     }
 
     public static boolean isLockedByEnemyCrew(VehicleEntity hull) {
-        for (Entity passenger : hull.getPassengers()) {
-            if (passenger instanceof RUunitEntity || passenger instanceof USunitEntity) {
-                return true;
-            }
-        }
-        return false;
+        return com.neoalive.tacz_sewv.entity.ai.support.EnemyCrewInteractGuard.hasEnemyCrew(hull);
     }
 
     /**

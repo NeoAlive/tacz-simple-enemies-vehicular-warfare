@@ -2,6 +2,8 @@ package com.neoalive.tacz_sewv.entity.ai.goal;
 
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
+import com.neoalive.tacz_sewv.compat.SoftEnemyTargeting;
+import com.neoalive.tacz_sewv.compat.TripodCompat;
 import com.neoalive.tacz_sewv.compat.lv.LvCompat;
 import com.neoalive.tacz_sewv.compat.lv.LvGoals;
 
@@ -97,6 +99,13 @@ public final class VehicleAiGoals {
         // a Spore / Phayriosis Two mob over a same-priority vanilla Monster catch-all. No-ops
         // (never even scans) with neither mod installed — see SoftEnemyTargeting.anyPresent().
         unit.targetSelector.addGoal(1, new SoftEnemyTargetPriorityGoal(unit));
+        // Tripod Invasion: a tripod is the top target for everyone (priority 0, above retaliation),
+        // and RU/US on foot keep the standoff ring (priority 0 MOVE, above every priority-1 walk).
+        // Not added at all without the mod — see TripodCompat.
+        if (TripodCompat.present()) {
+            unit.targetSelector.addGoal(0, new SoftEnemyTargetPriorityGoal(unit, SoftEnemyTargeting.Tier.APEX));
+            unit.goalSelector.addGoal(0, new TripodStandoffGoal(unit));
+        }
         // Limitless Vehicles hulls: their own drive / gunner / board goals, each gated on the
         // unit sitting in (or being ordered onto) an LV hull. Not added at all without the mod,
         // so no LV class is ever loaded.

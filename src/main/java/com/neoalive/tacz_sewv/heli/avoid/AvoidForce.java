@@ -47,10 +47,23 @@ import org.joml.Vector3dc;
  * barrier is the fallback for when the bias has already failed. Do not remove or weaken the bias
  * on the assumption that the barrier is a complete guarantee.
  *
+ * <p><b>Airframe gap.</b> A band sized from closing speed alone collapses to r0 between two hulls
+ * holding station together, so wingmen hovered a block apart, rotor discs touching (the hull box is
+ * narrower than the disc). A box may carry a {@code gap} that floors its band at r0 + gap whatever
+ * the closing speed; the world probe sets it only for crewed airframes in flight, never for terrain,
+ * the ground, or a parked or wrecked hull, so landing and pad work keep the old r0. The floor goes
+ * through the same ratchet, so it never weakens the energy argument above, only widens the band.
+ *
  * <p>The band map is only looked up, never iterated to compute forces, so its order cannot affect
  * results.
  */
 public final class AvoidForce {
+
+    /**
+     * Clearance (blocks) kept from a crewed airframe in flight at any closing speed: the separation
+     * bubble the pre-rework whisker sensor grew round every allied airframe.
+     */
+    public static final double AIRFRAME_GAP = 4.0;
 
     private final double aRep, aC, damping, r0, margin, tickSeconds;
     private final double halfWidth, height;
@@ -86,6 +99,11 @@ public final class AvoidForce {
         return rbMaxLateral;
     }
 
+    /** Smallest band a box with this {@code gap} is ever given: r0 + gap. The world probe searches at least this far. */
+    public double floorBand(double gap) {
+        return r0 + gap;
+    }
+
     /** r_b(v) = v^2/(a_rep - 2 a_c) + v dt + r0, at most {@code cap}. */
     public double band(double v, double cap) {
         double v0 = Math.max(0.0, v);
@@ -109,23 +127,23 @@ public final class AvoidForce {
         for (ObstacleSet.Box b : set.boxes()) {
             seen.add(b.key());
             double[] g = gap(b, p);
-            track(b.key(), g[0], closing(g, v, b.vx(), b.vy(), b.vz()), rbMaxLateral);
+            track(b.key(), g[0], closing(g, v, b.vx(), b.vy(), b.vz()), rbMaxLateral, b.gap());
         }
         if (!Double.isNaN(set.groundY())) {
             seen.add(ObstacleSet.GROUND);
-            track(ObstacleSet.GROUND, p.y() - set.groundY(), Math.max(0.0, -v.y()), rbMaxGround);
+            track(ObstacleSet.GROUND, p.y() - set.groundY(), Math.max(0.0, -v.y()), rbMaxGround, 0.0);
         }
         bands.keySet().removeIf(k -> !seen.contains(k));
     }
 
-    private void track(long key, double d, double vClose, double rDetect) {
+    private void track(long key, double d, double vClose, double rDetect, double gap) {
         Double prev = bands.get(key);
         if (d > rDetect + margin) {
             bands.remove(key);
             return;
         }
         if (prev == null && d > rDetect) return;
-        double want = band(vClose, rDetect);
+        double want = Math.min(rDetect, Math.max(band(vClose, rDetect), r0 + gap));
         bands.put(key, prev == null || d >= prev ? want : Math.max(prev, want));
     }
 

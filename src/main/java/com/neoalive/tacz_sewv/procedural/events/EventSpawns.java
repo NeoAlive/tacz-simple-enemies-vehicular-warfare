@@ -15,6 +15,7 @@ import com.neoalive.tacz_sewv.entity.ai.support.InfantrySquads;
 import com.neoalive.tacz_sewv.init.ModGameRules;
 import com.neoalive.tacz_sewv.spawn.AmbientSpawnGate;
 import com.neoalive.tacz_sewv.spawn.InfantrySpawner;
+import com.neoalive.tacz_sewv.spawn.SpawnDeny;
 import com.neoalive.tacz_sewv.spawn.TankSpawner;
 
 /**
@@ -39,7 +40,20 @@ final class EventSpawns {
      * {@link AmbientSpawnGate#allowsAt} on its own alongside its biome and navigability checks.
      */
     static boolean placeable(ServerLevel level, BlockPos pos) {
-        return SpawnHelper.isValidSpawn(level, pos) && AmbientSpawnGate.allowsAt(level, pos);
+        if (!AmbientSpawnGate.allowsAt(level, pos)) return false;
+        if (!SpawnHelper.isValidSpawn(level, pos)) {
+            SpawnDeny.set(SpawnDeny.Why.SPOT);
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * The layout axis for an event with two ends: across the player's line of sight, so both ends
+     * sit as close to the player as the centre does. True means the ends are offset along X.
+     */
+    static boolean acrossX(net.minecraft.server.level.ServerPlayer player, BlockPos center) {
+        return Math.abs(center.getZ() - player.getBlockZ()) >= Math.abs(center.getX() - player.getBlockX());
     }
 
     /** One rifleman of {@code faction}, scattered up to {@code scatter} blocks around {@code anchor}. */

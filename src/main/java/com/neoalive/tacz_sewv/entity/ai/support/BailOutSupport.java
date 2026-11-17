@@ -136,6 +136,8 @@ public final class BailOutSupport {
         boarder.tacz_sewv$setMountTargetId(-1);
         MortarSupport.releaseClaim(unit);
         EntrenchSupport.clear(unit);
+        CoverHoldOrders.clear(unit);
+        com.neoalive.tacz_sewv.fpas.SignalTasks.clear(unit);
         unit.getPersistentData().remove(BailOutVehicleGoal.TAG_SANDBAG_SCRAMBLE);
 
         IHelicopterPilot pilot = (IHelicopterPilot) unit;

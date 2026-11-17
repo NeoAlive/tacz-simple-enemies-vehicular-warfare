@@ -16,9 +16,20 @@ public record ObstacleSet(List<Box> boxes, double groundY) {
     /** Key reserved for the ground plane's latch. */
     public static final long GROUND = Long.MIN_VALUE;
 
-    /** Axis-aligned obstacle. {@code key}: {@code BlockPos.asLong()} for blocks, entity id for airframes. */
+    /**
+     * Axis-aligned obstacle. {@code key}: {@code BlockPos.asLong()} for blocks, entity id for airframes.
+     * {@code gap}: clearance the barrier keeps from it even at zero closing speed, on top of its own
+     * {@code r0} — 0 for terrain and for parked or wrecked hulls, {@link AvoidForce#AIRFRAME_GAP} for a
+     * crewed airframe in flight (see {@link AvoidForce}).
+     */
     public record Box(long key, double minX, double minY, double minZ, double maxX, double maxY, double maxZ,
-                      double vx, double vy, double vz) {}
+                      double vx, double vy, double vz, double gap) {
+
+        public Box(long key, double minX, double minY, double minZ, double maxX, double maxY, double maxZ,
+                   double vx, double vy, double vz) {
+            this(key, minX, minY, minZ, maxX, maxY, maxZ, vx, vy, vz, 0.0);
+        }
+    }
 
     public ObstacleSet {
         List<Box> sorted = new ArrayList<>(boxes);

@@ -114,7 +114,7 @@ public final class Platoon {
         this.commanderId = commanderId;
     }
 
-    int groupId() {
+    public int groupId() {
         return this.groupId;
     }
 

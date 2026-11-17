@@ -34,8 +34,14 @@ config="tacz_sewv.xaerominimap.mixins.json"
 [[mixins]]
 config="tacz_sewv.playerrevive.mixins.json"
 
-# NeoForge port branch: Komodo, Corpse and MineColonies (mixin configs + soft dependencies), plus
-# Limitless Vehicles and Berezka, are dormant here — see dormantSources in build.gradle.
+# Client perf hooks on SBW and TaCZ. Own config ("required": false, defaultRequire 0) so a signature
+# change only disables a hook instead of failing the start.
+[[mixins]]
+config="tacz_sewv.perf.mixins.json"
+
+# NeoForge port branch: Komodo, Corpse, MineColonies, Frontline Combat Pack, Tripod Invasion and
+# GemRender (mixin configs + soft dependencies), plus Limitless Vehicles, Berezka, Coltan and Simple
+# Voice Chat, are dormant here. See dormantSources in build.gradle.
 
 [[dependencies.${mod_id}]]
     modId="neoforge"

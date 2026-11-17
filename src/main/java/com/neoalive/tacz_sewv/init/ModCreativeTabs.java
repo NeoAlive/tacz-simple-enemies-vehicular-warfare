@@ -25,6 +25,7 @@ public final class ModCreativeTabs {
                     .displayItems((params, output) -> {
                         // Command & equipment
                         output.accept(ModItems.HANDHELD_RADIO.get());
+                        output.accept(ModItems.SIGNAL_RELAY.get());
                         output.accept(ModItems.TACTICAL_DATA_TERMINAL.get());
                         output.accept(ModItems.POOL_CLIPBOARD.get());
                         output.accept(ModItems.DOCTRINE_LEDGER.get());
@@ -48,6 +49,7 @@ public final class ModCreativeTabs {
                         output.accept(ModItems.QUARTERS_BENCH.get());
                         output.accept(ModItems.STOCKPILE_AMMO.get());
                         output.accept(ModItems.PARKING_FIELD.get());
+                        output.accept(ModItems.ZONE_BEACON.get());
                         // spawn_probe: command-only (/give), not listed in creative — it is a
                         // structure-authoring marker, not a player-placed FOB block.
 

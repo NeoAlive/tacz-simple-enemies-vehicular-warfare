@@ -22,6 +22,7 @@ import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.debug.PathingPerf;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
+import com.neoalive.tacz_sewv.entity.ai.formation.DrivableGround;
 import com.neoalive.tacz_sewv.entity.ai.navigation.GroundMobility;
 import com.neoalive.tacz_sewv.entity.ai.navigation.VehicleOrca;
 import com.neoalive.tacz_sewv.entity.ai.navigation.VehiclePeerSpacing;
@@ -84,6 +85,10 @@ public final class GroundTerrainSensor extends TerrainSensor {
      * half-plane construction: a perfectly symmetric head-on approach has no basis to prefer a
      * side. See VehicleOrca#halfPlane. */
     private static final double ORCA_TIE_EPS = 1.0E-6;
+    /** A moving peer is also tested where it will be this many ticks on, so a plan is not laid into its path. */
+    private static final double SWEEP_PEER_LOOKAHEAD_TICKS = 20.0;
+    /** Slower than this (blocks/tick) a peer is treated as parked: no lookahead, and it is always yielded to. */
+    private static final double PEER_MOVING_SPEED = 0.02;
     /** Skip the full 7-slot map when the desired bearing is nearly ahead and already clear. */
     private static final double FAN_SHORTCIRCUIT_YAW_RAD = Math.toRadians(25.0);
     /** Reuse a computed fan heading while desired has not swung more than this. */
@@ -517,6 +522,11 @@ public final class GroundTerrainSensor extends TerrainSensor {
         }
         out.hard = Math.max(out.hard, water);
 
+        if (col.treeWall) {
+            out.hard = 1.0F;
+            out.reason = "tree";
+            return true;
+        }
         if (col.floorY == GroundMobility.NO_FLOOR) {
             w.crossedDrop = true;
             return false;
@@ -601,15 +611,49 @@ public final class GroundTerrainSensor extends TerrainSensor {
                 }
             }
         }
+        double selfX = this.vehicle.getX();
+        double selfZ = this.vehicle.getZ();
         for (VehicleOrca.Peer peer : this.peers) {
-            double clearance = peer.half() + half;
-            for (int i = 0; i < x.length; i++) {
-                double dx = x[i] - peer.x();
-                double dz = z[i] - peer.z();
-                if (dx * dx + dz * dz < clearance * clearance) return false;
+            double clearance = VehicleOrca.sweepRadius(half, peer.half());
+            if (!VehicleOrca.sweepKeepsClear(selfX, selfZ, x, z, peer.x(), peer.z(), clearance)) {
+                logBlockedHeading(new Vec3(hx[0], 0.0, hz[0]), 0, "sweep-hull");
+                return false;
+            }
+            if (peer.vx() * peer.vx() + peer.vz() * peer.vz() >= PEER_MOVING_SPEED * PEER_MOVING_SPEED) {
+                double ax = peer.x() + peer.vx() * SWEEP_PEER_LOOKAHEAD_TICKS;
+                double az = peer.z() + peer.vz() * SWEEP_PEER_LOOKAHEAD_TICKS;
+                if (!VehicleOrca.sweepKeepsClear(selfX, selfZ, x, z, ax, az, clearance)) {
+                    logBlockedHeading(new Vec3(hx[0], 0.0, hz[0]), 0, "sweep-hull-ahead");
+                    return false;
+                }
             }
         }
         return true;
+    }
+
+    /**
+     * Should a running planned maneuver give way? True when a peer this hull yields to
+     * ({@link VehicleOrca#yieldsTo}) is on a contact course within {@code ticks}, measured on both
+     * hulls' current velocities. Reads only the peers {@link #buildObstacles} already cached.
+     */
+    public boolean maneuverMustYield(double ticks) {
+        if (this.peers.isEmpty()) return false;
+        Vec3 v = this.vehicle.getDeltaMovement();
+        double half = halfWidth();
+        int selfId = this.vehicle.getId();
+        for (VehicleOrca.Peer peer : this.peers) {
+            if (!VehicleOrca.yieldsTo(selfId, peer, PEER_MOVING_SPEED)) continue;
+            double px = peer.x() - this.vehicle.getX();
+            double pz = peer.z() - this.vehicle.getZ();
+            double contactR = VehicleOrca.contactRadius(half, peer.half());
+            // Already touching: TTC is 0 for every velocity there, separating ones included, so ask
+            // only whether it is getting deeper — the same split applyRvo makes.
+            boolean hit = px * px + pz * pz <= contactR * contactR
+                    ? VehicleOrca.overlappingAndClosing(px, pz, v.x, v.z, v.x, v.z, peer.vx(), peer.vz(), contactR)
+                    : VehicleOrca.imminent(px, pz, v.x, v.z, v.x, v.z, peer.vx(), peer.vz(), contactR, ticks);
+            if (hit) return true;
+        }
+        return false;
     }
 
     private void applyRvo(Vec3 dir, Probe p) {
@@ -771,12 +815,17 @@ public final class GroundTerrainSensor extends TerrainSensor {
             var shape = state.getCollisionShape(level, pos);
             if (!shape.isEmpty()) {
                 col.floorY = y + shape.max(Direction.Axis.Y);
-                if (EnhancedFallingTreesCompat.available() && SewvConfig.VEHICLE_TREE_FELLING_ENABLED.get()
-                        && EnhancedFallingTreesFeller.isFellable(level, pos, state)) {
-                    // Logs only — leaves must keep normal stepDanger. Soft-treating foliage let
-                    // hulls climb the canopy (leaf collision as stairs) instead of felling the
-                    // trunk; pathing used to remap leaves to WALKABLE for the same reason.
-                    col.tree = true;
+                if (EnhancedFallingTreesCompat.available() && SewvConfig.VEHICLE_TREE_FELLING_ENABLED.get()) {
+                    if (EnhancedFallingTreesFeller.isFellable(level, pos, state)) {
+                        // Logs only — leaves must keep normal stepDanger. Soft-treating foliage let
+                        // hulls climb the canopy (leaf collision as stairs) instead of felling the
+                        // trunk; pathing used to remap leaves to WALKABLE for the same reason.
+                        col.tree = true;
+                    }
+                } else if (DrivableGround.treeBlock(state, false)) {
+                    // Nothing fells it, so it is a wall. A canopy a block or two up read as a climbable
+                    // step, and a hull that took it ended up perched on the tree with no way down.
+                    col.treeWall = true;
                 }
                 return col;
             }
@@ -888,6 +937,8 @@ public final class GroundTerrainSensor extends TerrainSensor {
         /** Wall block is a fellable tree log — probeLine treats it as a soft hazard, not a hard
          * step block. See {@link #probeColumn}. */
         boolean tree;
+        /** Wall block is a log or leaves with no felling to clear it: a hard hazard. */
+        boolean treeWall;
     }
 
 }

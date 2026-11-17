@@ -25,6 +25,7 @@ import org.slf4j.Logger;
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.crew.LogoPoolIndex;
 import com.neoalive.tacz_sewv.crew.PmcIdentityPreference;
+import com.neoalive.tacz_sewv.skin.WebLogoCache;
 
 /**
  * Client-side dynamic textures for PMC logo pools under {@code config/tacz_sewv/logo_pools/}.
@@ -94,6 +95,7 @@ public final class LogoPoolRegistry {
 
     @Nullable
     public static ResourceLocation texture(String poolId, String iconId) {
+        if (WebLogoCache.POOL.equals(poolId)) return WebLogoTextures.texture(iconId);
         Map<String, ResourceLocation> pool = TEXTURES.get(poolId);
         return pool == null ? null : pool.get(iconId);
     }

@@ -118,6 +118,7 @@ public final class InvasionZoneMarkerElements {
 
         @Override
         public boolean isHidden(InvasionZoneMarker marker, Ctx context) {
+            if (com.neoalive.tacz_sewv.client.zone.ZoneViewClient.active()) return true;
             Minecraft mc = Minecraft.getInstance();
             if (mc.level == null || context.mapDimension == null) return false;
             return !context.mapDimension.equals(mc.level.dimension());

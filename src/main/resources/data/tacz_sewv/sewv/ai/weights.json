@@ -1,5 +1,6 @@
 {
   "attack": {
+    "inBattlePosition": 25,
     "enemyVisible": 50,
     "confidence": 15,
     "alliesNearby": 10,
@@ -21,6 +22,9 @@
   },
 
   "advance": {
+    "caution": -20,
+    "inBattlePosition": -40,
+    "underFire": -20,
     "tooFar": 50,
     "enemyVisible": 20,
     "confidence": 15,
@@ -44,6 +48,9 @@
   },
 
   "hold": {
+    "caution": 10,
+    "inBattlePosition": 20,
+    "underFire": -10,
     "base": 20,
     "cannotShoot": 15,
     "lowAmmo": 20,
@@ -66,6 +73,9 @@
   },
 
   "retreat": {
+    "caution": 15,
+    "inBattlePosition": -15,
+    "underFire": 20,
     "lowHealth": 85,
     "lowAmmo": 45,
     "outnumbered": 25,
@@ -80,6 +90,7 @@
   },
 
   "deploySmoke": {
+    "underFire": 35,
     "lowHealth": 70,
     "recentlyHit": 25,
     "enemyArmor": 15,
@@ -92,6 +103,9 @@
   },
 
   "flankLeft": {
+    "caution": -10,
+    "inBattlePosition": -30,
+    "underFire": 10,
     "enemyArmor": 25,
     "cannotShoot": 25,
     "alliesNearby": 20,
@@ -114,6 +128,9 @@
   },
 
   "flankRight": {
+    "caution": -10,
+    "inBattlePosition": -30,
+    "underFire": 10,
     "enemyArmor": 25,
     "cannotShoot": 25,
     "alliesNearby": 20,
@@ -220,6 +237,17 @@
     "alone": -15
   },
 
+  "suppress": {
+    "lostContact": 60,
+    "aggression": 15,
+    "riskTolerance": 5,
+    "allyInfantryNear": 10,
+    "lowAmmo": -45,
+    "lowHealth": -25,
+    "underFire": -10,
+    "initiative": -10
+  },
+
   "regroup": {
     "lowAmmo": 50,
     "lowHealth": 40,
@@ -231,6 +259,7 @@
   },
 
   "confidence": {
+    "underFire": -20,
     "alliesNearby": 20,
     "riskTolerance": 12,
     "lowHealth": -30,

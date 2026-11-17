@@ -34,7 +34,7 @@ public final class DormantStubsSelfCheck {
     /** Import prefixes that belong to dormant mods — a stub naming one would defeat the point. */
     private static final List<String> FOREIGN = List.of(
             "xaero.", "org.ywzj.", "de.maxhenkel.", "team.creative.", "com.minecolonies.",
-            "com.ldtteam.", "org.berezka.", "me.adda.", "com.norwood.");
+            "com.ldtteam.", "org.berezka.", "me.adda.", "com.norwood.", "frontline.");
 
     private static final Pattern MEMBER = Pattern.compile(
             "(@SubscribeEvent[^\\n]*\\s+)?public\\s+static\\s+(?:final\\s+)?([\\w.<>\\[\\], ?]+?)\\s+(\\w+)\\s*(\\([^)]*\\)|=)",

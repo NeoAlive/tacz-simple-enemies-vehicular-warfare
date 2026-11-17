@@ -41,7 +41,7 @@ public final class PathBudget {
      * @param maxWait       {@code pathMaxWaitTicks}
      * @param lowPriority   idle and far from every player
      */
-    static boolean decide(int used, int limit, long waited, int maxWait, boolean lowPriority) {
+    public static boolean decide(int used, int limit, long waited, int maxWait, boolean lowPriority) {
         if (limit <= 0) return true;
         long bound = lowPriority ? 2L * maxWait : maxWait;
         if (waited >= bound) return true;

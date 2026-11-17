@@ -9,10 +9,10 @@ import javax.annotation.Nullable;
 
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
-import net.minecraftforge.event.TickEvent;
-import net.minecraftforge.event.server.ServerStoppedEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.event.server.ServerStoppedEvent;
+import net.neoforged.neoforge.event.tick.ServerTickEvent;
 
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
@@ -23,7 +23,7 @@ import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
  * has run its own first tick (and its passenger purge). Imports no LV type, so it is safe to
  * register on the bus unconditionally: without the mod the queue is simply never written.
  */
-@Mod.EventBusSubscriber(modid = TaczSewv.MODID)
+@EventBusSubscriber(modid = TaczSewv.MODID)
 public final class LvPendingCrews {
 
     /** Give up on a hull that has not ticked in this long (its chunk unloaded under it). */
@@ -40,8 +40,8 @@ public final class LvPendingCrews {
     }
 
     @SubscribeEvent
-    public static void onServerTick(TickEvent.ServerTickEvent event) {
-        if (event.phase != TickEvent.Phase.END || QUEUE.isEmpty()) return;
+    public static void onServerTick(ServerTickEvent.Post event) {
+        if (QUEUE.isEmpty()) return;
         // Copy first: mounting adds entities, and a mod reacting to that could enqueue again.
         List<Pending> ready = new ArrayList<>();
         for (Iterator<Pending> it = QUEUE.iterator(); it.hasNext(); ) {

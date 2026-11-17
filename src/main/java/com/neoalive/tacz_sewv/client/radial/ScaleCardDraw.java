@@ -2,7 +2,6 @@ package com.neoalive.tacz_sewv.client.radial;
 
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.resources.language.I18n;
 import net.minecraft.util.Mth;
 
 /**
@@ -79,10 +78,6 @@ final class ScaleCardDraw {
             g.fill(barLeft, top + h - BAR, barLeft + fill, top + h, scale(accent, a));
         }
 
-        if (hot) {
-            g.drawString(font, I18n.get("gui.tacz_sewv.wheel.scale.hint"),
-                    textX, top + h + 3, scale(MUTED, a), false);
-        }
     }
 
     private static int scale(int argb, float a) {

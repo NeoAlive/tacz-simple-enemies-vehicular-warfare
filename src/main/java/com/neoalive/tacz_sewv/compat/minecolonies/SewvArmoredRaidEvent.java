@@ -69,9 +69,9 @@ public class SewvArmoredRaidEvent implements IColonyRaidEvent {
 
     public static final ResourceLocation TYPE_ID =
             // The minecolonies namespace is not a mistake: EventManager.readFromNBT rebuilds the
-            // type id as new ResourceLocation(MOD_ID, storedPath), hardcoding its own namespace,
+            // type id as ResourceLocation.fromNamespaceAndPath(MOD_ID, storedPath), hardcoding its own namespace,
             // so an event type registered under any other one could never be deserialised.
-            new ResourceLocation("minecolonies", "sewv_armored_raid");
+            ResourceLocation.fromNamespaceAndPath("minecolonies", "sewv_armored_raid");
 
     private static final String TAG_ID = "mc_event_id";
     private static final String TAG_STATUS = "eventStatus";

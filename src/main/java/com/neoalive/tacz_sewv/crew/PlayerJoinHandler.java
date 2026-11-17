@@ -22,6 +22,9 @@ public class PlayerJoinHandler {
     public static void onPlayerLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
         Player player = event.getEntity();
         if (player.level().isClientSide) return;
+        if (player instanceof net.minecraft.server.level.ServerPlayer sp) {
+            com.neoalive.tacz_sewv.network.PacketMinePool.sendTo(sp);
+        }
 
         UUID playerUuid = player.getUUID();
         PlayerDoctrineData data = PlayerDoctrineData.get(player.level());
@@ -44,7 +47,7 @@ public class PlayerJoinHandler {
             String category = NamePreference.get(sp, SewvConfig.DEFAULT_NAME_CATEGORY.get());
             NetworkHandler.CHANNEL.send(
                     PacketDistributor.PLAYER.with(() -> sp),
-                    new PacketSyncPmcIdentity(PmcIdentityPreference.get(sp), category));
+                    new PacketSyncPmcIdentity(PmcIdentityPreference.get(sp), category, VoicePreference.get(sp)));
             NpcIdentity.refreshCompanyName(sp);
         }
     }

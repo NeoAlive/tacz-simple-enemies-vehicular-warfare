@@ -13,12 +13,12 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.levelgen.structure.StructurePiece;
-import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.event.TickEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import org.berezka.berezka_api.API;
 import org.berezka.berezka_api.events.onStructureSpawned;
 
@@ -50,7 +50,7 @@ public final class BerezkaStructureCompat {
     private BerezkaStructureCompat() {}
 
     public static void register() {
-        MinecraftForge.EVENT_BUS.register(BerezkaStructureCompat.class);
+        NeoForge.EVENT_BUS.register(BerezkaStructureCompat.class);
     }
 
     /** Grow each footprint a little: template entities can stand on a roof or just past a wall. */
@@ -134,8 +134,8 @@ public final class BerezkaStructureCompat {
     private static final Queue<Pending> PENDING = new ConcurrentLinkedQueue<>();
 
     @SubscribeEvent
-    public static void onServerTick(TickEvent.ServerTickEvent event) {
-        if (event.phase != TickEvent.Phase.END || PENDING.isEmpty()) return;
+    public static void onServerTick(ServerTickEvent.Post event) {
+        if (PENDING.isEmpty()) return;
         for (int n = PENDING.size(); n > 0; n--) {
             Pending p = PENDING.poll();
             if (p == null) return;

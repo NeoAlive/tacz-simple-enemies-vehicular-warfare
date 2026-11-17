@@ -20,6 +20,8 @@ public final class RadialInputState {
     public static final double MAX_RADIUS = DEADZONE_RADIUS * 2.0;
 
     private final Deque<List<WedgeEntry>> stack = new ArrayDeque<>();
+    /** The categories entered, innermost first; empty at the root. */
+    private final Deque<WedgeEntry.CategoryEntry> path = new ArrayDeque<>();
     private double accumX;
     private double accumY;
     private int hotIndex = -1;
@@ -63,6 +65,7 @@ public final class RadialInputState {
                 return CommitResult.Deadzone.INSTANCE;
             }
             this.stack.push(List.copyOf(cat.children()));
+            this.path.push(cat);
             resetPointer();
             return CommitResult.EnteredSubmenu.INSTANCE;
         }
@@ -81,6 +84,7 @@ public final class RadialInputState {
             return true;
         }
         this.stack.pop();
+        this.path.poll();
         resetPointer();
         return false;
     }
@@ -88,6 +92,12 @@ public final class RadialInputState {
     public List<WedgeEntry> currentWedges() {
         List<WedgeEntry> top = this.stack.peek();
         return top != null ? top : List.of();
+    }
+
+    /** The submenu being shown, or null at the root. */
+    @javax.annotation.Nullable
+    public WedgeEntry.CategoryEntry currentCategory() {
+        return this.path.peek();
     }
 
     /** {@code -1} while inside the deadzone / no selection. */

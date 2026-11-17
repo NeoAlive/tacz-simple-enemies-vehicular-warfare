@@ -44,6 +44,7 @@ public final class ManeuverSelfCheck {
         checkCircleVsIntegration();      // 1
         checkShortHold();                // 2
         checkReachability();             // 3
+        checkPassesWithinArrival();      // 3b
         checkFinalPointScoping();        // 4
         checkDirectlyBehind();           // 5
         checkArrivalBands();             // 6
@@ -246,6 +247,35 @@ public final class ManeuverSelfCheck {
             if (reach) assert dec.state() == State.ARC : "reachable final point not ARC " + dec;
             else assert dec.state() == State.MULTI_POINT && dec.plan() : "unreachable final point not planned " + dec;
         }
+    }
+
+    // ------------------------------------------------------------------ 3b
+
+    private static Input routeArrive(double ta, double tl, double arrive) {
+        return new Input(0.0, 0.0, 0.0, 1.0, ta, tl, Double.NaN, arrive, R_MIN, S, false, 0.5,
+                false, 3.0 * DEG, true, false, true);
+    }
+
+    /** A final point the hull rolls past inside the arrival radius is reached, not planned. */
+    private static void checkPassesWithinArrival() {
+        // The reported case: 4 ahead, 1.6 to the side (4.3 out), a 3-block formation radius.
+        assert (16.0 + 1.6 * 1.6) / (2.0 * 1.6) < R_MIN : "test geometry must fail the bare arc rule";
+        Decision bare = ManeuverPlanner.classify(routeArrive(4.0, 1.6, -1.0));
+        assert bare.state() == State.MULTI_POINT && bare.plan() : "no radius known must keep the old rule: " + bare;
+        Decision near = ManeuverPlanner.classify(routeArrive(4.0, 1.6, 3.0));
+        assert near.state() == State.ARC && !near.plan() : "a slot passed inside the radius must roll: " + near;
+        Decision mirror = ManeuverPlanner.classify(routeArrive(4.0, -1.6, 3.0));
+        assert mirror.equals(near) : "mirror must agree: " + mirror;
+        // Well off to the side, nowhere near the full-lock circle: still a planned turn.
+        Decision wide = ManeuverPlanner.classify(routeArrive(3.0, 5.0, 1.0));
+        assert wide.state() == State.MULTI_POINT && wide.plan() : "a slot the hull cannot pass near must plan: " + wide;
+        // On the full-lock circle itself (side > radius): reached by rolling round it.
+        double a = 6.0, side = R_MIN - StrictMath.sqrt(R_MIN * R_MIN - a * a); // a point on that circle
+        assert side > 3.0 || ManeuverPlanner.passesWithin(a, side, R_MIN, 3.0);
+        assert ManeuverPlanner.passesWithin(a, side, R_MIN, 0.5) : "a point on the full-lock circle is reached";
+        // Behind the hull: never, whatever the radius — looping back is worse than three points.
+        assert !ManeuverPlanner.passesWithin(-2.0, 1.0, R_MIN, 3.0) : "a target behind must not count as reached";
+        assert !ManeuverPlanner.passesWithin(0.0, 1.0, R_MIN, 3.0) : "a target abeam must not count as reached";
     }
 
     // ------------------------------------------------------------------ 4

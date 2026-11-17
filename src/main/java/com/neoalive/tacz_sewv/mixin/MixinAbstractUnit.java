@@ -16,6 +16,7 @@ import com.neoalive.tacz_sewv.bridge.IFireHesitation;
 import com.neoalive.tacz_sewv.bridge.ILodUnit;
 import com.neoalive.tacz_sewv.config.EasyModePlayerEvents;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
+import com.neoalive.tacz_sewv.entity.ai.plane.PlaneRoleFilter;
 import com.neoalive.tacz_sewv.entity.ai.sensor.ContactBoard;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.SmallArmsSupport;
@@ -168,6 +169,12 @@ public abstract class MixinAbstractUnit implements IDelayedFire, IFireHesitation
             return;
         }
 
+        // Airplane Mode filter. An explicit attack order on this very target still wins.
+        if (PlaneRoleFilter.rejects(self, target) && !tacz_sewv$orderedOnto(self, target)) {
+            ci.cancel();
+            return;
+        }
+
         boolean diplEnemy = VehicleTargeting.isDiplomacyEnemy(self, target);
         boolean sameClassFriendly = VehicleTargeting.isFriendly(self, target);
         boolean medic = VehicleTargeting.isMedic(target);
@@ -206,6 +213,13 @@ public abstract class MixinAbstractUnit implements IDelayedFire, IFireHesitation
         if (!VehicleTargeting.categoryAllowed(self, target)) {
             ci.cancel();
         }
+    }
+
+    @Unique
+    private static boolean tacz_sewv$orderedOnto(AbstractUnit self, LivingEntity target) {
+        return self instanceof PmcUnitEntity pmc
+                && pmc.getOrder() == net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType.ATTACK_THAT_TARGET
+                && pmc.getAttackTargetId() == target.getId();
     }
 
     /**

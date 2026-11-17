@@ -1,0 +1,25 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    " E ",
+    "PRP",
+    " A "
+  ],
+  "key": {
+    "E": {
+      "item": "minecraft:ender_pearl"
+    },
+    "P": {
+      "tag": "c:plates/copper"
+    },
+    "R": {
+      "item": "tacz_sewv:handheld_radio"
+    },
+    "A": {
+      "item": "minecraft:amethyst_shard"
+    }
+  },
+  "result": {
+    "id": "tacz_sewv:signal_relay"
+  }
+}

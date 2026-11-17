@@ -35,6 +35,10 @@ public class ModItems {
     public static final DeferredHolder<Item, Item> PMC_HELMET_MICH =
             ITEMS.register("pmc_helmet_mich", PmcHelmetMichItem::new);
 
+    /** Binds FPAS arrays; carrying one unlocks the quickwheel Signal leaves. */
+    public static final DeferredHolder<Item, Item> SIGNAL_RELAY =
+            ITEMS.register("signal_relay", com.neoalive.tacz_sewv.item.SignalRelayItem::new);
+
     public static final DeferredHolder<Item, Item> TACTICAL_DATA_TERMINAL =
             ITEMS.register("tactical_data_terminal", TacticalDataTerminalItem::new);
 
@@ -93,6 +97,9 @@ public class ModItems {
 
     public static final DeferredHolder<Item, Item> HELIPAD = ITEMS.register("helipad",
             () -> new HelipadBlockItem(ModBlocks.HELIPAD.get(), new Item.Properties()));
+
+    public static final DeferredHolder<Item, Item> ZONE_BEACON = ITEMS.register("zone_beacon",
+            () -> new FobBlockItem(ModBlocks.ZONE_BEACON.get(), new Item.Properties()));
 
     // Spawn eggs for the support units. Background = faction tint, highlight = role (white medic,
     // orange engineer, brown combat engineer).

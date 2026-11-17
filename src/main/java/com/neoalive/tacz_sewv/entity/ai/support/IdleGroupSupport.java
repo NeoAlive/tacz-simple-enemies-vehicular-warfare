@@ -80,6 +80,7 @@ public final class IdleGroupSupport {
     private static final String GROUND_Y_X_KEY = "tacz_sewv:idle_ground_y_x";
     private static final String GROUND_Y_Z_KEY = "tacz_sewv:idle_ground_y_z";
     private static final String GROUND_Y_VAL_KEY = "tacz_sewv:idle_ground_y_val";
+    private static final String GROUND_Y_SLOT_KEY = "tacz_sewv:idle_ground_slot";
     private static final String CONTACT_PEER_KEY = "tacz_sewv:idle_contact_peer";
     private static final String CONTACT_PLAYER_KEY = "tacz_sewv:idle_contact_player";
     private static final String CONTACT_VEHICLE_KEY = "tacz_sewv:idle_contact_vehicle";
@@ -102,8 +103,8 @@ public final class IdleGroupSupport {
     private static volatile Map<Integer, Published> PUBLISHED = new HashMap<>();
     private static volatile Map<Integer, Published> PREVIOUS_PUBLISHED = new HashMap<>();
 
-    /** One unit's cluster as the coordinator dealt it: sorted member ids, and its hold slot (-1 when marching). */
-    private record Published(int[] memberIds, int slot) {}
+    /** One unit's cluster as the coordinator dealt it: sorted member ids, its hold slot (-1 when marching), centre. */
+    private record Published(int[] memberIds, int slot, double centreX, double centreZ) {}
     private static long lastClusterCacheGen = Long.MIN_VALUE;
 
     private record ClusterCacheKey(int leaderUnitId, long refreshGen, ResourceKey<Level> dimension) {}
@@ -143,11 +144,29 @@ public final class IdleGroupSupport {
      * Record one coordinator cluster. {@code memberIds} sorted ascending; {@code slots[i]} is member i's hold
      * slot, or -1 for every member of a marching cluster.
      */
-    public static void publishCluster(int[] memberIds, int[] slots) {
+    public static void publishCluster(int[] memberIds, int[] slots, double centreX, double centreZ) {
         int[] ids = memberIds.clone();
         for (int i = 0; i < ids.length; i++) {
-            PUBLISHED.put(ids[i], new Published(ids, slots[i]));
+            PUBLISHED.put(ids[i], new Published(ids, slots[i], centreX, centreZ));
         }
+    }
+
+    /**
+     * The hold centre to use for cluster {@code ids} whose live centroid is (cx, cz): last pass's centre while the
+     * membership is the same and the centroid has not drifted a ring radius from it, else the centroid. Re-centring
+     * on the live centroid every pass, plus each hull's own scramble, crept the whole ring a block or two a pass.
+     */
+    public static double[] holdCentre(int[] ids, double cx, double cz) {
+        Published p = ids.length == 0 ? null : PREVIOUS_PUBLISHED.get(ids[0]);
+        double[] prev = p == null || !java.util.Arrays.equals(p.memberIds(), ids)
+                ? null : new double[] {p.centreX(), p.centreZ()};
+        return keepCentre(prev, cx, cz, holdRadius(ids.length));
+    }
+
+    /** Pure: keep {@code prev} when within {@code radius} of the live centroid. */
+    static double[] keepCentre(@Nullable double[] prev, double cx, double cz, double radius) {
+        if (prev != null && Math.hypot(prev[0] - cx, prev[1] - cz) <= radius) return prev;
+        return new double[] {cx, cz};
     }
 
     /** The hold slot {@code unitId} held last pass, or -1. */
@@ -490,6 +509,7 @@ public final class IdleGroupSupport {
         data.remove(GROUND_Y_X_KEY);
         data.remove(GROUND_Y_Z_KEY);
         data.remove(GROUND_Y_VAL_KEY);
+        data.remove(GROUND_Y_SLOT_KEY);
         data.remove(CONTACT_PEER_KEY);
         data.remove(CONTACT_PLAYER_KEY);
         data.remove(CONTACT_VEHICLE_KEY);
@@ -570,8 +590,7 @@ public final class IdleGroupSupport {
                 formationRadiusMin(), formationRadiusMax(), sx, sz);
         double x = snap.centerX + off.x;
         double z = snap.centerZ + off.z;
-        double y = cachedGroundY(hull, x, z, snap.centerY);
-        return BlockPos.containing(x, y, z);
+        return cachedHullSlot(hull, x, z, snap.centerY);
     }
 
     private static Snapshot resolveSnapshot(AbstractUnit unit, VehicleEntity hull, @Nullable Facts facts,
@@ -590,22 +609,23 @@ public final class IdleGroupSupport {
         return GroundSnap.groundY(level, x, z, anchorY);
     }
 
-    /** Heightmap probe cached on the hull until destination XZ cell changes. */
-    private static double cachedGroundY(VehicleEntity hull, double x, double z, double anchorY) {
+    /** Hold slot snapped off trees and water ({@link GroundSnap#hullSlot}), cached on the hull per XZ cell. */
+    private static BlockPos cachedHullSlot(VehicleEntity hull, double x, double z, double anchorY) {
         int cellX = Mth.floor(x);
         int cellZ = Mth.floor(z);
         CompoundTag data = hull.getPersistentData();
-        if (data.contains(GROUND_Y_X_KEY)
+        if (data.contains(GROUND_Y_X_KEY) && data.contains(GROUND_Y_SLOT_KEY)
                 && data.getInt(GROUND_Y_X_KEY) == cellX
                 && data.getInt(GROUND_Y_Z_KEY) == cellZ) {
             GROUND_Y_CACHE_HITS.increment();
-            return data.getDouble(GROUND_Y_VAL_KEY);
+            return BlockPos.of(data.getLong(GROUND_Y_SLOT_KEY));
         }
-        double y = groundY(hull.level(), x, z, anchorY);
+        GROUND_Y_PROBES.increment();
+        BlockPos slot = GroundSnap.hullSlot(hull.level(), x, z, anchorY);
         data.putInt(GROUND_Y_X_KEY, cellX);
         data.putInt(GROUND_Y_Z_KEY, cellZ);
-        data.putDouble(GROUND_Y_VAL_KEY, y);
-        return y;
+        data.putLong(GROUND_Y_SLOT_KEY, slot.asLong());
+        return slot;
     }
 
     private static long refreshGeneration(Level level) {

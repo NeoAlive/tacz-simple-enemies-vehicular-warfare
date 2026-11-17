@@ -1,5 +1,7 @@
 package com.neoalive.tacz_sewv.entity.ai.utility;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
@@ -19,9 +21,14 @@ import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.entity.ai.command.CrewAssignment;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
+import com.neoalive.tacz_sewv.entity.ai.cover.BattlePosition;
 import com.neoalive.tacz_sewv.entity.ai.cover.CoverQuery;
 import com.neoalive.tacz_sewv.entity.ai.navigation.GroundMobility;
+import com.neoalive.tacz_sewv.entity.ai.sensor.ContactBoard;
 import com.neoalive.tacz_sewv.entity.ai.sensor.HullLocalScan;
+import com.neoalive.tacz_sewv.entity.ai.support.SmallArmsSupport;
+import com.neoalive.tacz_sewv.entity.ai.support.SuppressiveFire;
+import com.neoalive.tacz_sewv.entity.ai.suppression.InfantryArmorDoctrine;
 
 /**
  * Per-crew individual tactics posture. Soft biases only — never replaces {@code TASKED_*} /
@@ -36,7 +43,9 @@ public final class TacticalPosture {
         AMBUSH,
         INFANTRY_COVER,
         /** Break contact toward hard cover after smoke / low confidence. */
-        SEEK_COVER
+        SEEK_COVER,
+        /** Holding (or driving to) a latched battle position. */
+        BATTLE_POSITION
     }
 
     private static final long SCOOT_DURATION = 120;
@@ -88,9 +97,11 @@ public final class TacticalPosture {
     private long shieldUntil = Long.MIN_VALUE;
     private boolean throttleInfantryPace;
     private boolean coveringAdvance;
+    private final BattlePosition battle = new BattlePosition();
 
     public void clear() {
         this.active.clear();
+        this.battle.clear();
         this.scootWaypoint = null;
         this.scootUntil = Long.MIN_VALUE;
         this.seekCoverWaypoint = null;
@@ -115,6 +126,20 @@ public final class TacticalPosture {
 
     public boolean throttleInfantryPace() {
         return this.throttleInfantryPace;
+    }
+
+    /** The latched battle position to fight from, or null. */
+    @Nullable
+    public Vec3 battlePosition() {
+        return this.battle.point();
+    }
+
+    /**
+     * The stalemate breaker fired. True when the crew answers it by moving to its alternate battle position (or is
+     * already doing so this episode) instead of orbiting; false when there is no position to stand on.
+     */
+    public boolean answerBreaker(long now) {
+        return this.battle.onBreaker(now);
     }
 
     @Nullable
@@ -165,14 +190,55 @@ public final class TacticalPosture {
         return unit.distanceTo(target) > maxDist;
     }
 
-    /** Soft cover path malus toward the published threat, or 0. Never BLOCKED. */
+    /**
+     * Soft cover path malus, or 0. Never BLOCKED. The published threats are the crew's own bearing plus up to
+     * {@link #MAX_EXTRA_THREATS} anti-armour contacts off the board, and a node costs its WORST exposure among
+     * them: a route that hides from the tank ahead but crosses the open in front of a TOW on the flank is not a
+     * covered route. Danger stays a cost, so a crew with no safe way still arrives.
+     */
     public static float coverPathMalus(int unitId, double nodeX, double nodeZ, ServerLevel level) {
         long[] threat = COVER_THREAT.get(unitId);
         if (threat == null) return 0.0F;
-        double tx = Double.longBitsToDouble(threat[0]);
-        double tz = Double.longBitsToDouble(threat[1]);
-        double exp = CoverQuery.exposure(level, nodeX, nodeZ, tx, tz);
-        return COVER_PATH_PENALTY * (float) exp;
+        // The primary threat gets the full read (wrecks included); the extras one table read each, so
+        // their cost per node stays a lookup rather than a walk over every wreck in the level.
+        double worst = CoverQuery.exposure(level, nodeX, nodeZ,
+                Double.longBitsToDouble(threat[0]), Double.longBitsToDouble(threat[1]));
+        for (int i = 2; i + 1 < threat.length && worst < 1.0; i += 2) {
+            double tx = Double.longBitsToDouble(threat[i]);
+            double tz = Double.longBitsToDouble(threat[i + 1]);
+            worst = Math.max(worst, CoverQuery.terrainExposure(level, nodeX, nodeZ, tx, tz));
+        }
+        return COVER_PATH_PENALTY * (float) worst;
+    }
+
+    /** Anti-armour contacts routed around in addition to the crew's own threat bearing. */
+    static final int MAX_EXTRA_THREATS = 3;
+    /** Contacts farther than this from the hull cannot shape its next few hundred path nodes. */
+    private static final double EXTRA_THREAT_RANGE = 160.0;
+
+    /**
+     * The crew's threat bearing, then the nearest other contacts that can kill armour (a crewed hull, a TOW, a
+     * launcher in someone's hands), packed as x,z pairs for {@link #coverPathMalus}.
+     */
+    private static long[] packThreats(AbstractUnit unit, VehicleEntity hull, @Nullable LivingEntity primary,
+                                      double threatX, double threatZ) {
+        List<LivingEntity> extra = new ArrayList<>(MAX_EXTRA_THREATS);
+        double rangeSq = EXTRA_THREAT_RANGE * EXTRA_THREAT_RANGE;
+        for (LivingEntity c : ContactBoard.contactsFor(unit, ContactBoard.Source.RELAYED)) {
+            if (c == primary || c.distanceToSqr(hull) > rangeSq) continue;
+            if (InfantryArmorDoctrine.tierOf(c) < 0.5f && !SmallArmsSupport.holdsAntiArmor(c)) continue;
+            extra.add(c);
+        }
+        extra.sort(Comparator.comparingDouble(c -> c.distanceToSqr(hull)));
+        int n = Math.min(extra.size(), MAX_EXTRA_THREATS);
+        long[] out = new long[2 + 2 * n];
+        out[0] = Double.doubleToRawLongBits(threatX);
+        out[1] = Double.doubleToRawLongBits(threatZ);
+        for (int i = 0; i < n; i++) {
+            out[2 + 2 * i] = Double.doubleToRawLongBits(extra.get(i).getX());
+            out[3 + 2 * i] = Double.doubleToRawLongBits(extra.get(i).getZ());
+        }
+        return out;
     }
 
     /** Blend published cover interest into the terrain fan (soft). */
@@ -203,6 +269,8 @@ public final class TacticalPosture {
             facts.postureScoot = false;
             facts.postureAmbush = false;
             facts.postureSeekCover = false;
+            facts.inBattlePosition = false;
+            this.battle.clear();
             return;
         }
 
@@ -275,13 +343,20 @@ public final class TacticalPosture {
         if (hasThreatBearing) {
             this.active.add(Tactic.COVERING_ADVANCE);
             this.coveringAdvance = true;
-            COVER_THREAT.put(unitId, new long[] {
-                    Double.doubleToRawLongBits(threatX),
-                    Double.doubleToRawLongBits(threatZ)
-            });
+            COVER_THREAT.put(unitId, packThreats(unit, hull, target, threatX, threatZ));
             CoverQuery.fillCoverInterest(level, hull.getX(), hull.getZ(), hull.getYRot(),
                     threatX, threatZ, this.coverInterest, GroundMobility.SLOTS_DEG);
         }
+
+        // ---- Battle position ----
+        boolean taskedMove = assign != null
+                && (taskedManeuver || assign.role() == com.neoalive.tacz_sewv.entity.ai.command.Assignment.Role.WITHDRAW);
+        updateBattlePosition(level, unit, hull, facts, target, threatX, threatZ, hasThreatBearing,
+                groundMobile && !taskedMove && !VehicleTargeting.holdsOrderedMove(unit)
+                        && this.seekCoverWaypoint == null,
+                now);
+        boolean battleLatched = this.battle.latched();
+        if (battleLatched) this.active.add(Tactic.BATTLE_POSITION);
 
         // ---- Seek cover (retreat bias after smoke / low confidence) ----
         boolean smokeFresh = Facts.ticksSince(facts.memory.lastSmokeTick, now) <= SMOKE_FRESH_TICKS;
@@ -300,6 +375,9 @@ public final class TacticalPosture {
                 }
             }
             if (cover != null) {
+                this.battle.drop(now);
+                battleLatched = false;
+                this.active.remove(Tactic.BATTLE_POSITION);
                 this.active.add(Tactic.SEEK_COVER);
                 this.seekCoverWaypoint = cover;
                 this.seekCoverUntil = now + SEEK_COVER_DURATION;
@@ -314,7 +392,8 @@ public final class TacticalPosture {
         }
 
         // ---- Fire and maneuver (1C) ----
-        if (target != null && recentShot > 0.55 && this.scootWaypoint == null
+        // A battle position replaces the scoot: it moves to its alternate under pressure, not after every shot.
+        if (!battleLatched && target != null && recentShot > 0.55 && this.scootWaypoint == null
                 && this.seekCoverWaypoint == null) {
             boolean breakLos = facts.memory.recentlyHit(now, 100)
                     || facts.confidence < Confidence.NEUTRAL;
@@ -338,7 +417,7 @@ public final class TacticalPosture {
         }
 
         // ---- Corner peek ----
-        if (target != null && keyhole > 0.45 && this.scootWaypoint == null
+        if (!battleLatched && target != null && keyhole > 0.45 && this.scootWaypoint == null
                 && this.seekCoverWaypoint == null && this.peekWaypoint == null) {
             Vec3 peek = CoverQuery.suggestKeyhole(level, hull, target);
             if (peek != null) {
@@ -354,7 +433,9 @@ public final class TacticalPosture {
 
         // ---- Ambush (2A gated) ----
         boolean ambush = false;
-        if (ambushAllowed && inCover > 0.55 && (target != null || facts.memory.hasFreshContact(now))
+        // Never on a battle position: it was picked to shoot from, and ambush holds the gun until the enemy closes to
+        // 0.6 of the ring the position sits on. Two sides on facing positions then each waited for the other forever.
+        if (!battleLatched && ambushAllowed && inCover > 0.55 && (target != null || facts.memory.hasFreshContact(now))
                 && facts.confidence >= Confidence.NEUTRAL - 15.0) {
             double closeBand = facts.preferredRange * 0.6;
             double dist;
@@ -373,7 +454,9 @@ public final class TacticalPosture {
         }
 
         // ---- Infantry cover ----
-        if (allyInfantry > 0.25
+        // A BOLD crew does not babysit its infantry; it fights its own fight.
+        if (!battleLatched && Doctrine.Temperament.of(facts.caution) != Doctrine.Temperament.BOLD
+                && allyInfantry > 0.25
                 && facts.targetCategory == com.neoalive.tacz_sewv.entity.ai.core.VehicleWeapons.TargetCategory.VEHICLE
                 && target != null
                 && this.infantryShieldPoint == null) {
@@ -401,13 +484,16 @@ public final class TacticalPosture {
         facts.postureScoot = this.scootWaypoint != null && now <= this.scootUntil;
         facts.postureAmbush = ambush;
         facts.postureSeekCover = this.seekCoverWaypoint != null && now <= this.seekCoverUntil;
+        long lastShot = hull instanceof IAiFireTracker tracker ? tracker.tacz_sewv$getLastAiShotTick() : Long.MIN_VALUE;
+        facts.inBattlePosition = battleLatched && target != null
+                && BattlePosition.working(now, this.battle.arrivedAt(), lastShot);
 
         float[] published = FAN_BIAS.computeIfAbsent(unitId, id -> new float[GroundMobility.SLOT_COUNT]);
         System.arraycopy(this.coverInterest, 0, published, 0, this.coverInterest.length);
 
         if (SewvDiag.individualTacticsVerbose() && !this.active.isEmpty()) {
             SewvDiag.posture(
-                    "unit={}#{} hull={}#{} tactics={} exp={} cover={} keyhole={} shot={} allies={} scoot={} ambush={} seekCover={} conf={}",
+                    "unit={}#{} hull={}#{} tactics={} exp={} cover={} keyhole={} shot={} allies={} scoot={} ambush={} seekCover={} conf={} bp={} alt={} hullDown={} pressure={} temper={}",
                     unit.getClass().getSimpleName(), unitId,
                     hull.getName().getString(), hull.getId(),
                     this.active,
@@ -419,7 +505,69 @@ public final class TacticalPosture {
                     facts.postureScoot,
                     ambush,
                     facts.postureSeekCover,
-                    String.format("%.0f", facts.confidence));
+                    String.format("%.0f", facts.confidence),
+                    !battleLatched ? "NONE" : this.battle.onStation() ? "ON_STATION" : "EN_ROUTE",
+                    this.battle.hasAlternate(),
+                    this.battle.hullDown(),
+                    String.format("%.2f", facts.pressure),
+                    Doctrine.Temperament.of(facts.caution));
+        }
+    }
+
+    /**
+     * Pick, keep, swap or drop the battle position. An engagement is fresh-contact memory, not a target lock, so a
+     * flickering lock never re-picks; picks are further bounded per hull and per level inside {@link BattlePosition}.
+     * The position survives losing the target (a crew suppresses from it), and is only ever picked with one.
+     */
+    private void updateBattlePosition(ServerLevel level, AbstractUnit unit, VehicleEntity hull, Facts facts,
+                                      @Nullable LivingEntity target, double threatX, double threatZ,
+                                      boolean hasThreatBearing, boolean allowed, long now) {
+        if (!BattlePosition.enabled()) {
+            this.battle.clear();
+            return;
+        }
+        // Past the suppress window a lost contact releases the position: the crew should go and look, not hold a
+        // spot facing nothing for the rest of the 30 s contact memory.
+        boolean engaged = target != null
+                || (hasThreatBearing && Facts.ticksSince(facts.memory.lastContactTick, now) <= SuppressiveFire.WINDOW_TICKS);
+        if (this.battle.latched()) {
+            this.battle.markArrival(hull, now);
+            if (hull instanceof IAiFireTracker tracker) this.battle.renew(tracker.tacz_sewv$getLastAiShotTick());
+            Vec3 bp = this.battle.point();
+            double drift = hasThreatBearing
+                    ? BattlePosition.bearingDelta(Math.atan2(threatZ - bp.z, threatX - bp.x), this.battle.pickedBearing())
+                    : 0.0;
+            double targetDist = target != null ? hull.distanceTo(target) : Double.MAX_VALUE;
+            double minDist = target != null
+                    ? facts.preferredRange - Facts.rangeDeadband(facts.targetCategory) : 0.0;
+            long onStation = this.battle.onStation() ? now - this.battle.arrivedAt() : -1;
+            BattlePosition.Verdict verdict = BattlePosition.decide(engaged, !allowed, drift, targetDist, minDist,
+                    now, this.battle.leaseUntil(), onStation, facts.pressure, this.battle.hasAlternate());
+            if (verdict == BattlePosition.Verdict.SWAP) this.battle.swap(now);
+            else if (verdict == BattlePosition.Verdict.DROP) this.battle.drop(now);
+            return;
+        }
+        if (!allowed || !engaged || target == null || !this.battle.mayPick(now)) return;
+        if (!BattlePosition.wantsPosition(facts.caution, facts.pressure, facts.forceRatio, facts.health,
+                facts.confidence)) return;
+        // Already inside the band: the release below would drop any pick on the next refresh, so a pick here only
+        // churned (pick, drop, cooldown, pick) and spent its raycasts for nothing.
+        if (hull.distanceTo(target) < facts.preferredRange - Facts.rangeDeadband(facts.targetCategory)) return;
+        long[] threats = COVER_THREAT.get(unit.getId());
+        if (threats == null || !this.battle.acquirePickSlot(level, now)) return;
+        CoverQuery.BattlePick pick = CoverQuery.suggestBattlePositions(level, hull, target, threats,
+                facts.preferredRange, Facts.rangeDeadband(facts.targetCategory));
+        double bearing = pick == null ? 0.0
+                : Math.atan2(threatZ - pick.primary().z, threatX - pick.primary().x);
+        this.battle.latch(pick, bearing, now, BattlePosition.leaseScale(facts.caution));
+        if (pick != null) {
+            // Whatever the old tactics had armed would pull the hull off the position it just chose.
+            this.scootWaypoint = null;
+            this.scootUntil = Long.MIN_VALUE;
+            this.peekWaypoint = null;
+            this.peekUntil = Long.MIN_VALUE;
+            this.infantryShieldPoint = null;
+            this.shieldUntil = Long.MIN_VALUE;
         }
     }
 

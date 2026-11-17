@@ -31,6 +31,8 @@ public final class UtilityWeightsSelfCheck {
         shippedWeightsLoad();
         pairedActionsAreSymmetric();
         healthDecidesWhetherToFight();
+        pressureShakesButDoesNotRout();
+        suppressBeforeSearching();
         confidenceDoesNotSaturate();
         everyActionIsDispatchable();
         idleCrewsDoNotJustSit();
@@ -246,6 +248,63 @@ public final class UtilityWeightsSelfCheck {
         double hurtRetreat = weights.score(Action.RETREAT, engagement(0.15), Doctrine.NEUTRAL);
         assert hurtRetreat > hurtAttack
                 : "a badly hurt crew must break off: attack=" + hurtAttack + " retreat=" + hurtRetreat;
+    }
+
+    /**
+     * Incoming fire ({@code underFire}) must not rout a healthy crew (a tank that runs from rifle
+     * fire is useless), but must tip a damaged one under heavy fire into smoke or breaking contact.
+     * It is a confidence penalty like any other, never a floor or a ceiling.
+     */
+    private static void pressureShakesButDoesNotRout() {
+        UtilityWeights weights = UtilityWeights.parse(
+                Map.of(ResourceLocation.fromNamespaceAndPath("tacz_sewv", "weights"), shippedWeights()));
+
+        double[] healthyUnderFire = engagement(1.0);
+        healthyUnderFire[Signal.UNDER_FIRE.ordinal()] = 0.6;
+        double attack = weights.score(Action.ATTACK, healthyUnderFire, Doctrine.NEUTRAL);
+        double retreat = weights.score(Action.RETREAT, healthyUnderFire, Doctrine.NEUTRAL);
+        assert attack > retreat
+                : "a healthy crew under fire must keep fighting: attack=" + attack + " retreat=" + retreat;
+
+        double[] hurtUnderFire = engagement(0.4);
+        hurtUnderFire[Signal.UNDER_FIRE.ordinal()] = 1.0;
+        hurtUnderFire[Signal.SMOKE_READY.ordinal()] = 1.0;
+        double hurtAttack = weights.score(Action.ATTACK, hurtUnderFire, Doctrine.NEUTRAL);
+        double breakOff = Math.max(weights.score(Action.RETREAT, hurtUnderFire, Doctrine.NEUTRAL),
+                weights.score(Action.DEPLOY_SMOKE, hurtUnderFire, Doctrine.NEUTRAL));
+        assert breakOff > hurtAttack
+                : "a damaged crew under heavy fire must smoke or break off: attack=" + hurtAttack
+                        + " breakOff=" + breakOff;
+
+        double[] pressed = zeroSignals();
+        pressed[Signal.UNDER_FIRE.ordinal()] = 1.0;
+        double conf = Confidence.evaluate(pressed, Doctrine.NEUTRAL, weights);
+        assert conf < Confidence.NEUTRAL && conf > 0.0
+                : "fire alone should shake a crew, not bottom it out, was " + conf;
+    }
+
+    /**
+     * Just after a target breaks contact, a crew with a machine gun rakes the spot before it goes
+     * looking (Steve's Army's last-known suppression), but a dry gun goes home instead of firing.
+     * SUPPRESS must sit in the stand-down set: by construction the target is gone.
+     */
+    private static void suppressBeforeSearching() {
+        assert !Action.SUPPRESS.needsTarget() : "SUPPRESS runs with the target gone";
+        UtilityWeights weights = UtilityWeights.parse(
+                Map.of(ResourceLocation.fromNamespaceAndPath("tacz_sewv", "weights"), shippedWeights()));
+
+        double[] lost = zeroSignals();
+        lost[Signal.BASE.ordinal()] = 1.0;
+        lost[Signal.LOST_CONTACT.ordinal()] = 1.0;
+        double suppress = weights.score(Action.SUPPRESS, lost, Doctrine.NEUTRAL);
+        double search = weights.score(Action.SEARCH_LAST_KNOWN, lost, Doctrine.NEUTRAL);
+        assert suppress > search : "rake the spot before going to look: suppress=" + suppress + " search=" + search;
+
+        lost[Signal.LOW_AMMO.ordinal()] = 1.0;
+        double drySuppress = weights.score(Action.SUPPRESS, lost, Doctrine.NEUTRAL);
+        double regroup = weights.score(Action.REGROUP, lost, Doctrine.NEUTRAL);
+        assert regroup > drySuppress : "a dry gun does not empty itself into a bush: suppress=" + drySuppress
+                + " regroup=" + regroup;
     }
 
     /** A crew in contact on its preferred ring at the given health, with everything else neutral. */

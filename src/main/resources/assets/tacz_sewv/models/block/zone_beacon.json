@@ -1,0 +1,6 @@
+{
+  "parent": "tacz_sewv:block/fob_invisible",
+  "textures": {
+    "particle": "tacz_sewv:block/fpas"
+  }
+}

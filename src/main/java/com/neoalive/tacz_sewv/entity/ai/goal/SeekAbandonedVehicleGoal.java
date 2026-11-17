@@ -19,6 +19,7 @@ import com.neoalive.tacz_sewv.bridge.ICaptureOrder;
 import com.neoalive.tacz_sewv.bridge.IMortarCrew;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.compat.NpcVehicleOverrides;
+import com.neoalive.tacz_sewv.compat.TripodCompat;
 import com.neoalive.tacz_sewv.compat.lv.LvCompat;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
@@ -131,6 +132,8 @@ public class SeekAbandonedVehicleGoal extends Goal {
 
     private boolean isAbandoned(VehicleEntity hull) {
         if (!hull.isAlive() || hull.isWreck()) return false;
+        // Inside a tripod's standoff: the crew just fled it (TripodStandoffGoal), don't send it back.
+        if (TripodCompat.blocksClaim(this.unit, hull.position())) return false;
 
         // A mortar is a VehicleEntity with NO seats — nothing can mount it, and a crew works it
         // standing beside it (ManMortarGoal). Boarding one is not a thing that can happen, so

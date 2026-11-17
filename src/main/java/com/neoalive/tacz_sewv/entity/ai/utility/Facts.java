@@ -17,6 +17,7 @@ import net.minecraft.core.Holder;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.BiomeTags;
 import net.minecraft.util.Mth;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.biome.Biome;
@@ -26,6 +27,7 @@ import net.minecraft.world.phys.Vec3;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
+import com.neoalive.tacz_sewv.compat.TripodCompat;
 import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.CrewFacts;
@@ -37,6 +39,8 @@ import com.neoalive.tacz_sewv.entity.ai.core.VehicleWeapons.TargetCategory;
 import com.neoalive.tacz_sewv.entity.ai.sensor.HullLocalScan;
 import com.neoalive.tacz_sewv.entity.ai.support.FireMissionSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.IdleGroupSupport;
+import com.neoalive.tacz_sewv.entity.ai.support.SuppressiveFire;
+import com.neoalive.tacz_sewv.entity.ai.suppression.HullPressure;
 import com.neoalive.tacz_sewv.item.HandheldRadioItem;
 import com.neoalive.tacz_sewv.util.SmokeVision;
 
@@ -163,6 +167,13 @@ public final class Facts {
     public boolean screened;
     /** Blocks per tick. */
     public double speed;
+    /** 0..1, fire the hull is taking ({@link com.neoalive.tacz_sewv.entity.ai.suppression.HullPressure}). */
+    public double pressure;
+    /**
+     * The seat that could rake a just-lost contact ({@link SuppressiveFire#machineGunSeat}), or -1. Only
+     * looked up while such a contact exists, since the slot lookup reads gun data.
+     */
+    public int suppressSeat = -1;
 
     // ---- local battlefield ----
     @Nullable
@@ -270,6 +281,10 @@ public final class Facts {
     public boolean postureAmbush;
     /** SEEK_COVER waypoint live (smoke+low-conf or debug). */
     public boolean postureSeekCover;
+    /** 0 (bold) to 1 (cautious), {@link Doctrine#caution}; written by the brain before sampling. */
+    public double caution = 0.5;
+    /** On station at a latched battle position. */
+    public boolean inBattlePosition;
 
     public final Memory memory = new Memory();
 
@@ -300,8 +315,17 @@ public final class Facts {
         readIdleGroup(unit, hull);
         readEnvironment(unit, hull);
         readComms(unit, now);
+        readSuppression(unit, hull, now);
         this.populated = true;
         return true;
+    }
+
+    private void readSuppression(AbstractUnit unit, VehicleEntity hull, long now) {
+        boolean lostFresh = this.target == null && this.memory.lastEnemyPos != null
+                && ticksSince(this.memory.lastContactTick, now) <= SuppressiveFire.WINDOW_TICKS
+                && SuppressiveFire.enabled()
+                && SuppressiveFire.claimable(unit, hull, this.memory.lastEnemyPos, now);
+        this.suppressSeat = lostFresh ? SuppressiveFire.machineGunSeat(hull) : -1;
     }
 
     /**
@@ -366,6 +390,7 @@ public final class Facts {
         this.canShoot = this.ammoCount > 0;
         this.smokeReady = this.hasDecoy && safeDecoyReady(hull);
         this.speed = hull.getLastTickSpeed();
+        this.pressure = HullPressure.read(hull, unit.level().getGameTime());
     }
 
     /** Rounds available to this seat's selected weapon, or -1 when the seat has no weapon. */
@@ -432,6 +457,16 @@ public final class Facts {
         return TacticalScale.of(category == TargetCategory.VEHICLE ? 40.0 : 15.0);
     }
 
+    /**
+     * {@link #preferredRange(TargetCategory)} for this crew and target: an RU/US crew fighting a
+     * tripod holds outside its standoff ({@link TripodCompat#standoffRing}), or ADVANCE/FLANK would
+     * keep driving it into {@code DriveVehicleGoal}'s tripod early-out.
+     */
+    public static double preferredRange(Entity unit, @Nullable LivingEntity target,
+                                        @Nullable TargetCategory category) {
+        return TripodCompat.standoffRing(unit, target, preferredRange(category));
+    }
+
     /** Half-width of the band around {@link #preferredRange} that counts as "on the ring". */
     public static double rangeDeadband(@Nullable TargetCategory category) {
         // Armor was 4: tracked inertia overshoots that and both hulls reverse together.
@@ -443,7 +478,7 @@ public final class Facts {
         this.targetCategory = this.target != null ? VehicleWeapons.classifyTarget(this.target) : null;
         this.targetDist = this.target != null ? hull.distanceTo(this.target) : Double.MAX_VALUE;
 
-        this.preferredRange = preferredRange(this.targetCategory);
+        this.preferredRange = preferredRange(unit, this.target, this.targetCategory);
         this.rangeError = this.target != null
                 ? (this.targetDist - this.preferredRange) / this.preferredRange
                 : 0.0;
@@ -686,6 +721,8 @@ public final class Facts {
         this.postureScoot = false;
         this.postureAmbush = false;
         this.postureSeekCover = false;
+        this.inBattlePosition = false;
+        this.caution = 0.5;
         this.memory.clear();
     }
 

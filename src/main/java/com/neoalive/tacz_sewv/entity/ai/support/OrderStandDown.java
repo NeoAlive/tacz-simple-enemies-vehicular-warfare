@@ -40,10 +40,49 @@ public final class OrderStandDown {
             capture.sewv$clearCaptureOrder();
         }
         ((IPathwayInfantry) pmc).sewv$clearPathway();
+        SuppressOrders.clear(pmc);
+        com.neoalive.tacz_sewv.fpas.SignalTasks.clear(pmc);
+        CoverHoldOrders.clear(pmc);
+        com.neoalive.tacz_sewv.command.quick.GearSearchTracker.release(pmc);
+        com.neoalive.tacz_sewv.command.quick.MinefieldTracker.release(pmc);
+        com.neoalive.tacz_sewv.command.quick.scavenge.ScavengeTracker.release(pmc);
+    }
+
+    /**
+     * Whether a task this mod gave the unit still holds it — the counterpart of {@link #clearForNewOrder}, kept
+     * beside it so the two lists stay one. Read by the formation rejoin ({@link FormationSubjects#rejoin}): a
+     * follower borrowed by any of these is left to finish before it goes back on its slot.
+     */
+    public static boolean hasStandingTask(PmcUnitEntity pmc) {
+        if (((IVehiclePatrol) pmc).sewv$getPatrolOrigin() != null
+                || ((IVehiclePatrol) pmc).sewv$hasSweepRect()
+                || ((ISweepInfantry) pmc).sewv$hasInfantrySweep()) {
+            return true;
+        }
+        if (((IEscort) pmc).tacz_sewv$isEscorting()) return true;
+        if (EntrenchSupport.isEntrenched(pmc)) return true;
+        if (GuardSupport.isReaching(pmc) || TowRecoverySupport.hasTowOrder(pmc)) return true;
+        if (pmc instanceof ICaptureOrder capture && capture.sewv$hasCaptureOrder()) return true;
+        if (((IPathwayInfantry) pmc).sewv$hasPathway()) return true;
+        if (CoverHoldOrders.has(pmc)) return true;
+        if (com.neoalive.tacz_sewv.command.quick.GearSearchTracker.isSearching(pmc)) return true;
+        if (com.neoalive.tacz_sewv.command.quick.MinefieldTracker.isLaying(pmc)) return true;
+        if (com.neoalive.tacz_sewv.command.quick.scavenge.ScavengeTracker.isScavenging(pmc)) return true;
+        IVehicleBoarder boarder = (IVehicleBoarder) pmc;
+        if (boarder.tacz_sewv$isBoarding() || boarder.tacz_sewv$getMountTargetId() >= 0) return true;
+        return MortarSupport.hasMortarClaim(pmc) || FobSupport.hasRoutePending(pmc);
     }
 
     public static void clearAll(PmcUnitEntity pmc, String reason) {
+        // A downed unit cannot stand on a slot or lead one.
+        FormationSubjects.onDowned(pmc);
         pmc.setTarget(null);
+        SuppressOrders.clear(pmc);
+        com.neoalive.tacz_sewv.fpas.SignalTasks.clear(pmc);
+        CoverHoldOrders.clear(pmc);
+        com.neoalive.tacz_sewv.command.quick.GearSearchTracker.release(pmc);
+        com.neoalive.tacz_sewv.command.quick.MinefieldTracker.release(pmc);
+        com.neoalive.tacz_sewv.command.quick.scavenge.ScavengeTracker.release(pmc);
         pmc.setOrder(OrderType.CEASE_FIRE);
 
         PatrolSupport.clearSweepMembership(pmc, reason);
@@ -85,6 +124,9 @@ public final class OrderStandDown {
      */
     public static void clearForVehicleBail(PmcUnitEntity pmc) {
         pmc.setTarget(null);
+        SuppressOrders.clear(pmc);
+        com.neoalive.tacz_sewv.fpas.SignalTasks.clear(pmc);
+        CoverHoldOrders.clear(pmc);
         ((IEscort) pmc).tacz_sewv$setEscortTargetId(-1);
         PatrolSupport.clearSweepMembership(pmc, "BailOutSupport");
         TerritorySupport.dropPost(pmc);

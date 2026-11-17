@@ -1,0 +1,15 @@
+{
+  "required": false,
+  "minVersion": "0.8",
+  "package": "com.neoalive.tacz_sewv.mixin.fcp",
+  "plugin": "com.neoalive.tacz_sewv.mixin.fcp.FcpMixinPlugin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "MixinFcpVehicleHold"
+  ],
+  "client": [],
+  "server": [],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

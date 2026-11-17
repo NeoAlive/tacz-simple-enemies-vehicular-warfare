@@ -18,6 +18,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import com.neoalive.tacz_sewv.bridge.ICaptureOrder;
 import com.neoalive.tacz_sewv.bridge.IEntrenched;
@@ -285,11 +286,30 @@ public abstract class MixinPmcUnitEntity
      * standing formation instead of dropping it — those two orders are meant to keep the shape
      * and axis a Quick Wheel formation set, not just FORM_WEDGE/FORM_COLUMN.
      */
+    /** Every MOVE writer goes through here, so this is where a map waypoint learns its batch. */
+    @Inject(method = "setMoveToTarget", at = @At("HEAD"), remap = false)
+    private void tacz_sewv$stampMoveBatch(net.minecraft.world.phys.Vec3 target, CallbackInfo ci) {
+        if (!((Entity) (Object) this).isAddedToLevel()) return;
+        com.neoalive.tacz_sewv.order.OrderBatch.stamp((Entity) (Object) this);
+    }
+
     @Inject(method = "setFormationIndex", at = @At("HEAD"), remap = false)
     private void tacz_sewv$dropFormationAxisOnReorder(int index, CallbackInfo ci) {
         if (!((Entity) (Object) this).isAddedToLevel()) return;
         if (((IFormationMember) this).sewv$consumeFormationCarry()) return;
         VehicleFormation.clear((PmcUnitEntity) (Object) this);
+    }
+
+    /**
+     * SEM's target filter reads {@code isFireAllowed()} ({@code order != CEASE_FIRE}). A UNIT formation
+     * follower keeps its FORM_* order while its leader is under a cease-fire, so the posture it heard from the
+     * leader is folded in here — the same filter then stops it picking anyone.
+     */
+    @Inject(method = "isFireAllowed", at = @At("RETURN"), cancellable = true, remap = false)
+    private void tacz_sewv$formationHoldFire(CallbackInfoReturnable<Boolean> cir) {
+        if (cir.getReturnValueZ() && ((IFormationMember) this).sewv$getFormationHoldFire()) {
+            cir.setReturnValue(false);
+        }
     }
 
     /**
@@ -346,6 +366,12 @@ public abstract class MixinPmcUnitEntity
         // gives an inventory to — RU/US have no ITEM_HANDLER to hold one. Priority 2 keeps
         // first aid below anything crew-served: it only runs out of contact anyway.
         ((Mob) self).goalSelector.addGoal(2, new MedicGoal(self));
+        // The player's Suppress Area order on foot. Idle without an order: one map lookup.
+        ((Mob) self).goalSelector.addGoal(2, new com.neoalive.tacz_sewv.entity.ai.goal.SuppressAreaGoal(self));
+        // Cover and Hold on foot. Priority 1 so the walk outranks SEM's cover and chase goals.
+        ((Mob) self).goalSelector.addGoal(1, new com.neoalive.tacz_sewv.entity.ai.goal.CoverHoldGoal(self));
+        // Deploy Minefield: a combat engineer's run between mine slots. Idle without an order: one map lookup.
+        ((Mob) self).goalSelector.addGoal(1, new com.neoalive.tacz_sewv.entity.ai.goal.LayMineGoal(self));
         // Soft-compat: PlayerReviveMod. Any friendly PMC — no medical kit required, unlike
         // MedicGoal — revives a downed player automatically; see PlayerReviveCompat/PlayerReviveGoal.
         // Gated at goal-add time rather than inside canUse() so the goal simply doesn't exist

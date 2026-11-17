@@ -11,8 +11,8 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.fml.ModList;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
+import net.neoforged.fml.ModList;
 import org.slf4j.Logger;
 
 import com.neoalive.tacz_sewv.config.SewvConfig;

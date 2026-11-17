@@ -17,5 +17,9 @@ public final class ModMenus {
     public static final DeferredHolder<MenuType<?>, MenuType<StockpileMenu>> STOCKPILE =
             MENUS.register("stockpile", () -> IMenuTypeExtension.create(StockpileMenu::new));
 
+    public static final DeferredHolder<MenuType<?>, MenuType<com.neoalive.tacz_sewv.inventory.ZoneBeaconMenu>> ZONE_BEACON =
+            MENUS.register("zone_beacon",
+                    () -> IMenuTypeExtension.create(com.neoalive.tacz_sewv.inventory.ZoneBeaconMenu::new));
+
     private ModMenus() {}
 }

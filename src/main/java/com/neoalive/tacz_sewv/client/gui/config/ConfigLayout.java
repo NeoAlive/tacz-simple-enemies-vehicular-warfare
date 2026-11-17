@@ -68,17 +68,18 @@ public final class ConfigLayout {
         rule("crew_ai", "infantry_weapons", "atWeapon", "atAir", "atSecond", "atBackup", "atEngage", "sbw");
         rule("crew_ai", "medics", "medic", "pmcRevive", "pmcDowned", "healthMobility");
         rule("crew_ai", "support", "engineer", "commanderSidearm", "drone", "combatEngineer", "supportDedupe",
-                "supportCall", "factionOrganicComms");
+                "supportCall", "factionOrganicComms", "notificationsRequireRadio", "radioVoice");
         rule("crew_ai", "boarding", "autoBoard", "tow", "autoManMortar", "autoEntrench");
         rule("crew_ai", "awareness", "vehicleTarget", "contactBoard", "wideScan", "combatantIndex",
-                "awarenessCues", "individualTactics", "utilityRefresh");
+                "awarenessCues", "individualTactics", "battlePosition", "utilityRefresh");
         rule("crew_ai", "movement", "path", "sensor", "tree", "cover", "groundFarLod", "vehicleTerrain",
                 "patrol");
         rule("crew_ai", "idle", "idle");
         rule("crew_ai", "crew", "vehicleSkin", "camo", "ifv", "semCrew", "tankRider");
 
-        rule("events", "spawns", "groundSpawn", "groundIn", "rotorSpawn", "rotorIn", "planeSpawn", "farEvent", "planesIn",
+        rule("events", "spawns", "groundSpawn", "groundIn", "rotorSpawn", "rotorIn", "planeSpawn", "planesIn",
                 "garrison");
+        rule("events", "marks", "legacyEvent", "eventMark");
         rule("events", "structures", "structures", "nativeStructures");
         rule("events", "convoy", "convoy");
         rule("events", "large_combat", "largeCombat");
@@ -96,6 +97,7 @@ public final class ConfigLayout {
         rule("compat", "trees", "vehicleTree");
         rule("compat", "minecolonies", "minecolonies");
         rule("compat", "rendering", "komodo");
+        rule("compat", "tripod", "tripod");
     }
 
     private static boolean checked;

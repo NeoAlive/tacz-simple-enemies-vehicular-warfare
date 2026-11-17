@@ -1,7 +1,9 @@
 package com.neoalive.tacz_sewv.compat;
 
 import java.lang.reflect.Method;
+import java.util.List;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 
 import javax.annotation.Nullable;
 
@@ -38,6 +40,18 @@ public final class ColtanArmorBridge {
             LOGGER.info("Registered SEWV crew armor skins on ColtanArmorSkins");
         } catch (ReflectiveOperationException e) {
             LOGGER.warn("Coltan present but ColtanArmorSkins resolver unavailable", e);
+            return;
+        }
+        try {
+            Class<?> skins = Class.forName(SKINS_CLASS);
+            Method setCatalog = skins.getMethod("setCatalog", Function.class);
+            Function<ResourceLocation, List<ResourceLocation>> catalog = CrewSkinRegistry::armorCatalog;
+            setCatalog.invoke(null, catalog);
+            LOGGER.info("Registered SEWV crew armor skin catalog on ColtanArmorSkins (one GemRender draw per piece)");
+        } catch (NoSuchMethodException e) {
+            LOGGER.info("Coltan has no ColtanArmorSkins.setCatalog (older build): one GemRender model per skin");
+        } catch (ReflectiveOperationException e) {
+            LOGGER.warn("ColtanArmorSkins.setCatalog failed", e);
         }
     }
 
@@ -50,6 +64,9 @@ public final class ColtanArmorBridge {
         if (faction == null) {
             return null;
         }
-        return CrewSkinRegistry.textureFor(entity, stack, faction);
+        // Resource twin, not the DynamicTexture id: Coltan's importer reads through the
+        // ResourceManager, and the catalog above lists the same resource ids.
+        ResourceLocation skin = CrewSkinRegistry.textureFor(entity, stack, faction);
+        return skin == null ? null : CrewSkinRegistry.asResource(skin);
     }
 }

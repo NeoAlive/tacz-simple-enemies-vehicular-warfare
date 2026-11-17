@@ -22,8 +22,33 @@ public final class MarchSelfCheck {
         fileSitsBehindItsHull();
         lagSign();
         deterministicSeedsAndHolds();
+        stuckMemberIsReleased();
+        stallBackoffDoublesAndCaps();
+        failedBearingIsSkipped();
 
         System.out.println("march self-check: OK");
+    }
+
+    private static void stuckMemberIsReleased() {
+        assert !March.releaseWorst(0L, 600, 3) : "a fresh wait releases no one";
+        assert !March.releaseWorst(300L, 600, 3) : "not before half the stall limit";
+        assert March.releaseWorst(301L, 600, 3) : "past half the stall limit the worst member goes";
+        assert !March.releaseWorst(10_000L, 600, 1) : "a lone member is never released, the march stalls instead";
+    }
+
+    private static void stallBackoffDoublesAndCaps() {
+        assert IdleMarches.stallBackoff(150, 1) == 600 : "first stall: hold x 4";
+        assert IdleMarches.stallBackoff(150, 2) == 1200 : "second doubles";
+        assert IdleMarches.stallBackoff(150, 3) == IdleMarches.STALL_BACKOFF_CAP : "third hits the cap";
+        assert IdleMarches.stallBackoff(150, 30) == IdleMarches.STALL_BACKOFF_CAP : "capped for good";
+    }
+
+    private static void failedBearingIsSkipped() {
+        double failed = Math.toRadians(341.0);
+        assert RouteScout.avoided(Math.toRadians(341.0), new double[] {failed}) : "the failed heading itself";
+        assert RouteScout.avoided(Math.toRadians(5.0), new double[] {failed}) : "across the wrap, 24 degrees off";
+        assert !RouteScout.avoided(Math.toRadians(71.0), new double[] {failed}) : "90 degrees off is open";
+        assert !RouteScout.avoided(failed, new double[0]) : "nothing avoided by default";
     }
 
     /** An L: 30 east, then 40 north. */

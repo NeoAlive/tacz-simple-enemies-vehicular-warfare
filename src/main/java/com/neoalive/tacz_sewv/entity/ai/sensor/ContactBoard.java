@@ -198,7 +198,7 @@ public final class ContactBoard {
 
     // --- glue ------------------------------------------------------------------------------------
 
-    private static boolean enabled() {
+    public static boolean enabled() {
         try {
             return SewvConfig.CONTACT_BOARD_ENABLED.get();
         } catch (Throwable unbaked) {

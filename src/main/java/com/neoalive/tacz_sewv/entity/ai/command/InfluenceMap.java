@@ -156,17 +156,33 @@ public final class InfluenceMap {
      * source switches here.
      */
     public void derive(BattleField out, List<UnitPos> units, int ourFaction) {
+        derive(out, units, ourFaction, null);
+    }
+
+    /**
+     * As above, with the friendly centroid taken from {@code anchorIds} (the group's own hulls) when any of them
+     * are in {@code units}. Counts still see every friendly. Infantry wandering across the engagement radius and a
+     * flanker driving off used to drag the centroid, and every point laid off it, 20-40 blocks between passes.
+     */
+    public void derive(BattleField out, List<UnitPos> units, int ourFaction, @javax.annotation.Nullable int[] anchorIds) {
         out.clear();
         if (units.isEmpty() || this.width <= 0 || this.height <= 0) return;
 
         double fSumX = 0.0, fSumZ = 0.0;
         double eSumX = 0.0, eSumZ = 0.0;
         int fN = 0, eN = 0;
+        double aSumX = 0.0, aSumZ = 0.0;
+        int aN = 0;
         for (UnitPos u : units) {
             if (u.faction == ourFaction) {
                 fSumX += u.x;
                 fSumZ += u.z;
                 fN++;
+                if (anchorIds != null && contains(anchorIds, u.id)) {
+                    aSumX += u.x;
+                    aSumZ += u.z;
+                    aN++;
+                }
             } else {
                 eSumX += u.x;
                 eSumZ += u.z;
@@ -178,8 +194,8 @@ public final class InfluenceMap {
         out.forceBalance = fN / (double) Math.max(eN, 1);
         if (fN == 0) return; // no friendly picture — leave unpopulated
 
-        out.friendlyCentroidX = fSumX / fN;
-        out.friendlyCentroidZ = fSumZ / fN;
+        out.friendlyCentroidX = aN > 0 ? aSumX / aN : fSumX / fN;
+        out.friendlyCentroidZ = aN > 0 ? aSumZ / aN : fSumZ / fN;
         if (eN > 0) {
             out.enemyCentroidX = eSumX / eN;
             out.enemyCentroidZ = eSumZ / eN;
@@ -207,8 +223,21 @@ public final class InfluenceMap {
      */
     public void rebuildAndDerive(BattleField out, List<UnitPos> units, int ourFaction,
                                  double baseCell, int maxCells, double margin) {
+        rebuildAndDerive(out, units, ourFaction, baseCell, maxCells, margin, null);
+    }
+
+    /** As above, centroid anchored on {@code anchorIds}; see {@link #derive(BattleField, List, int, int[])}. */
+    public void rebuildAndDerive(BattleField out, List<UnitPos> units, int ourFaction,
+                                 double baseCell, int maxCells, double margin, @javax.annotation.Nullable int[] anchorIds) {
         rebuild(units, ourFaction, baseCell, maxCells, margin);
-        derive(out, units, ourFaction);
+        derive(out, units, ourFaction, anchorIds);
+    }
+
+    private static boolean contains(int[] ids, int id) {
+        for (int i : ids) {
+            if (i == id) return true;
+        }
+        return false;
     }
 
     /**

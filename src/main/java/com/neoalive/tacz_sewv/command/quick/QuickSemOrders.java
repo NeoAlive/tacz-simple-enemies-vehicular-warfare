@@ -10,8 +10,8 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.bridge.IPmcDowned;
 import com.neoalive.tacz_sewv.crew.CrewRadio;
+import com.neoalive.tacz_sewv.entity.ai.support.FormationSubjects;
 import com.neoalive.tacz_sewv.entity.ai.support.OrderStandDown;
-import com.neoalive.tacz_sewv.entity.ai.support.VehicleFormation;
 import com.neoalive.tacz_sewv.order.OrderFailure;
 import com.neoalive.tacz_sewv.order.OrderReport;
 
@@ -51,8 +51,12 @@ public final class QuickSemOrders {
                 continue;
             }
             OrderStandDown.clearForNewOrder(pmc, "QuickSemOrder");
-            // SEM's own Hold / Cease / Free drop a standing formation (setFormationIndex); match it.
-            if (order != OrderType.FOLLOW_COMMANDER) VehicleFormation.clear(pmc);
+            // The same formation policy SEM's own order packet goes through: a player formation survives
+            // FOLLOW and is dropped by the rest, a UNIT formation's orders go to its leader.
+            if (FormationSubjects.routeOrder(issuer, pmc, order, null, -1, false)) {
+                ok++;
+                continue;
+            }
             pmc.setOrder(order);
             if (pmc.getVehicle() instanceof VehicleEntity hull && hull.getFirstPassenger() == pmc) {
                 CrewRadio.play(hull, CrewRadio.Line.ORDER_DISPATCH);

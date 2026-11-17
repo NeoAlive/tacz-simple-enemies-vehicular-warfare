@@ -1,0 +1,368 @@
+{
+  "_doc": [
+    "Fixed-wing airframe classes for the tacz_sewv flight model (data/<ns>/sewv/wing/*.json).",
+    "Minecraft scale: gravity is 400 x the hull's SBW Gravity (24 m/s^2 by default), 1 block = 1 m, speeds",
+    "compressed to ~15-80 m/s, top speeds inside SBW's own normal-to-sprint band for the same hull. Rows are realistic in shape (lift curve with stall, parabolic polar, textbook",
+    "derivative signs) and sized for that world, so masses are small and cd0 is high: only ratios matter.",
+    "inertia = [pitch, yaw, roll] (kg m^2). Angles in degrees, speeds m/s, times s, rates deg/s [pitch, yaw, roll];",
+    "turnRateMaxDeg caps the coordinated turn rate (the controller limits bank to atan(turnRate V / g)).",
+    "A file naming a class replaces that whole row. Every row is checked at load: signs, trim from 1.3 x stall",
+    "to vMax, top speed, and integrator margins; a failing row is skipped with a warning naming why."
+  ],
+  "classes": {
+    "fighter_jet": {
+      "mass": 586.4,
+      "inertia": [
+        10344.8,
+        13779.2,
+        3434.4
+      ],
+      "wing": {
+        "span": 11,
+        "area": 30.25,
+        "cl0": 0.1,
+        "clAlpha": 4.2,
+        "alphaStallDeg": 15,
+        "oswald": 0.8,
+        "cd0": 0.0841
+      },
+      "stability": {
+        "cm0": 0.0194,
+        "cmAlpha": -0.45,
+        "cmq": -12,
+        "cmDe": 0.55,
+        "clBeta": -0.06,
+        "clp": -0.4,
+        "clDa": 0.14,
+        "cnBeta": 0.11,
+        "cnr": -0.16,
+        "cnDr": 0.07,
+        "cyBeta": -0.7
+      },
+      "propulsion": {
+        "type": "jet",
+        "staticThrust": 10555.9,
+        "spool": 1.2
+      },
+      "limits": {
+        "vMax": 80,
+        "nMax": 7.0,
+        "nMin": -3.0,
+        "bankMaxDeg": 75,
+        "alphaMaxDeg": 13,
+        "rateMax": [
+          90,
+          72,
+          200
+        ],
+        "turnRateMaxDeg": 60
+      },
+      "procedures": {
+        "vRotate": 30,
+        "approachSpeed": 34,
+        "cruiseSpeed": 52,
+        "runSpeed": 62,
+        "bestGlide": 36,
+        "flareHeight": 4,
+        "glideslopeDeg": 4,
+        "patternRadius": 55,
+        "breakG": 5,
+        "tRecover": 4
+      },
+      "aim": {
+        "coneDeg": [
+          -2,
+          2
+        ]
+      }
+    },
+    "attack_jet": {
+      "mass": 461.4,
+      "inertia": [
+        10630.9,
+        16348.0,
+        5717.1
+      ],
+      "wing": {
+        "span": 16,
+        "area": 36.571,
+        "cl0": 0.15,
+        "clAlpha": 4.8,
+        "alphaStallDeg": 14,
+        "oswald": 0.85,
+        "cd0": 0.0555
+      },
+      "stability": {
+        "cm0": 0.0182,
+        "cmAlpha": -0.55,
+        "cmq": -13,
+        "cmDe": 0.5,
+        "clBeta": -0.08,
+        "clp": -0.45,
+        "clDa": 0.12,
+        "cnBeta": 0.1,
+        "cnr": -0.15,
+        "cnDr": 0.06,
+        "cyBeta": -0.6
+      },
+      "propulsion": {
+        "type": "jet",
+        "staticThrust": 5536.9,
+        "spool": 1.6
+      },
+      "limits": {
+        "vMax": 65,
+        "nMax": 5.0,
+        "nMin": -2.0,
+        "bankMaxDeg": 65,
+        "alphaMaxDeg": 12,
+        "rateMax": [
+          70,
+          55,
+          120
+        ],
+        "turnRateMaxDeg": 45
+      },
+      "procedures": {
+        "vRotate": 23,
+        "approachSpeed": 26,
+        "cruiseSpeed": 40,
+        "runSpeed": 46,
+        "bestGlide": 26,
+        "flareHeight": 4,
+        "glideslopeDeg": 4,
+        "patternRadius": 40,
+        "breakG": 3.5,
+        "tRecover": 4
+      },
+      "aim": {
+        "coneDeg": [
+          -3,
+          3
+        ]
+      }
+    },
+    "dive_bomber": {
+      "mass": 320.5,
+      "inertia": [
+        3490.4,
+        6531.0,
+        3040.6
+      ],
+      "wing": {
+        "span": 14,
+        "area": 30.154,
+        "cl0": 0.2,
+        "clAlpha": 4.8,
+        "alphaStallDeg": 14,
+        "oswald": 0.8,
+        "cd0": 0.0251
+      },
+      "stability": {
+        "cm0": 0.0101,
+        "cmAlpha": -0.55,
+        "cmq": -13,
+        "cmDe": 0.5,
+        "clBeta": -0.08,
+        "clp": -0.45,
+        "clDa": 0.12,
+        "cnBeta": 0.1,
+        "cnr": -0.15,
+        "cnDr": 0.06,
+        "cyBeta": -0.6
+      },
+      "propulsion": {
+        "type": "prop",
+        "staticThrust": 3461.6,
+        "spool": 0.8,
+        "power": 147550.7
+      },
+      "limits": {
+        "vMax": 62,
+        "nMax": 6.0,
+        "nMin": -2.0,
+        "bankMaxDeg": 65,
+        "alphaMaxDeg": 12,
+        "rateMax": [
+          75,
+          60,
+          110
+        ],
+        "turnRateMaxDeg": 50
+      },
+      "procedures": {
+        "vRotate": 21,
+        "approachSpeed": 23,
+        "cruiseSpeed": 38,
+        "runSpeed": 52,
+        "bestGlide": 24,
+        "flareHeight": 3.5,
+        "glideslopeDeg": 4,
+        "patternRadius": 35,
+        "breakG": 4,
+        "tRecover": 4
+      },
+      "aim": {
+        "coneDeg": [
+          -3,
+          3
+        ]
+      }
+    },
+    "light_prop": {
+      "mass": 43.3,
+      "inertia": [
+        97.4,
+        172.9,
+        75.4
+      ],
+      "wing": {
+        "span": 6,
+        "area": 6.0,
+        "cl0": 0.25,
+        "clAlpha": 4.9,
+        "alphaStallDeg": 15,
+        "oswald": 0.8,
+        "cd0": 0.025
+      },
+      "stability": {
+        "cm0": 0.0079,
+        "cmAlpha": -0.6,
+        "cmq": -12,
+        "cmDe": 0.45,
+        "clBeta": -0.08,
+        "clp": -0.45,
+        "clDa": 0.12,
+        "cnBeta": 0.1,
+        "cnr": -0.15,
+        "cnDr": 0.06,
+        "cyBeta": -0.6
+      },
+      "propulsion": {
+        "type": "prop",
+        "staticThrust": 415.7,
+        "spool": 0.6,
+        "power": 13717.8
+      },
+      "limits": {
+        "vMax": 48,
+        "nMax": 4.0,
+        "nMin": -1.5,
+        "bankMaxDeg": 60,
+        "alphaMaxDeg": 13,
+        "rateMax": [
+          80,
+          66,
+          120
+        ],
+        "turnRateMaxDeg": 55
+      },
+      "procedures": {
+        "vRotate": 16,
+        "approachSpeed": 18,
+        "cruiseSpeed": 30,
+        "runSpeed": 34,
+        "bestGlide": 19,
+        "flareHeight": 2.5,
+        "glideslopeDeg": 4,
+        "patternRadius": 25,
+        "breakG": 3,
+        "tRecover": 3
+      },
+      "aim": {
+        "coneDeg": [
+          -3,
+          3
+        ]
+      }
+    },
+    "gunship": {
+      "mass": 2638.9,
+      "inertia": [
+        213750.0,
+        418105.5,
+        204355.5
+      ],
+      "wing": {
+        "span": 40,
+        "area": 160.0,
+        "cl0": 0.25,
+        "clAlpha": 5.2,
+        "alphaStallDeg": 13,
+        "oswald": 0.85,
+        "cd0": 0.0413
+      },
+      "stability": {
+        "cm0": 0.0416,
+        "cmAlpha": -0.7,
+        "cmq": -15,
+        "cmDe": 0.4,
+        "clBeta": -0.08,
+        "clp": -0.5,
+        "clDa": 0.1,
+        "cnBeta": 0.1,
+        "cnr": -0.15,
+        "cnDr": 0.05,
+        "cyBeta": -0.6
+      },
+      "propulsion": {
+        "type": "prop",
+        "staticThrust": 20266.7,
+        "spool": 2.0,
+        "power": 696666.6
+      },
+      "limits": {
+        "vMax": 50,
+        "nMax": 2.5,
+        "nMin": -1.0,
+        "bankMaxDeg": 45,
+        "alphaMaxDeg": 11,
+        "rateMax": [
+          25,
+          20,
+          30
+        ],
+        "turnRateMaxDeg": 15
+      },
+      "procedures": {
+        "vRotate": 26,
+        "approachSpeed": 28,
+        "cruiseSpeed": 34,
+        "runSpeed": 36,
+        "bestGlide": 29,
+        "flareHeight": 6,
+        "glideslopeDeg": 3.5,
+        "patternRadius": 90,
+        "breakG": 1.8,
+        "tRecover": 6
+      },
+      "aim": {
+        "coneDeg": [
+          -6,
+          6
+        ]
+      }
+    }
+  },
+  "hulls": {
+    "superbwarfare:a_10a": "attack_jet",
+    "superbwarfare:j_16": "fighter_jet",
+    "superbwarfare:ju_87": "dive_bomber",
+    "superbwarfare:kv_16": "light_prop",
+    "superbwarfare:ac_130h": "gunship"
+  },
+  "clues": [
+    {
+      "contains": "ac_130",
+      "class": "gunship"
+    },
+    {
+      "contains": "ju_87",
+      "class": "dive_bomber"
+    },
+    {
+      "contains": "a_10",
+      "class": "attack_jet"
+    }
+  ]
+}

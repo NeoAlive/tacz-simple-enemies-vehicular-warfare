@@ -19,6 +19,7 @@ import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.goal.DriveHelicopterGoal;
 import com.neoalive.tacz_sewv.entity.ai.goal.DrivePlaneGoal;
 import com.neoalive.tacz_sewv.network.PacketHelicopterCommand;
+import com.neoalive.tacz_sewv.util.LoadedTerrain;
 
 /**
  * Server-side flight-command writers shared by player packets and quick-command pipelines.
@@ -151,7 +152,7 @@ public final class FlightOrders {
                     if (r > 0 && Math.abs(dx) != r && Math.abs(dz) != r) continue;
                     int x = bx + dx;
                     int z = bz + dz;
-                    if (!level.hasChunkAt(x, z)) continue;
+                    if (!LoadedTerrain.loadedAt(level, x, z)) continue;
                     int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
                     if (y <= level.getMinBuildHeight()) continue;
                     BlockPos pad = new BlockPos(x, y, z);

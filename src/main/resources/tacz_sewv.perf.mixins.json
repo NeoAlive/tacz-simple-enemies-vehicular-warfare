@@ -1,0 +1,19 @@
+{
+  "required": false,
+  "minVersion": "0.8",
+  "package": "com.neoalive.tacz_sewv.mixin.perf",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [],
+  "client": [
+    "MixinDogTagIconCache",
+    "MixinTaczAttachmentLod",
+    "MixinTaczCubeCompile",
+    "MixinTaczGunFlush",
+    "MixinTaczModelFlush",
+    "MixinVehicleClientSim"
+  ],
+  "server": [],
+  "injectors": {
+    "defaultRequire": 0
+  }
+}

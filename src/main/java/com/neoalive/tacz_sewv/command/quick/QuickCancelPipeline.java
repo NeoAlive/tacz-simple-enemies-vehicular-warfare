@@ -14,21 +14,22 @@ import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.bridge.IMortarCrew;
 import com.neoalive.tacz_sewv.bridge.IPathwayInfantry;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
+import com.neoalive.tacz_sewv.command.quick.scavenge.ScavengeTracker;
 import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.support.EntrenchSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.FireMissionSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.FlightOrders;
+import com.neoalive.tacz_sewv.entity.ai.support.FormationSubjects;
 import com.neoalive.tacz_sewv.entity.ai.support.GuardSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.MortarSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.TowRecoverySupport;
-import com.neoalive.tacz_sewv.entity.ai.support.VehicleFormation;
 import com.neoalive.tacz_sewv.fob.FobSupport;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 
 /**
- * Root Cancel: abort active Quick Evac / Refill, dismiss area / board / entrench / capture-medic
+ * Root Cancel: abort active Quick Evac / Scavenge, dismiss area / board / entrench / capture-medic
  * state on radius PMCs, and drop them to FREE_FIRE. Does not force a dismount.
  */
 public final class QuickCancelPipeline implements QuickCommandPipeline {
@@ -37,8 +38,10 @@ public final class QuickCancelPipeline implements QuickCommandPipeline {
     public void execute(ServerPlayer issuer, QuickCommandContext context) {
         if (!(issuer.level() instanceof ServerLevel level)) return;
 
-        boolean abortedRefill = QuickRefillTracker.cancelPlayer(issuer.getUUID(), level);
+        boolean abortedRefill = ScavengeTracker.cancelPlayer(issuer.getUUID(), level);
         boolean abortedEvac = QuickEvacTracker.cancelPlayer(issuer.getUUID(), level);
+        abortedRefill |= GearSearchTracker.cancelPlayer(issuer.getUUID(), level);
+        abortedRefill |= MinefieldTracker.cancelPlayer(issuer.getUUID());
 
         double radius = context.unitRadius(SewvConfig.QUICK_LAND_RADIUS.get());
         int cancelled = 0;
@@ -77,14 +80,16 @@ public final class QuickCancelPipeline implements QuickCommandPipeline {
             capture.sewv$clearCaptureOrder();
         }
         FobSupport.clearRoutePending(pmc);
-
+        com.neoalive.tacz_sewv.entity.ai.support.CoverHoldOrders.clear(pmc);
+        com.neoalive.tacz_sewv.fpas.SignalTasks.clear(pmc);
 
         IVehicleBoarder boarder = (IVehicleBoarder) pmc;
         boarder.tacz_sewv$setBoarding(false);
         boarder.tacz_sewv$setMountTargetId(-1);
 
-        // Clear vehicle-formation NBT so FREE_FIRE doesn't leave a stale slot axis/anchor.
-        VehicleFormation.clear(pmc);
+        // Cancel is what ends a formation. A leader takes its whole formation with it; a follower leaves alone
+        // and the rest close up. Also clears the slot axis/anchor so FREE_FIRE leaves nothing stale behind.
+        FormationSubjects.release(pmc);
 
         if (pmc instanceof IHelicopterPilot
                 && pmc.getVehicle() instanceof VehicleEntity hull

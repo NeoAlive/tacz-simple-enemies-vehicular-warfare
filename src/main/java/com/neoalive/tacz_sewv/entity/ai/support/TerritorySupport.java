@@ -20,6 +20,7 @@ import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.order.OrderFailure;
 import com.neoalive.tacz_sewv.order.OrderReport;
 import com.neoalive.tacz_sewv.territory.TerritoryManager;
+import com.neoalive.tacz_sewv.util.LoadedTerrain;
 
 /**
  * Mechanics of a Territory Mode post: the 3x3-chunk leash, the on-foot hold band, and posting / releasing
@@ -184,7 +185,7 @@ public final class TerritorySupport {
         int x = (int) Math.floor(centreX(post));
         int z = (int) Math.floor(centreZ(post));
         Level level = pmc.level();
-        if (!level.hasChunkAt(x, z)) return null;
+        if (!LoadedTerrain.loadedAt(level, x, z)) return null;
         return new BlockPos(x, level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z), z);
     }
 

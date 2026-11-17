@@ -16,6 +16,7 @@ import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import com.mojang.logging.LogUtils;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.util.Mth;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.entity.EntityTypeTest;
 import net.minecraft.world.phys.AABB;
@@ -27,12 +28,14 @@ import net.neoforged.neoforge.event.server.ServerStoppingEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import org.slf4j.Logger;
 
+import com.neoalive.tacz_sewv.bridge.IAiFireTracker;
 import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.EasyTuning;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.CrewFacts;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.entity.ai.cover.CoverQuery;
+import com.neoalive.tacz_sewv.entity.ai.formation.DrivableGround;
 import com.neoalive.tacz_sewv.entity.ai.formation.FormationTemplates;
 import com.neoalive.tacz_sewv.entity.ai.formation.SlotMatcher;
 import com.neoalive.tacz_sewv.entity.ai.march.CohesiveMarches;
@@ -41,11 +44,13 @@ import com.neoalive.tacz_sewv.entity.ai.march.March;
 import com.neoalive.tacz_sewv.entity.ai.march.MarchRegistry;
 import com.neoalive.tacz_sewv.entity.ai.sensor.CombatantIndex;
 import com.neoalive.tacz_sewv.entity.ai.sensor.HullLocalScan;
+import com.neoalive.tacz_sewv.entity.ai.support.HeliFollowSlots;
 import com.neoalive.tacz_sewv.entity.ai.support.IdleGroupSupport;
 import com.neoalive.tacz_sewv.entity.ai.utility.Facts;
 import com.neoalive.tacz_sewv.entity.ai.utility.TacticalScale;
 import com.neoalive.tacz_sewv.entity.ai.utility.UtilityWeights;
 import com.neoalive.tacz_sewv.entity.unit.PmcCommanderEntity;
+import com.neoalive.tacz_sewv.map.BattleFieldMarker;
 
 /**
  * Server-side owner of battle groups: scans eligible drivers on the utility cadence, battle-gates,
@@ -104,6 +109,7 @@ public final class CommandCoordinator {
         IdleMarches.clear();
         SEATED_DRIVERS.clear();
         COHESIVE_LINES.clear();
+        HeliFollowSlots.clear();
     }
 
     @SubscribeEvent
@@ -118,6 +124,7 @@ public final class CommandCoordinator {
         IdleMarches.clear();
         SEATED_DRIVERS.clear();
         COHESIVE_LINES.clear();
+        HeliFollowSlots.clear();
     }
 
     @SubscribeEvent
@@ -502,7 +509,7 @@ public final class CommandCoordinator {
                 group.currentRoles(),
                 timidGroup(level, group) ? EasyTuning.scaleTicks(minTicks, EasyTuning.MIN_PLAY_TICKS_MULT) : minTicks,
                 margin, weights);
-        Roles roles = applyTactics(level, group, snap, result);
+        Roles roles = applyTactics(level, group, snap, result, nowTick);
         roles = withFocusFire(level, group, roles);
         boolean playChanged = result.switched() || group.currentPlay() == null
                 || group.currentPlay() != result.play();
@@ -525,21 +532,37 @@ public final class CommandCoordinator {
         }
     }
 
+    /** Whether the hull {@code unitId} crews fired an AI shot within {@code window} game ticks. */
+    private static boolean hullFiredWithin(ServerLevel level, int unitId, long gameTime, long window) {
+        if (!(level.getEntity(unitId) instanceof AbstractUnit unit)) return false;
+        if (!(unit.getVehicle() instanceof IAiFireTracker hull)) return false;
+        long last = hull.tacz_sewv$getLastAiShotTick();
+        return last != IAiFireTracker.NEVER && gameTime - last <= window;
+    }
+
     /**
      * Group tactics on top of the selected roles, in order: leapfrog (same play only — it reads the previous pass's
      * committed roles), formation slots, commander back, cover points. See {@link TacticPostProcess} and
      * {@link PlayFormations}.
      */
     private static Roles applyTactics(ServerLevel level, BattleGroup group, GroupSnapshot snap,
-                                      PlaySelection.Result result) {
+                                      PlaySelection.Result result, int nowTick) {
         BattleField bf = group.battleField();
         Roles roles = result.roles();
         if (roles == null) return null;
         if (group.currentPlay() == result.play()) {
             Roles fresh = Plays.of(result.play()).assignRoles(bf, snap);
+            // The bound waits for real covering fire, not just an OVERWATCH role (see TacticPostProcess).
+            // No swap yet this play: the bound has been waiting since the play began.
+            long swapClock = group.lastLeapfrogTick() != Long.MIN_VALUE ? group.lastLeapfrogTick()
+                    : group.playStartedTick();
+            long sinceSwap = swapClock == Long.MIN_VALUE ? Long.MAX_VALUE : nowTick - swapClock;
+            long gameTime = level.getGameTime();
             Roles swapped = TacticPostProcess.leapfrog(result.play(), group.currentRoles(), roles, fresh, snap,
-                    TacticalScale.of(TaskedDestination.ARRIVE));
+                    TacticalScale.of(TaskedDestination.ARRIVE), bf.enemyCount > 0,
+                    id -> hullFiredWithin(level, id, gameTime, TacticPostProcess.COVER_FIRE_TICKS), sinceSwap);
             if (swapped != roles) {
+                group.noteLeapfrog(nowTick);
                 SewvDiag.command("tactic leapfrog group={} play={}: movers on their points, halves swap",
                         group.groupId(), result.play().key);
             }
@@ -557,11 +580,21 @@ public final class CommandCoordinator {
         }
         double ex = bf.enemyCentroidX;
         double ez = bf.enemyCentroidZ;
+        // Holding points stay put through a play until the enemy has really moved; laid fresh each pass they
+        // jumped 20-40 blocks and had the hulls pivoting on the spot chasing them.
+        if (group.currentPlay() == result.play() && Double.isFinite(group.latchEnemyX())
+                && Math.hypot(ex - group.latchEnemyX(), ez - group.latchEnemyZ())
+                        <= TacticalScale.of(TacticPostProcess.LATCH_REANCHOR)) {
+            roles = TacticPostProcess.latchHolding(group.currentRoles(), roles);
+        } else {
+            group.relatch(ex, ez);
+        }
         // Half the tightest spacing: cover may bend a formation, never fold two slots onto one spot.
-        return TacticPostProcess.coverPoints(roles,
+        roles = TacticPostProcess.coverPoints(roles,
                 TacticalScale.of(TacticPostProcess.COVER_NEAR), TacticalScale.of(TacticPostProcess.COVER_FAR),
                 TacticalScale.of(templates.minSpacing()) * 0.5,
                 (x, z) -> CoverQuery.exposure(level, x, z, ex, ez));
+        return onLand(level, roles, group.centroidX(), group.centroidZ());
     }
 
     /**
@@ -654,7 +687,7 @@ public final class CommandCoordinator {
                     continue;
                 }
                 BattleField bf = group.battleField();
-                group.influenceMap().rebuildAndDerive(bf, samples, group.faction(), cell, maxCells, margin);
+                group.influenceMap().rebuildAndDerive(bf, samples, group.faction(), cell, maxCells, margin, group.memberIds());
                 // Riflemen weigh a third of a hull: a tank group facing a rifle squad is not "outnumbered".
                 bf.enemyWeight = weights[1];
                 bf.friendlyInfantry = (int) weights[2];
@@ -664,6 +697,7 @@ public final class CommandCoordinator {
                 // tilts play selection towards withdrawal and holding and away from envelopment.
                 if (timidGroup(level, group)) bf.forceBalance *= EasyTuning.FORCE_BALANCE_MULT;
                 bf.peakEnemyWeight = group.notePeakEnemy(weights[1]);
+                gateFlanksByTerrain(level, bf);
                 group.markInfluenceRebuilt(nowTick);
             } catch (Throwable t) {
                 group.battleField().clear();
@@ -713,6 +747,59 @@ public final class CommandCoordinator {
             weightsOut[friendly ? 0 : 1] += CrewFacts.combatantWeight(other);
         }
         return out;
+    }
+
+    /** Pull step when moving a point off water or a tree, in blocks. */
+    private static final double LAND_PULL_STEP = 4.0;
+
+    /**
+     * The influence map opens a flank on friend/foe density alone, so on an island it opened one over the sea and
+     * the flankers were sent offshore. A flank whose mark cannot be pulled onto drivable ground within half the
+     * mark's own offset (walking back toward the enemy) is closed, and play selection sees the real picture.
+     */
+    private static void gateFlanksByTerrain(ServerLevel level, BattleField bf) {
+        if (!bf.populated) return;
+        DrivableGround.Column col = DrivableGround.column(level);
+        double limit = TacticalScale.of(BattleFieldMarker.FLANK_MARK_OFFSET) * 0.5;
+        for (int side : new int[] {+1, -1}) {
+            if (side > 0 ? !bf.openFlankLeft : !bf.openFlankRight) continue;
+            double mx = PlaySignals.flankMarkX(bf, side);
+            double mz = PlaySignals.flankMarkZ(bf, side);
+            if (!flankReachable(col, mx, mz, bf.enemyCentroidX, bf.enemyCentroidZ, limit)) {
+                if (side > 0) bf.openFlankLeft = false;
+                else bf.openFlankRight = false;
+                SewvDiag.command("flank {} closed: mark {},{} has no ground within {}", side > 0 ? "L" : "R",
+                        String.format(Locale.ROOT, "%.0f", mx), String.format(Locale.ROOT, "%.0f", mz),
+                        String.format(Locale.ROOT, "%.0f", limit));
+            }
+        }
+    }
+
+    /** Pure: is there drivable ground walking from the mark toward the enemy within {@code limit}? */
+    static boolean flankReachable(DrivableGround.Column col, double mx, double mz, double ex, double ez,
+                                  double limit) {
+        double[] p = DrivableGround.pullTowards(col, mx, mz, ex, ez, LAND_PULL_STEP);
+        return p != null && Math.hypot(p[0] - mx, p[1] - mz) <= limit;
+    }
+
+    /**
+     * Last pass over a group's dealt points: anything on water or a tree top is walked back toward the group
+     * until it is ground a hull can reach. Plays lay geometry with no idea of terrain.
+     */
+    private static Roles onLand(ServerLevel level, Roles roles, double cx, double cz) {
+        if (roles == null) return null;
+        DrivableGround.Column col = DrivableGround.column(level);
+        Assignment[] out = null;
+        for (int i = 0; i < roles.assignments.length; i++) {
+            Assignment a = roles.assignments[i];
+            if (!Double.isFinite(a.destX) || !Double.isFinite(a.destZ)) continue;
+            if (col.drivable(Mth.floor(a.destX), Mth.floor(a.destZ))) continue;
+            double[] p = DrivableGround.pullTowards(col, a.destX, a.destZ, cx, cz, LAND_PULL_STEP);
+            if (p == null) continue;
+            if (out == null) out = roles.assignments.clone();
+            out[i] = a.withDest(p[0], p[1]);
+        }
+        return out == null ? roles : new Roles(out);
     }
 
     /** A rifleman this close to one of the group's hulls is at the hulls (CohesiveLine's infantry). */
@@ -951,8 +1038,11 @@ public final class CommandCoordinator {
                 if (IdleMarches.form(level, units, a.faction, now) != null) continue;
             }
 
+            double[] centre = IdleGroupSupport.holdCentre(ids, cx, cz);
+            cx = centre[0];
+            cz = centre[1];
             int[] slots = holdSlots(cluster, cx, cz);
-            IdleGroupSupport.publishCluster(ids, slots);
+            IdleGroupSupport.publishCluster(ids, slots, cx, cz);
             if (SewvDiag.collectiveAiVerbose()) {
                 SewvDiag.command("idle cluster dim={} role={} members={} slots={} centre={},{}",
                         level.dimension().location(), Assignment.Role.IDLE_HOLD, Arrays.toString(ids),

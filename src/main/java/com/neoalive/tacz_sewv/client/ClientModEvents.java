@@ -3,6 +3,8 @@ package com.neoalive.tacz_sewv.client;
 import net.minecraft.client.model.EntityModel;
 import net.minecraft.client.renderer.entity.LivingEntityRenderer;
 import net.minecraft.client.renderer.entity.NoopRenderer;
+import net.minecraft.server.packs.PackType;
+import net.minecraft.server.packs.repository.Pack;
 import net.minecraft.server.packs.resources.ResourceManagerReloadListener;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
@@ -16,12 +18,14 @@ import net.neoforged.neoforge.client.event.EntityRenderersEvent;
 import net.neoforged.neoforge.client.event.RegisterClientReloadListenersEvent;
 import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
 import net.neoforged.neoforge.client.extensions.common.RegisterClientExtensionsEvent;
+import net.neoforged.neoforge.event.AddPackFindersEvent;
 
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.client.gui.StockpileScreen;
 import com.neoalive.tacz_sewv.client.skin.CrewSkinRegistry;
 import com.neoalive.tacz_sewv.client.skin.HelmetLogoTextures;
 import com.neoalive.tacz_sewv.client.skin.LogoPoolRegistry;
+import com.neoalive.tacz_sewv.client.skin.SkinResourcePack;
 import com.neoalive.tacz_sewv.client.skin.VehicleSkinRegistry;
 import com.neoalive.tacz_sewv.client.xaero.XaeroMapCompat;
 import com.neoalive.tacz_sewv.compat.ColtanArmorBridge;
@@ -87,6 +91,7 @@ public class ClientModEvents {
     @SubscribeEvent
     public static void onRegisterMenuScreens(RegisterMenuScreensEvent event) {
         event.register(ModMenus.STOCKPILE.get(), StockpileScreen::new);
+        event.register(ModMenus.ZONE_BEACON.get(), com.neoalive.tacz_sewv.client.gui.ZoneBeaconScreen::new);
     }
 
     /** NeoForge port: what Forge's {@code Item#initializeClient} overrides used to supply. */
@@ -118,11 +123,26 @@ public class ClientModEvents {
         });
     }
 
+    /** Config crew skins as resources, for Coltan's GemRender armor variants ({@link SkinResourcePack}). */
+    @SubscribeEvent
+    public static void onAddPackFinders(AddPackFindersEvent event) {
+        if (event.getPackType() != PackType.CLIENT_RESOURCES) {
+            return;
+        }
+        event.addRepositorySource(consumer -> {
+            Pack pack = SkinResourcePack.create();
+            if (pack != null) {
+                consumer.accept(pack);
+            }
+        });
+    }
+
     @SubscribeEvent
     public static void onRegisterRenderers(EntityRenderersEvent.RegisterRenderers event) {
         event.registerBlockEntityRenderer(ModBlockEntities.RUNWAY.get(), RunwayBlockRenderer::new);
         event.registerBlockEntityRenderer(ModBlockEntities.FOB_DECOR.get(), FobBlockRenderer::new);
         event.registerBlockEntityRenderer(ModBlockEntities.STOCKPILE.get(), FobBlockRenderer::new);
+        event.registerBlockEntityRenderer(ModBlockEntities.ZONE_BEACON.get(), ZoneBeaconRenderer::new);
         event.registerEntityRenderer(ModEntities.SANDBAG_SEAT.get(), NoopRenderer::new);
         event.registerEntityRenderer(ModEntities.RU_MEDIC.get(), RuSupportRenderer::new);
         event.registerEntityRenderer(ModEntities.US_MEDIC.get(), UsSupportRenderer::new);

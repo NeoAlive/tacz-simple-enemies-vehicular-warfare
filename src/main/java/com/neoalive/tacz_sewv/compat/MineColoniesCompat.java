@@ -11,13 +11,13 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
-import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.event.entity.living.LivingHurtEvent;
-import net.minecraftforge.eventbus.api.EventPriority;
-import net.minecraftforge.eventbus.api.IEventBus;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.ModList;
 import net.minecraftforge.registries.RegisterEvent;
+import net.neoforged.bus.api.EventPriority;
+import net.neoforged.bus.api.IEventBus;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.ModList;
+import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent;
 
 import com.neoalive.tacz_sewv.compat.minecolonies.SewvArmoredRaidEvent;
 import com.neoalive.tacz_sewv.config.SewvConfig;
@@ -100,7 +100,7 @@ public final class MineColoniesCompat {
      *                    registry and therefore mod-bus, not game-bus.
      */
     public static void register(IEventBus modEventBus) {
-        MinecraftForge.EVENT_BUS.register(MineColoniesCompat.class);
+        NeoForge.EVENT_BUS.register(MineColoniesCompat.class);
         Access.registerEventType(modEventBus);
     }
 
@@ -130,7 +130,7 @@ public final class MineColoniesCompat {
      * filtering included) has already decided; this only observes.
      */
     @SubscribeEvent(priority = EventPriority.LOWEST)
-    public static void onCitizenHurt(LivingHurtEvent event) {
+    public static void onCitizenHurt(LivingIncomingDamageEvent event) {
         if (!present() || !SewvConfig.MINECOLONIES_VEHICLE_RETALIATION.get()) return;
         if (event.getEntity().level().isClientSide) return;
         // A living attacker is the case MineColonies already handles, including a crewman that
@@ -200,7 +200,7 @@ public final class MineColoniesCompat {
          *
          * <p>The key is deliberately in the <b>minecolonies</b> namespace.
          * {@code EventManager.readFromNBT} stores only the path and rebuilds the id as
-         * {@code new ResourceLocation(MOD_ID, path)} with its own mod id hardcoded, so an entry
+         * {@code ResourceLocation.fromNamespaceAndPath(MOD_ID, path)} with its own mod id hardcoded, so an entry
          * registered under {@code tacz_sewv:} could be written but never read back. This is also
          * why the registration is a raw {@code RegisterEvent} rather than a {@code DeferredRegister}
          * — the latter builds its keys from the owning mod's id and has no way to say otherwise.
@@ -208,7 +208,7 @@ public final class MineColoniesCompat {
         static void registerEventType(IEventBus modEventBus) {
             modEventBus.addListener((RegisterEvent event) -> event.register(
                     ResourceKey.createRegistryKey(
-                            new ResourceLocation(MODID, "colonyeventtypes")),
+                            ResourceLocation.fromNamespaceAndPath(MODID, "colonyeventtypes")),
                     SewvArmoredRaidEvent.TYPE_ID,
                     () -> new ColonyEventTypeRegistryEntry(
                             SewvArmoredRaidEvent::loadFromNBT, SewvArmoredRaidEvent.TYPE_ID, true)));

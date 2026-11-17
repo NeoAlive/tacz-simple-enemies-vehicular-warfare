@@ -10,6 +10,7 @@ import net.minecraft.world.level.levelgen.Heightmap;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
 import com.neoalive.tacz_sewv.util.ChunkTicket;
+import com.neoalive.tacz_sewv.util.LoadedTerrain;
 
 /** Shared low-level controls and terrain references for helicopter and plane pilots. */
 public final class AirframeSupport {
@@ -96,6 +97,28 @@ public final class AirframeSupport {
         }
     }
 
+    /**
+     * Cockpit "pull up": the rising edge of under 12 blocks above the surface while sinking faster than
+     * 0.3 blocks a tick, sampled every 20 game ticks. The line's own cooldown spaces repeats.
+     */
+    public static final class AltitudeWarn {
+        private static final double LOW_AGL = 12.0;
+        private static final double SINK = -0.3;
+        private static final int CHECK_TICKS = 20;
+        private long nextCheck;
+        private boolean low;
+
+        public void tick(VehicleEntity vehicle, long now, boolean suppressed) {
+            if (now < this.nextCheck) return;
+            this.nextCheck = now + CHECK_TICKS;
+            boolean isLow = !suppressed && !vehicle.onGround()
+                    && vehicle.getDeltaMovement().y < SINK
+                    && vehicle.getY() - surfaceBelow(vehicle) < LOW_AGL;
+            if (isLow && !this.low) com.neoalive.tacz_sewv.crew.CrewRadio.onLowAltitude(vehicle);
+            this.low = isLow;
+        }
+    }
+
     public static int surfaceBelow(VehicleEntity vehicle) {
         return vehicle.level().getHeight(
                 Heightmap.Types.WORLD_SURFACE, vehicle.getBlockX(), vehicle.getBlockZ());
@@ -178,7 +201,7 @@ public final class AirframeSupport {
      * chunk is unloaded — callers treat that as "no sample" (clear for corridor routing).
      */
     public static int surfaceAtLoaded(Level level, int blockX, int blockZ) {
-        if (!level.hasChunk(blockX >> 4, blockZ >> 4)) return Integer.MIN_VALUE;
+        if (!LoadedTerrain.loaded(level, blockX >> 4, blockZ >> 4)) return Integer.MIN_VALUE;
         return level.getHeight(Heightmap.Types.WORLD_SURFACE, blockX, blockZ);
     }
 

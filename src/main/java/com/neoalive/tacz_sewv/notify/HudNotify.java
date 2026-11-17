@@ -117,7 +117,30 @@ public final class HudNotify {
 
     /** Grace period countdown / end notice, to every player alike. */
     public static void grace(ServerPlayer player, Component title, Component body) {
-        send(player, NotificationKind.GENERIC, title, body);
+        PacketHudNotification.sendUngated(player, title, body, NotificationKind.GENERIC, false);
+    }
+
+    // --- FPAS ------------------------------------------------------------------------------
+
+    /** The owner's FPAS lost or regained power. Losing it is urgent: the zone or radar just went down. */
+    public static void fpasPower(ServerPlayer owner, boolean powered, BlockPos pos) {
+        String key = powered ? "power_restored" : "power_lost";
+        PacketHudNotification.sendTo(owner,
+                Component.translatable("notification.tacz_sewv.fpas." + key + ".title"),
+                Component.translatable("notification.tacz_sewv.fpas." + key + ".body",
+                        pos.getX(), pos.getY(), pos.getZ()),
+                NotificationKind.FPAS, !powered);
+    }
+
+    /** The owner's MTI radar went from a clear scope to contacts. */
+    public static void fpasContact(ServerPlayer owner, int count, com.neoalive.tacz_sewv.fpas.RadarContact.Cls nearest,
+                                   int distance, BlockPos pos) {
+        PacketHudNotification.sendTo(owner,
+                Component.translatable("notification.tacz_sewv.fpas.contact.title", count),
+                Component.translatable("notification.tacz_sewv.fpas.contact.body",
+                        Component.translatable("gui.tacz_sewv.fpas.cls." + nearest.key()), distance,
+                        pos.getX(), pos.getY(), pos.getZ()),
+                NotificationKind.FPAS, false);
     }
 
     // --- Ammo / engage / energy -----------------------------------------------------------

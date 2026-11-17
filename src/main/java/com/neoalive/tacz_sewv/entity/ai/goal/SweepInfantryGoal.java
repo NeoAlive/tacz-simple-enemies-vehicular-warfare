@@ -11,6 +11,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.bridge.ISweepInfantry;
 import com.neoalive.tacz_sewv.bridge.ITerritoryPost;
+import com.neoalive.tacz_sewv.util.LoadedTerrain;
 
 /**
  * On-foot Sweep &amp; Advance: wander walkable points inside the assigned chunk rectangle.
@@ -78,7 +79,7 @@ public class SweepInfantryGoal extends Goal {
         for (int i = 0; i < PICK_ATTEMPTS; i++) {
             int x = minX + random.nextInt(Math.max(1, maxX - minX + 1));
             int z = minZ + random.nextInt(Math.max(1, maxZ - minZ + 1));
-            if (!level.hasChunkAt(x, z)) continue;
+            if (!LoadedTerrain.loadedAt(level, x, z)) continue;
             int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
             BlockPos pos = new BlockPos(x, y, z);
             if (!level.getBlockState(pos.below()).isAir()) return pos;

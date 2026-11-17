@@ -20,6 +20,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.CrewFacts;
+import com.neoalive.tacz_sewv.crew.VehicleAccessLive;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.support.PmcDownedSupport;
 
@@ -33,6 +34,8 @@ public final class FobSupport {
      * remounting that unit until the alarm hysteresis clears.
      */
     public static final String TAG_SCRAMBLE_STOOD_DOWN = "sewv:fob_scramble_stood_down";
+    /** Set when a scramble sends a unit to a hull; only these crews get out when the recall arrives. */
+    public static final String TAG_SCRAMBLE_BOARDED = "sewv:fob_scramble_boarded";
 
     private FobSupport() {}
 
@@ -95,6 +98,18 @@ public final class FobSupport {
         return entity.getPersistentData().contains(TAG_CMD);
     }
 
+    public static void markScrambleBoarded(Entity entity) {
+        entity.getPersistentData().putBoolean(TAG_SCRAMBLE_BOARDED, true);
+    }
+
+    public static void clearScrambleBoarded(Entity entity) {
+        entity.getPersistentData().remove(TAG_SCRAMBLE_BOARDED);
+    }
+
+    public static boolean isScrambleBoarded(Entity entity) {
+        return entity.getPersistentData().getBoolean(TAG_SCRAMBLE_BOARDED);
+    }
+
     public static void markScrambleStoodDown(Entity entity) {
         entity.getPersistentData().putBoolean(TAG_SCRAMBLE_STOOD_DOWN, true);
     }
@@ -148,7 +163,7 @@ public final class FobSupport {
 
     public static boolean blocksOrders(PmcUnitEntity pmc) {
         FobInstance fob = fobForEntity(pmc, pmc.level());
-        return fob != null && fob.fobCommandActive && isStamped(pmc);
+        return fob != null && fob.fobCommandActive && fob.assignedLiving.contains(pmc.getUUID());
     }
 
     @Nullable
@@ -318,6 +333,7 @@ public final class FobSupport {
      * unanimous all-PMC crew and would otherwise miss a mixed boarding (other-player PMC + empty
      * seat noise, or another player sharing a seat with anything) and let the hull through.
      * Empty hulls, own-PMC crews, and hulls the player themselves are riding stay claimable.
+     * An empty hull whose stamp (or last-driver backfill) names someone else does not.
      */
     public static boolean vehicleClaimableBy(VehicleEntity hull, UUID playerId) {
         if (isVehicleLocked(hull)) return false;
@@ -331,7 +347,8 @@ public final class FobSupport {
                 if (owner != null && !owner.equals(playerId)) return false;
             }
         }
-        return true;
+        VehicleAccessLive.ensureStamp(hull);
+        return VehicleAccessLive.stampAllows(hull, playerId);
     }
 
     /**

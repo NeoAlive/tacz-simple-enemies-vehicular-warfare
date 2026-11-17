@@ -38,6 +38,7 @@ import com.neoalive.tacz_sewv.crew.UnitInventory;
 import com.neoalive.tacz_sewv.entity.ai.support.MortarSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.Type63Support;
 import com.neoalive.tacz_sewv.util.ChunkTicket;
+import com.neoalive.tacz_sewv.zone.SpawnZones;
 
 /**
  * Spawns a crew-served static weapon with its crew already on it.
@@ -95,18 +96,27 @@ public final class EmplacementSpawner {
     public static VehicleEntity spawn(ServerLevel level, BlockPos requestedPos, Emplacement type,
                                       TankSpawner.TankFaction faction, @Nullable UUID ownerId,
                                       @Nullable FireMission fireMission, @Nullable String vehicleId) {
-        if (!TankSpawner.spawnsEnabled(level, faction)) return null;
+        if (!TankSpawner.spawnsEnabled(level, faction)) {
+            SpawnDeny.set(SpawnDeny.Why.GAMERULE, faction.name());
+            return null;
+        }
 
         EntityType<? extends VehicleEntity> entityType = type == Emplacement.MORTAR
                 ? pickMortarType(level, faction, vehicleId)
                 : pickTowType(level, faction, vehicleId);
-        if (entityType == null) return null;
+        if (entityType == null) {
+            SpawnDeny.set(SpawnDeny.Why.POOL);
+            return null;
+        }
 
         BlockPos pos = TankSpawner.findClearSpawn(level, requestedPos, entityType);
         if (pos == null) return null;
 
         VehicleEntity weapon = entityType.create(level);
-        if (weapon == null) return null;
+        if (weapon == null) {
+            SpawnDeny.set(SpawnDeny.Why.NOT_VEHICLE);
+            return null;
+        }
         weapon.setPos(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5);
         level.addFreshEntity(weapon);
 
@@ -115,7 +125,15 @@ public final class EmplacementSpawner {
         BlockPos crewPos = besideTube ? pos.offset(CREW_OFFSET, 0, 0) : pos;
         crew.setPos(crewPos.getX() + 0.5, crewPos.getY(), crewPos.getZ() + 0.5);
         crew.finalizeSpawn(level, level.getCurrentDifficultyAt(crewPos), MobSpawnType.EVENT, null);
-        level.addFreshEntity(crew);
+        if (!level.addFreshEntity(crew)) {
+            // Crew spot fell in a denied spawn zone: no tube without a crew.
+            weapon.discard();
+            if (SpawnDeny.unset()) {
+                if (!SpawnZones.allows(level, crewPos)) SpawnDeny.zoneAt(level, crewPos);
+                else SpawnDeny.set(SpawnDeny.Why.CREW);
+            }
+            return null;
+        }
 
         if (weapon instanceof MortarEntity mortar) {
             crewMortar(level, mortar, crew, fireMission);
@@ -126,6 +144,7 @@ public final class EmplacementSpawner {
             // launcher-less crew.
             crew.discard();
             weapon.discard();
+            SpawnDeny.set(SpawnDeny.Why.CREW);
             return null;
         } else if (!(weapon instanceof TowEntity)) {
             // Fixed AT / AGS magazine hulls (Kornet, AGS-30); SBW TowEntity uses crew pockets.

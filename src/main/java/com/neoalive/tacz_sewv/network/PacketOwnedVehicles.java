@@ -16,6 +16,7 @@ import com.neoalive.tacz_sewv.map.BattleFieldMarker;
 import com.neoalive.tacz_sewv.map.FobMarker;
 import com.neoalive.tacz_sewv.map.HelipadMarker;
 import com.neoalive.tacz_sewv.map.MarkerOrder;
+import com.neoalive.tacz_sewv.map.MarkerTags;
 import com.neoalive.tacz_sewv.map.VehicleMarker;
 import com.neoalive.tacz_sewv.platform.DistExecutor;
 import com.neoalive.tacz_sewv.platform.NetworkEvent;
@@ -72,7 +73,8 @@ public class PacketOwnedVehicles {
                     buf.readInt() & 0xFFFFFF,
                     buf.readBoolean(),
                     buf.readInt() & 0xFFFFFF,
-                    buf.readBoolean()));
+                    buf.readBoolean(),
+                    MarkerTags.decode(buf)));
         }
         this.markers = read;
 
@@ -132,6 +134,7 @@ public class PacketOwnedVehicles {
             buf.writeBoolean(marker.hasGuard());
             buf.writeInt(marker.platoonColorRgb() & 0xFFFFFF);
             buf.writeBoolean(marker.isCommanderUnit());
+            marker.tags().encode(buf);
         }
         buf.writeVarInt(this.battleFields.size());
         for (BattleFieldMarker bf : this.battleFields) {

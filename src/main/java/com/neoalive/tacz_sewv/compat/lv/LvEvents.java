@@ -2,10 +2,10 @@ package com.neoalive.tacz_sewv.compat.lv;
 
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
-import net.minecraftforge.event.entity.EntityMountEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.event.entity.EntityMountEvent;
 
 import com.neoalive.tacz_sewv.TaczSewv;
 
@@ -27,7 +27,7 @@ import com.neoalive.tacz_sewv.TaczSewv;
  * {@code SeekAbandonedVehicleGoal} uses to leave a player's tank alone; LV has no such field, so
  * this writes the equivalent into the hull's persistent data.
  */
-@Mod.EventBusSubscriber(modid = TaczSewv.MODID)
+@EventBusSubscriber(modid = TaczSewv.MODID)
 public final class LvEvents {
 
     /** Persistent-data flag on an LV hull a player has ridden. Read by {@code LvHulls.findAbandoned}. */

@@ -10,9 +10,14 @@ import javax.annotation.Nullable;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 
 import com.neoalive.tacz_sewv.client.radial.WedgeEntry;
+import com.neoalive.tacz_sewv.command.quick.scavenge.QuickScavengePipeline;
 import com.neoalive.tacz_sewv.compat.PlayerReviveCompat;
+import com.neoalive.tacz_sewv.entity.ai.support.CoverHoldOrders;
 import com.neoalive.tacz_sewv.entity.ai.support.FormationShape;
+import com.neoalive.tacz_sewv.entity.ai.support.RoleKit;
+import com.neoalive.tacz_sewv.fpas.RadarContact;
 import com.neoalive.tacz_sewv.item.PlaneAttackMode;
+import com.neoalive.tacz_sewv.item.PlaneRole;
 import com.neoalive.tacz_sewv.item.RadioFrequency;
 import com.neoalive.tacz_sewv.item.RadioSettings;
 
@@ -34,7 +39,21 @@ public final class QuickCommandRegistry {
     public static final String ID_QUICK_BOARD = "quick_board";
     public static final String ID_BOARD_QUEUED = "board_queued";
     public static final String ID_QUICK_ENTRENCH = "quick_entrench";
+    public static final String ID_QUICK_SCAVENGE = "quick_scavenge";
+    /** Old id of the order Scavenge replaced; kept so a queued entry still resolves. */
     public static final String ID_QUICK_REFILL = "quick_refill";
+    /** Wheel-only leaves; the role picked with Ctrl+scroll turns them into a per-kit id. */
+    public static final String ID_QUICK_SEARCH_GEAR = "quick_search_gear";
+    public static final String ID_QUICK_SWAP_ROLE = "quick_swap_role";
+    public static final List<RoleKit.Kit> SEARCH_KITS =
+            List.of(RoleKit.Kit.MEDIC, RoleKit.Kit.ENGINEER, RoleKit.Kit.COMBAT_ENGINEER);
+    public static final List<RoleKit.Kit> SWAP_KITS = List.of(RoleKit.Kit.values());
+    /** Wheel-only leaf; Ctrl+scroll picks whether the unit also crews it ({@link #deployEquipmentId}). */
+    public static final String ID_QUICK_DEPLOY_EQUIPMENT = "quick_deploy_equipment";
+    /** Wheel-only leaf; the mine and shape picked on the wheel ride the id ({@code QuickMinefieldPipeline#id}). */
+    public static final String ID_QUICK_MINEFIELD = "quick_minefield";
+    /** Wheel-only leaf; the role picked with a scroll turns it into {@link #planeRoleId}. */
+    public static final String ID_PLANE_ROLE = "quick_plane_role";
     public static final String ID_QUICK_CANCEL = "quick_cancel";
     public static final String ID_QUICK_FOLLOW = "quick_follow";
     public static final String ID_QUICK_DISMOUNT = "quick_dismount";
@@ -43,6 +62,9 @@ public final class QuickCommandRegistry {
     public static final String ID_QUICK_FREE_FIRE = "quick_free_fire";
     public static final String ID_QUICK_ATTACK = "quick_attack";
     public static final String ID_QUICK_MOVE = "quick_move";
+    public static final String ID_QUICK_SUPPRESS = "quick_suppress";
+    /** Wheel-only leaf; the hold time picked with Ctrl+scroll turns it into a per-value id. */
+    public static final String ID_QUICK_COVER_HOLD = "quick_cover_hold";
     public static final String ID_PLATOON_JOIN = "platoon_join";
     public static final String ID_PLATOON_EXIT = "platoon_exit";
     public static final String ID_PLATOON_AUTO_ORDERS = "platoon_auto_orders";
@@ -72,16 +94,31 @@ public final class QuickCommandRegistry {
     public static final String SELECT_PLATOON_PREFIX = "select_platoon:";
     public static final int SELECT_ACCENT = 0x9AA7B4;
 
-    /** Handheld-radio fire missions. Signal orange; every aircraft order shares the airplane glyph. */
+    /** The Support category itself. Its leaves carry their subcategory's colour instead. */
     public static final int SUPPORT_ACCENT = 0xF08A24;
+    public static final int SUPPORT_AIR_ACCENT = 0x6EC6F0;
+    public static final int SUPPORT_ARTILLERY_ACCENT = 0xE0503C;
+    public static final int SUPPORT_MORTAR_ACCENT = 0xF08A24;
+    public static final int SUPPORT_SIGNAL_ACCENT = 0x5CCB6A;
+    /** FPAS Signal leaves: {@code signal_attack_<class>}, one per radar contact class. */
+    public static final String SIGNAL_PREFIX = "signal_attack_";
+    /**
+     * Language-key prefix for every wedge label ({@code gui.tacz_sewv.wheel.<id>}). The queue
+     * packet stores the key itself ({@code readUtf(64)}), so a key must stay within 64 characters.
+     */
+    public static final String LABEL_PREFIX = "gui.tacz_sewv.wheel.";
     private static final String AIR_GLYPH = "\u2708";
-    public static final WedgeEntry.CategoryEntry SUPPORT_CATEGORY = new WedgeEntry.CategoryEntry(
-            "Support", "\u260E", SUPPORT_ACCENT, List.of(
-                    new WedgeEntry.PipelineEntry("Carpet Bomb", AIR_GLYPH, ID_SUPPORT_CARPET_BOMB, SUPPORT_ACCENT),
-                    new WedgeEntry.PipelineEntry("Anti Ground Missile", AIR_GLYPH, ID_SUPPORT_AGM, SUPPORT_ACCENT),
-                    new WedgeEntry.PipelineEntry("Cannon", AIR_GLYPH, ID_SUPPORT_CANNON, SUPPORT_ACCENT),
-                    new WedgeEntry.PipelineEntry("Artillery Fire", "\u2739", ID_SUPPORT_ARTILLERY, SUPPORT_ACCENT),
-                    new WedgeEntry.PipelineEntry("Mortar Shelling", "\u2604", ID_SUPPORT_MORTAR, SUPPORT_ACCENT)));
+    /** Radio leaves, grouped by subcategory; the wheel drops them without a radio. */
+    public static final List<WedgeEntry> RADIO_LEAVES = List.of(
+            leaf(ID_SUPPORT_CARPET_BOMB, AIR_GLYPH, SUPPORT_AIR_ACCENT),
+            leaf(ID_SUPPORT_AGM, AIR_GLYPH, SUPPORT_AIR_ACCENT),
+            leaf(ID_SUPPORT_CANNON, AIR_GLYPH, SUPPORT_AIR_ACCENT),
+            leaf(ID_SUPPORT_ARTILLERY, "\u2739", SUPPORT_ARTILLERY_ACCENT),
+            leaf(ID_SUPPORT_MORTAR, "\u2604", SUPPORT_MORTAR_ACCENT));
+    /** Signal leaves; the wheel drops them without a bound Signal Relay. */
+    public static final List<WedgeEntry> SIGNAL_LEAVES = signalLeaves();
+    public static final WedgeEntry.CategoryEntry SUPPORT_CATEGORY = category(
+            "support", "\u260E", SUPPORT_ACCENT, concat(RADIO_LEAVES, SIGNAL_LEAVES));
 
     private static final Map<String, QuickCommandPipeline> BY_ID = new HashMap<>();
     private static List<WedgeEntry> ROOT = List.of();
@@ -94,7 +131,9 @@ public final class QuickCommandRegistry {
         register(ID_QUICK_EVAC, new QuickEvacPipeline());
         register(ID_QUICK_BOARD, new QuickBoardPipeline());
         register(ID_QUICK_ENTRENCH, new QuickEntrenchPipeline());
-        register(ID_QUICK_REFILL, new QuickRefillPipeline());
+        QuickScavengePipeline scavenge = new QuickScavengePipeline();
+        register(ID_QUICK_SCAVENGE, scavenge);
+        register(ID_QUICK_REFILL, scavenge);
         register(ID_QUICK_CANCEL, new QuickCancelPipeline());
         register(ID_QUICK_FOLLOW, new QuickSemOrderPipeline(OrderType.FOLLOW_COMMANDER));
         register(ID_QUICK_HOLD, new QuickSemOrderPipeline(OrderType.HOLD_POSITION));
@@ -104,64 +143,119 @@ public final class QuickCommandRegistry {
         register(ID_QUICK_ATTACK, (issuer, ctx) -> {}); // client-armed; server no-op
         register(ID_QUICK_ROUTE_FOB, new QuickRouteFobPipeline());
         register(ID_REVIVE_CALL, new QuickReviveCallPipeline());
+        register(ID_QUICK_SUPPRESS, new QuickSuppressPipeline());
+        register(deployEquipmentId(true), new QuickDeployEquipmentPipeline(true));
+        register(deployEquipmentId(false), new QuickDeployEquipmentPipeline(false));
+        for (RadarContact.Cls cls : RadarContact.Cls.values()) register(signalId(cls), new QuickSignalPipeline(cls));
+        for (int s = 0; s <= CoverHoldOrders.MAX_HOLD_SECONDS; s += CoverHoldOrders.HOLD_STEP_SECONDS) {
+            register(coverHoldId(s), new QuickCoverHoldPipeline(s));
+        }
+        for (RoleKit.Kit kit : SEARCH_KITS) register(searchGearId(kit), new QuickSearchGearPipeline(kit));
+        for (RoleKit.Kit kit : SWAP_KITS) register(swapRoleId(kit), new QuickSwapRolePipeline(kit));
+        for (PlaneRole role : PlaneRole.values()) register(planeRoleId(role), new QuickPlaneRolePipeline(role));
         // Formation leaves are client-committed via PacketVehicleFormation (not PacketQuickCommand).
 
         List<WedgeEntry> general = new ArrayList<>();
-        general.add(leaf("Follow", "\u21AA", ID_QUICK_FOLLOW, 0xE8B84A));
-        general.add(leaf("Hold", "\u25A1", ID_QUICK_HOLD, 0xE8B84A));
-        general.add(leaf("Move To", "\u27A4", ID_QUICK_MOVE, 0xE8B84A));
-        general.add(leaf("Attack That", "\u2694", ID_QUICK_ATTACK, 0xE8B84A));
-        general.add(leaf("Cease Fire", "\u2298", ID_QUICK_CEASE_FIRE, 0xE8B84A));
-        general.add(leaf("Free Fire", "\u26A1", ID_QUICK_FREE_FIRE, 0xE8B84A));
-        general.add(leaf("Escort", "\u25C6", ID_ESCORT, 0xE8B84A));
-        general.add(leaf("Set Guard", "\u2691", ID_SET_GUARD, 0xE8B84A));
-        general.add(leaf("Reach Guard", "\u2192", ID_REACH_GUARD, 0xE8B84A));
+        general.add(leaf(ID_QUICK_FOLLOW, "\u21AA", 0xE8B84A));
+        general.add(leaf(ID_QUICK_HOLD, "\u25A1", 0xE8B84A));
+        general.add(leaf(ID_QUICK_MOVE, "\u27A4", 0xE8B84A));
+        general.add(leaf(ID_QUICK_ATTACK, "\u2694", 0xE8B84A));
+        general.add(leaf(ID_QUICK_SUPPRESS, "\u2738", 0xE8B84A));
+        general.add(leaf(ID_QUICK_CEASE_FIRE, "\u2298", 0xE8B84A));
+        general.add(leaf(ID_QUICK_FREE_FIRE, "\u26A1", 0xE8B84A));
+        general.add(leaf(ID_ESCORT, "\u25C6", 0xE8B84A));
+        general.add(leaf(ID_SET_GUARD, "\u2691", 0xE8B84A));
+        general.add(leaf(ID_REACH_GUARD, "\u2192", 0xE8B84A));
         if (PlayerReviveCompat.isLoaded()) {
-            general.add(leaf("Revive Call", "\u271A", ID_REVIVE_CALL, 0xE8B84A));
+            general.add(leaf(ID_REVIVE_CALL, "\u271A", 0xE8B84A));
         }
 
         ROOT = List.of(
-                new WedgeEntry.CategoryEntry("General", "\u2605", 0xE8B84A, List.copyOf(general)),
-                new WedgeEntry.CategoryEntry("Crew", "\u2399", 0xD98A4A, List.of(
-                        leaf("Board", "\u2399", ID_QUICK_BOARD, 0xD98A4A),
-                        leaf("Board as Passenger", "\u25AD", ID_BOARD_PASSENGER, 0xD98A4A),
-                        leaf("Board Queued", "\u21A7", ID_BOARD_QUEUED, 0xD98A4A),
-                        leaf("Dismount", "\u2193", ID_QUICK_DISMOUNT, 0xD98A4A),
-                        leaf("Bail Out", "\u2602", ID_BAIL_OUT, 0xD98A4A),
-                        leaf("Tow", "\u26D3", ID_TOW, 0xD98A4A))),
-                new WedgeEntry.CategoryEntry("Land", "\u26F0", 0x6BA84A, List.of(
-                        leaf("Entrench", "\u26F0", ID_QUICK_ENTRENCH, 0x6BA84A),
-                        leaf("Refill", "\u21BB", ID_QUICK_REFILL, 0x6BA84A),
-                        leaf("Route to FOB", "\u2302", ID_QUICK_ROUTE_FOB, 0x6BA84A))),
-                new WedgeEntry.CategoryEntry("Air", "\u2708", 0x4AB8E8, List.of(
-                        leaf("Takeoff / Retrim", "\u2191", ID_QUICK_TAKEOFF, 0x4AB8E8),
-                        leaf("Landing", "\u2193", ID_QUICK_LANDING, 0x4AB8E8),
-                        leaf("Land at Helipad", "\u25A3", ID_QUICK_LAND_HELIPAD, 0x4AB8E8),
-                        leaf("Emergency Land", "\u26A0", ID_QUICK_EMERGENCY_LAND, 0x4AB8E8),
-                        leaf("Rappel Crew", "\u21CA", ID_RAPPEL_CREW, 0x4AB8E8),
-                        leaf("Rappel Self", "\u21F3", ID_RAPPEL_SELF, 0x4AB8E8),
-                        leaf("Paratroop", "\u2602", ID_PARATROOP, 0x4AB8E8))),
-                new WedgeEntry.CategoryEntry("Procedures", "\u2699", 0x5AB8A0, List.of(
-                        leaf("Evacuation", "\u21E7", ID_QUICK_EVAC, 0x5AB8A0),
-                        leaf("Search & Destroy", "\u25CE", ID_QUICK_SEARCH, 0x5AB8A0),
-                        leaf("Patrol", "\u27F3", ID_QUICK_PATROL, 0x5AB8A0),
-                        leaf("Dismiss", "\u2715", ID_DISMISS, 0x5AB8A0))),
-                new WedgeEntry.CategoryEntry("Formation", "\u25C8", 0xA06BD4, List.of(
-                        leaf("Wedge", "\u25B2", ID_FORM_WEDGE, 0xA06BD4),
-                        leaf("Column", "\u25B3", ID_FORM_COLUMN, 0xA06BD4),
-                        leaf("Line", "\u2501", ID_FORM_LINE, 0xA06BD4),
-                        leaf("Echelon L", "\u25E2", ID_FORM_ECHELON_LEFT, 0xA06BD4),
-                        leaf("Echelon R", "\u25E3", ID_FORM_ECHELON_RIGHT, 0xA06BD4))),
-                new WedgeEntry.CategoryEntry("Platoon", "\u2691", 0xE07AA6, List.of(
-                        leaf("Join Platoon", "\u2295", ID_PLATOON_JOIN, 0xE07AA6),
-                        leaf("Exit Platoon", "\u2296", ID_PLATOON_EXIT, 0xE07AA6),
-                        leaf("Toggle Orders", "\u21C4", ID_PLATOON_AUTO_ORDERS, 0xE07AA6))),
+                category("general", "\u2605", 0xE8B84A, List.copyOf(general)),
+                category("crew", "\u2399", 0xD98A4A, List.of(
+                        leaf(ID_QUICK_BOARD, "\u2399", 0xD98A4A),
+                        leaf(ID_BOARD_PASSENGER, "\u25AD", 0xD98A4A),
+                        leaf(ID_BOARD_QUEUED, "\u21A7", 0xD98A4A),
+                        leaf(ID_QUICK_DISMOUNT, "\u2193", 0xD98A4A),
+                        leaf(ID_BAIL_OUT, "\u2602", 0xD98A4A),
+                        leaf(ID_TOW, "\u26D3", 0xD98A4A))),
+                category("land", "\u26F0", 0x6BA84A, List.of(
+                        leaf(ID_QUICK_ENTRENCH, "\u26F0", 0x6BA84A),
+                        leaf(ID_QUICK_SCAVENGE, "\u21BB", 0x6BA84A),
+                        leaf(ID_QUICK_ROUTE_FOB, "\u2302", 0x6BA84A),
+                        leaf(ID_QUICK_SEARCH_GEAR, "\u2315", 0x6BA84A),
+                        leaf(ID_QUICK_SWAP_ROLE, "\u21C6", 0x6BA84A),
+                        leaf(ID_QUICK_DEPLOY_EQUIPMENT, "\u2692", 0x6BA84A),
+                        leaf(ID_QUICK_MINEFIELD, "\u2622", 0x6BA84A))),
+                category("air", "\u2708", 0x4AB8E8, List.of(
+                        leaf(ID_QUICK_TAKEOFF, "\u2191", 0x4AB8E8),
+                        leaf(ID_QUICK_LANDING, "\u2193", 0x4AB8E8),
+                        leaf(ID_QUICK_LAND_HELIPAD, "\u25A3", 0x4AB8E8),
+                        leaf(ID_QUICK_EMERGENCY_LAND, "\u26A0", 0x4AB8E8),
+                        leaf(ID_RAPPEL_CREW, "\u21CA", 0x4AB8E8),
+                        leaf(ID_RAPPEL_SELF, "\u21F3", 0x4AB8E8),
+                        leaf(ID_PARATROOP, "\u2602", 0x4AB8E8),
+                        leaf(ID_PLANE_ROLE, "\u2316", 0x4AB8E8))),
+                category("procedures", "\u2699", 0x5AB8A0, List.of(
+                        leaf(ID_QUICK_EVAC, "\u21E7", 0x5AB8A0),
+                        leaf(ID_QUICK_SEARCH, "\u25CE", 0x5AB8A0),
+                        leaf(ID_QUICK_PATROL, "\u27F3", 0x5AB8A0),
+                        leaf(ID_QUICK_COVER_HOLD, "\u26E8", 0x5AB8A0),
+                        leaf(ID_DISMISS, "\u2715", 0x5AB8A0))),
+                category("formation", "\u25C8", 0xA06BD4, List.of(
+                        leaf(ID_FORM_WEDGE, "\u25B2", 0xA06BD4),
+                        leaf(ID_FORM_COLUMN, "\u25B3", 0xA06BD4),
+                        leaf(ID_FORM_LINE, "\u2501", 0xA06BD4),
+                        leaf(ID_FORM_ECHELON_LEFT, "\u25E2", 0xA06BD4),
+                        leaf(ID_FORM_ECHELON_RIGHT, "\u25E3", 0xA06BD4))),
+                category("platoon", "\u2691", 0xE07AA6, List.of(
+                        leaf(ID_PLATOON_JOIN, "\u2295", 0xE07AA6),
+                        leaf(ID_PLATOON_EXIT, "\u2296", 0xE07AA6),
+                        leaf(ID_PLATOON_AUTO_ORDERS, "\u21C4", 0xE07AA6))),
                 SUPPORT_CATEGORY,
-                leaf("Cancel", "\u2715", ID_QUICK_CANCEL, 0xE85A4A));
+                leaf(ID_QUICK_CANCEL, "\u2715", 0xE85A4A));
     }
 
-    private static WedgeEntry.PipelineEntry leaf(String label, String icon, String id, int accent) {
-        return new WedgeEntry.PipelineEntry(label, icon, id, accent);
+    /** {@code gui.tacz_sewv.wheel.<id>} — the English string is the lang file, not this class. */
+    public static String labelKey(String id) {
+        return LABEL_PREFIX + id;
+    }
+
+    public static String signalId(RadarContact.Cls cls) {
+        return SIGNAL_PREFIX + cls.key();
+    }
+
+    public static boolean isSignalLeaf(String pipelineId) {
+        return pipelineId.startsWith(SIGNAL_PREFIX);
+    }
+
+    private static List<WedgeEntry> signalLeaves() {
+        List<WedgeEntry> out = new ArrayList<>();
+        for (RadarContact.Cls cls : RadarContact.Cls.values()) {
+            String glyph = switch (cls) {
+                case GROUND -> "▣";
+                case ROTOR -> "❁";
+                case PLANE -> AIR_GLYPH;
+                case SHIP -> "⚓";
+                case INFANTRY -> "♟";
+            };
+            out.add(leaf(signalId(cls), glyph, SUPPORT_SIGNAL_ACCENT));
+        }
+        return List.copyOf(out);
+    }
+
+    private static List<WedgeEntry> concat(List<WedgeEntry> a, List<WedgeEntry> b) {
+        List<WedgeEntry> out = new ArrayList<>(a);
+        out.addAll(b);
+        return List.copyOf(out);
+    }
+
+    private static WedgeEntry.PipelineEntry leaf(String id, String icon, int accent) {
+        return new WedgeEntry.PipelineEntry(labelKey(id), icon, id, accent);
+    }
+
+    private static WedgeEntry.CategoryEntry category(String id, String icon, int accent, List<WedgeEntry> children) {
+        return new WedgeEntry.CategoryEntry(labelKey("cat." + id), icon, accent, children);
     }
 
     private static void register(String id, QuickCommandPipeline pipeline) {
@@ -170,7 +264,8 @@ public final class QuickCommandRegistry {
 
     @Nullable
     public static QuickCommandPipeline get(String id) {
-        return BY_ID.get(id);
+        QuickCommandPipeline p = BY_ID.get(id);
+        return p != null ? p : QuickMinefieldPipeline.parse(id);
     }
 
     public static List<WedgeEntry> rootWedges() {
@@ -198,10 +293,57 @@ public final class QuickCommandRegistry {
         return pipelineId.startsWith(SELECT_KIND_PREFIX) || pipelineId.startsWith(SELECT_PLATOON_PREFIX);
     }
 
+    public static String searchGearId(RoleKit.Kit kit) {
+        return ID_QUICK_SEARCH_GEAR + "_" + kit.key();
+    }
+
+    public static String swapRoleId(RoleKit.Kit kit) {
+        return ID_QUICK_SWAP_ROLE + "_" + kit.key();
+    }
+
+    /** The registered id for a Cover and Hold of {@code seconds} (0 = until the next order). */
+    public static String coverHoldId(int seconds) {
+        return ID_QUICK_COVER_HOLD + "_" + seconds;
+    }
+
+    /** The registered id for Deploy Equipment, crewed by the placing unit or just set down. */
+    public static String deployEquipmentId(boolean man) {
+        return ID_QUICK_DEPLOY_EQUIPMENT + (man ? "_man" : "_place");
+    }
+
+    public static boolean isDeployEquipment(String pipelineId) {
+        return pipelineId.startsWith(ID_QUICK_DEPLOY_EQUIPMENT);
+    }
+
+    public static String planeRoleId(PlaneRole role) {
+        return ID_PLANE_ROLE + "_" + role.key();
+    }
+
+    public static boolean isPlaneRole(String pipelineId) {
+        return pipelineId.startsWith(ID_PLANE_ROLE);
+    }
+
+    public static boolean isMinefield(String pipelineId) {
+        return pipelineId.startsWith(ID_QUICK_MINEFIELD);
+    }
+
+    public static boolean isSearchGear(String pipelineId) {
+        return pipelineId.startsWith(ID_QUICK_SEARCH_GEAR);
+    }
+
+    public static boolean isSwapRole(String pipelineId) {
+        return pipelineId.startsWith(ID_QUICK_SWAP_ROLE);
+    }
+
     /** True when the pipeline needs on-foot PMCs only (board / mortar / refill walks). */
     public static boolean requiresOnFoot(String pipelineId) {
-        return ID_QUICK_BOARD.equals(pipelineId)
+        return isSearchGear(pipelineId)
+                || isSwapRole(pipelineId)
+                || isDeployEquipment(pipelineId)
+                || isMinefield(pipelineId)
+                || ID_QUICK_BOARD.equals(pipelineId)
                 || ID_QUICK_ENTRENCH.equals(pipelineId)
+                || ID_QUICK_SCAVENGE.equals(pipelineId)
                 || ID_QUICK_REFILL.equals(pipelineId)
                 || ID_QUICK_EVAC.equals(pipelineId);
     }

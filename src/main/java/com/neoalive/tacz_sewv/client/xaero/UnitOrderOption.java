@@ -26,6 +26,7 @@ import com.neoalive.tacz_sewv.bridge.IVehiclePatrol;
 import com.neoalive.tacz_sewv.client.FobClientRoute;
 import com.neoalive.tacz_sewv.client.MapMarkers;
 import com.neoalive.tacz_sewv.client.radial.OrderScales;
+import com.neoalive.tacz_sewv.command.quick.QuickCommandRegistry;
 import com.neoalive.tacz_sewv.init.ModSounds;
 import com.neoalive.tacz_sewv.map.VehicleMarker;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
@@ -34,6 +35,7 @@ import com.neoalive.tacz_sewv.network.PacketEntrench;
 import com.neoalive.tacz_sewv.network.PacketHelicopterCommand;
 import com.neoalive.tacz_sewv.network.PacketParatroop;
 import com.neoalive.tacz_sewv.network.PacketPatrolVehicle;
+import com.neoalive.tacz_sewv.network.PacketQuickCommand;
 import com.neoalive.tacz_sewv.network.PacketReachGuard;
 
 /**
@@ -111,6 +113,7 @@ public class UnitOrderOption extends RightClickOption {
         EMERGENCY_LAND("emergency_land", false, Category.AIR),
         PATROL_HERE("patrol_here", true, Category.AREA_TASK),
         SAD_HERE("sad_here", true, Category.AREA_TASK),
+        SUPPRESS_HERE("suppress_here", true, Category.AREA_TASK),
         ENTRENCH_HERE("entrench_here", true, Category.AREA_TASK),
         CRUISE("cruise", false, Category.MOVEMENT),
         SET_GUARD("set_guard", false, Category.MOVEMENT),
@@ -150,37 +153,56 @@ public class UnitOrderOption extends RightClickOption {
         this.z = z;
         this.dimension = dimension;
         this.attackTargetId = attackTargetId;
-        boolean active = selectedCount > 0;
-        if (action == Action.REACH_GUARD) {
-            active = active && selectedHaveGuard();
-        }
-        if (action == Action.ATTACK_THAT) {
-            active = active && attackTargetId >= 0;
-        }
-        if (action == Action.PREFERRED_PATHWAYS) {
-            active = true;
-        }
-        if (action == Action.ROUTE_TO_FOB) {
-            active = FobClientRoute.canRoute();
-        }
-        setActive(active);
+        setActive(active(action, selectedCount, attackTargetId));
         setNameFormatArgs(selectedCount);
+    }
+
+    /** Where the map was right-clicked, frozen when the menu opened. */
+    public record MapClick(int x, int y, int z, ResourceKey<Level> dimension, int attackTargetId) {}
+
+    /** Whether {@code action} can be issued with this many selected units. */
+    public static boolean active(Action action, int selectedCount, int attackTargetId) {
+        return switch (action) {
+            case REACH_GUARD -> selectedCount > 0 && selectedHaveGuard();
+            case ATTACK_THAT -> selectedCount > 0 && attackTargetId >= 0;
+            case PREFERRED_PATHWAYS -> true;
+            case ROUTE_TO_FOB -> FobClientRoute.canRoute();
+            default -> selectedCount > 0;
+        };
+    }
+
+    public static String labelKey(Action action) {
+        return action.labelKey;
     }
 
     @Override
     public void onAction(Screen screen) {
+        perform(this.action, new MapClick(this.x, this.y, this.z, this.dimension, this.attackTargetId));
+    }
+
+    /** Issues {@code action} to the selected units at the clicked point. */
+    public static void perform(Action action, MapClick click) {
         Player player = Minecraft.getInstance().player;
         if (player == null) return;
+        run(action, click, player);
+    }
 
-        if (this.action == Action.PREFERRED_PATHWAYS) {
-            ResourceKey<Level> dim = this.dimension != null ? this.dimension : player.level().dimension();
+    private static void run(Action action, MapClick click, Player player) {
+        final int x = click.x();
+        final int y = click.y();
+        final int z = click.z();
+        final ResourceKey<Level> dimension = click.dimension();
+        final int attackTargetId = click.attackTargetId();
+
+        if (action == Action.PREFERRED_PATHWAYS) {
+            ResourceKey<Level> dim = dimension != null ? dimension : player.level().dimension();
             if (PathwayPlot.arm(dim)) {
                 prompt("message.tacz_sewv.pathway.plotting", PathwayPlot.pathId(), 0);
             }
             return;
         }
 
-        if (this.action == Action.ROUTE_TO_FOB) {
+        if (action == Action.ROUTE_TO_FOB) {
             FobClientRoute.sendRoute();
             return;
         }
@@ -190,38 +212,38 @@ public class UnitOrderOption extends RightClickOption {
 
         // A positional order across dimensions means nothing to a ground crew, and the coordinates
         // would be read in the wrong frame anyway.
-        if (this.action.positional && this.dimension != null
-                && !this.dimension.equals(player.level().dimension())) {
+        if (action.positional && dimension != null
+                && !dimension.equals(player.level().dimension())) {
             hint("message.tacz_sewv.map.wrong_dimension");
             return;
         }
 
-        if (this.action == Action.CRUISE) {
+        if (action == Action.CRUISE) {
             if (CruisePlot.arm()) prompt("message.tacz_sewv.cruise.plotting", 0);
             return;
         }
 
-        if (this.action == Action.BAIL_OUT) {
+        if (action == Action.BAIL_OUT) {
             NetworkHandler.CHANNEL.sendToServer(new PacketBailOutVehicle(new ArrayList<>(drivers)));
             return;
         }
 
-        if (this.action == Action.PARATROOP) {
+        if (action == Action.PARATROOP) {
             NetworkHandler.CHANNEL.sendToServer(new PacketParatroop(new ArrayList<>(drivers)));
             return;
         }
 
-        if (this.action == Action.SET_GUARD) {
+        if (action == Action.SET_GUARD) {
             if (GuardPlot.arm()) prompt("message.tacz_sewv.guard.plotting");
             return;
         }
 
-        if (this.action == Action.REACH_GUARD) {
+        if (action == Action.REACH_GUARD) {
             NetworkHandler.CHANNEL.sendToServer(new PacketReachGuard(new ArrayList<>(drivers)));
             return;
         }
 
-        if (this.action == Action.DISMISS) {
+        if (action == Action.DISMISS) {
             // Stands crews off patrol, search AND cruise in one go — they share one state slot, so
             // the server needs no idea which of the three it is cancelling.
             NetworkHandler.CHANNEL.sendToServer(new PacketPatrolVehicle(
@@ -229,25 +251,33 @@ public class UnitOrderOption extends RightClickOption {
             return;
         }
 
-        if (this.action == Action.PATROL_HERE || this.action == Action.SAD_HERE) {
+        if (action == Action.PATROL_HERE || action == Action.SAD_HERE) {
             // Radius comes from the terminal's stepper, which is the player's standing preference
             // and survives the screen being closed — a right-click menu has nowhere to put one.
             // The area centres on the CLICKED point, which is the whole reason these are map orders.
-            boolean search = this.action == Action.SAD_HERE;
+            boolean search = action == Action.SAD_HERE;
             NetworkHandler.CHANNEL.sendToServer(new PacketPatrolVehicle(new ArrayList<>(drivers),
                     search ? OrderScales.searchRadius() : OrderScales.patrolRadius(),
                     search ? IVehiclePatrol.MODE_SEARCH : IVehiclePatrol.MODE_PATROL,
-                    mapPos(player)));
+                    mapPos(player, x, y, z)));
             return;
         }
 
-        if (this.action == Action.ENTRENCH_HERE) {
+        if (action == Action.SUPPRESS_HERE) {
+            // The radial's own pipeline, with the clicked point standing in for the crosshair block:
+            // one server path for both, so the map needs no packet of its own.
+            NetworkHandler.CHANNEL.sendToServer(new PacketQuickCommand(QuickCommandRegistry.ID_QUICK_SUPPRESS,
+                    new ArrayList<>(drivers), true, mapPos(player, x, y, z)));
+            return;
+        }
+
+        if (action == Action.ENTRENCH_HERE) {
             NetworkHandler.CHANNEL.sendToServer(new PacketEntrench(
-                    new ArrayList<>(drivers), PacketEntrench.MODE_ASSIGN, mapPos(player)));
+                    new ArrayList<>(drivers), PacketEntrench.MODE_ASSIGN, mapPos(player, x, y, z)));
             return;
         }
 
-        if (this.action == Action.TAKEOFF) {
+        if (action == Action.TAKEOFF) {
             // This mod's own channel: flight state is IHelicopterPilot, not a SEM order. The server
             // filters the selection down to actual aircraft pilots and reports the count itself.
             NetworkHandler.CHANNEL.sendToServer(new PacketHelicopterCommand(
@@ -256,17 +286,17 @@ public class UnitOrderOption extends RightClickOption {
             return;
         }
 
-        if (this.action == Action.LAND_AIRPORT) {
+        if (action == Action.LAND_AIRPORT) {
             // Same flight channel as takeoff. The clicked point is a HINT, not the pad: the server
             // looks for a surveyed strip near the aircraft first and near the click second, so
             // clicking a distant airfield sends them there instead of to their local one. With no
             // strip in range the order is refused outright rather than becoming a field landing.
             NetworkHandler.CHANNEL.sendToServer(new PacketHelicopterCommand(
-                    new ArrayList<>(drivers), IHelicopterPilot.HELI_CMD_LANDING, mapPos(player), 0));
+                    new ArrayList<>(drivers), IHelicopterPilot.HELI_CMD_LANDING, mapPos(player, x, y, z), 0));
             return;
         }
 
-        if (this.action == Action.EMERGENCY_LAND) {
+        if (action == Action.EMERGENCY_LAND) {
             // Deliberately not positional: this puts the aircraft down near ITSELF, and a pad taken
             // from a map click halfway across the world is the opposite of an emergency landing.
             NetworkHandler.CHANNEL.sendToServer(new PacketHelicopterCommand(
@@ -274,38 +304,38 @@ public class UnitOrderOption extends RightClickOption {
             return;
         }
 
-        if (this.action == Action.ATTACK_THAT) {
-            if (this.attackTargetId < 0) return;
+        if (action == Action.ATTACK_THAT) {
+            if (attackTargetId < 0) return;
             for (int driverId : drivers) {
                 ModNetworking.sendToServer(
                         new PacketIssueOrder(driverId, OrderType.ATTACK_THAT_TARGET, Vec3.ZERO, 0,
-                                this.attackTargetId));
+                                attackTargetId));
             }
             Minecraft.getInstance().getSoundManager().play(
                     SimpleSoundInstance.forUI(ModSounds.ATTACK.get(), 1.0F));
             return;
         }
 
-        Vec3 destination = this.action.positional ? destination(player) : Vec3.ZERO;
+        Vec3 destination = action.positional ? destination(player, x, y, z) : Vec3.ZERO;
         for (int driverId : drivers) {
             ModNetworking.sendToServer(
-                    new PacketIssueOrder(driverId, orderType(), destination, 0, -1));
+                    new PacketIssueOrder(driverId, orderType(action), destination, 0, -1));
         }
-        if (this.action == Action.MOVE) MapMarkers.clearSelection();
+        if (action == Action.MOVE) MapMarkers.clearSelection();
     }
 
-    private OrderType orderType() {
-        return switch (this.action) {
+    private static OrderType orderType(Action action) {
+        return switch (action) {
             case MOVE -> OrderType.MOVE_TO_POSITION;
             case FOLLOW -> OrderType.FOLLOW_COMMANDER;
             case HOLD -> OrderType.HOLD_POSITION;
             case FREE_FIRE -> OrderType.FREE_FIRE;
             case CEASE_FIRE -> OrderType.CEASE_FIRE;
             case ATTACK_THAT -> OrderType.ATTACK_THAT_TARGET;
-            case TAKEOFF, LAND_AIRPORT, EMERGENCY_LAND, PATROL_HERE, SAD_HERE,
+            case TAKEOFF, LAND_AIRPORT, EMERGENCY_LAND, PATROL_HERE, SAD_HERE, SUPPRESS_HERE,
                     ENTRENCH_HERE, CRUISE, SET_GUARD, REACH_GUARD, ROUTE_TO_FOB, DISMISS, BAIL_OUT,
                     PARATROOP, PREFERRED_PATHWAYS ->
-                    throw new IllegalStateException(this.action + " is not a SEM order");
+                    throw new IllegalStateException(action + " is not a SEM order");
         };
     }
 
@@ -330,9 +360,9 @@ public class UnitOrderOption extends RightClickOption {
      * Height is unknown on an unexplored tile. The player's own Y is the best guess there is, and
      * the crew's navigation drops onto the ground from it; 32767 would just be nonsense.
      */
-    private Vec3 destination(Player player) {
-        double destY = this.y == NO_HEIGHT ? player.getY() : this.y + 1;
-        return new Vec3(this.x + 0.5, destY, this.z + 0.5);
+    private static Vec3 destination(Player player, int x, int y, int z) {
+        double destY = y == NO_HEIGHT ? player.getY() : y + 1;
+        return new Vec3(x + 0.5, destY, z + 0.5);
     }
 
     /**
@@ -340,8 +370,8 @@ public class UnitOrderOption extends RightClickOption {
      * the player's own Y on an unexplored tile). The single source of the map-selected position for
      * every map-positional order (patrol/search/airport hint), so none of them read the player's spot.
      */
-    private BlockPos mapPos(Player player) {
-        return new BlockPos(this.x, (int) destination(player).y, this.z);
+    public static BlockPos mapPos(Player player, int x, int y, int z) {
+        return new BlockPos(x, (int) destination(player, x, y, z).y, z);
     }
 
     /**

@@ -56,7 +56,10 @@ public enum OrderFailure {
     VEHICLE_WRECKED,
     VEHICLE_GONE,
     VEHICLE_PLAYER_ONLY,
+    VEHICLE_NOT_OWNED,
     UNREACHABLE,
+    /** A follower's order goes to its formation leader, and the leader is not loaded. */
+    LEADER_UNREACHABLE,
 
     // --- Permission: the player may not give this order ---
     ORDERS_LOCKED,

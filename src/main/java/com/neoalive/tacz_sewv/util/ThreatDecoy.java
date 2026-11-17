@@ -11,6 +11,7 @@ import net.minecraft.world.phys.AABB;
 import org.jetbrains.annotations.Nullable;
 
 import com.neoalive.tacz_sewv.crew.CrewFacts;
+import com.neoalive.tacz_sewv.crew.CrewRadio;
 
 /**
  * Soft-kill reaction to SBW lock / missile warnings: pop smoke (ground) or flares (air)
@@ -35,18 +36,31 @@ public final class ThreatDecoy {
     public static void popForWarned(@Nullable Entity warned) {
         if (warned == null || warned.level().isClientSide) return;
         VehicleEntity hull = resolveHull(warned);
-        if (hull != null) pop(hull);
+        if (hull == null) return;
+        if (CrewFacts.factionOf(hull) != null) CrewRadio.onLocked(hull);
+        pop(hull);
     }
 
     /** In-flight missile warning plays at {@code onPos} — find a decoy-capable hull there. */
     public static void popNear(Level level, BlockPos pos) {
         if (level.isClientSide) return;
         AABB box = new AABB(pos).inflate(2.5);
+        // The cockpit call goes to the first crewed hull at the spot whether or not it has flares left.
+        boolean warned = false;
         for (VehicleEntity hull : level.getEntitiesOfClass(VehicleEntity.class, box)) {
+            if (!warned && CrewFacts.factionOf(hull) != null) {
+                CrewRadio.onMissileInbound(hull);
+                warned = true;
+            }
             if (pop(hull)) return;
         }
         for (LivingEntity living : level.getEntitiesOfClass(LivingEntity.class, box)) {
-            if (living.getVehicle() instanceof VehicleEntity hull && pop(hull)) return;
+            if (!(living.getVehicle() instanceof VehicleEntity hull)) continue;
+            if (!warned && CrewFacts.factionOf(hull) != null) {
+                CrewRadio.onMissileInbound(hull);
+                warned = true;
+            }
+            if (pop(hull)) return;
         }
     }
 

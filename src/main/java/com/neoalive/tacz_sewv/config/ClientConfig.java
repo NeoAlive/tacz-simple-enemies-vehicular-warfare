@@ -37,6 +37,10 @@ public final class ClientConfig {
     public static final ModConfigSpec.BooleanValue NOTIFICATIONS_ENABLED;
     public static final ModConfigSpec.IntValue NOTIFICATION_SCREEN_SECONDS;
     public static final ModConfigSpec.IntValue NOTIFICATION_MAX_VISIBLE;
+    public static final ModConfigSpec.BooleanValue RADIO_NOTIFICATION_SOUND;
+    public static final ModConfigSpec.BooleanValue RADIO_CHATTER;
+    public static final ModConfigSpec.BooleanValue RADIO_VOICE_EFFECT;
+    public static final ModConfigSpec.BooleanValue RADIO_VOICE_CLICKS;
     public static final ModConfigSpec.BooleanValue HELMET_GRAYSCALE;
     public static final ModConfigSpec.BooleanValue SHOW_LAG_TIP;
 
@@ -55,6 +59,19 @@ public final class ClientConfig {
     public static final ModConfigSpec.BooleanValue COLLECTIVE_AI_DEBUG;
     public static final ModConfigSpec.BooleanValue INDIVIDUAL_AI_DEBUG;
     public static final ModConfigSpec.BooleanValue FOB_DEBUG;
+
+    public static final ModConfigSpec.BooleanValue GEMRENDER_PARTS_PALETTE_LIFT;
+    public static final ModConfigSpec.BooleanValue DOG_TAG_ICON_CACHE;
+    public static final ModConfigSpec.BooleanValue VEHICLE_REST_SKIP;
+    public static final ModConfigSpec.IntValue VEHICLE_FAR_SIM_DISTANCE;
+    public static final ModConfigSpec.IntValue VEHICLE_TURN_SOUND_DISTANCE;
+    public static final ModConfigSpec.BooleanValue SEM_UNIT_FRUSTUM_CULL;
+    public static final ModConfigSpec.BooleanValue TACZ_THIRD_PERSON_FLUSH_SKIP;
+    public static final ModConfigSpec.BooleanValue TACZ_FAST_CUBE_EMIT;
+    public static final ModConfigSpec.BooleanValue SEM_ATTACHMENT_LOD;
+    public static final ModConfigSpec.IntValue SEM_ATTACHMENT_LOD_DISTANCE;
+    public static final ModConfigSpec.BooleanValue SEM_ARMOR_LOD;
+    public static final ModConfigSpec.IntValue SEM_ARMOR_LOD_DISTANCE;
 
     /** Temporary on/off from the map-markers keybind; null = follow the setting below. */
     @Nullable
@@ -95,6 +112,18 @@ public final class ClientConfig {
         NOTIFICATION_MAX_VISIBLE = builder
                 .comment("How many HUD notification tickets may show stacked at once (extras wait in a backlog).")
                 .defineInRange("notificationMaxVisible", 3, 1, 8);
+        RADIO_NOTIFICATION_SOUND = builder
+                .comment("Play a radio click or squelch with each HUD notification.")
+                .define("radioNotificationSound", true);
+        RADIO_CHATTER = builder
+                .comment("Play random ambient radio traffic while you carry a handheld radio.")
+                .define("radioChatter", true);
+        RADIO_VOICE_EFFECT = builder
+                .comment("Run voice heard over a handheld radio (Simple Voice Chat) through the radio effect.")
+                .define("radioVoiceEffect", true);
+        RADIO_VOICE_CLICKS = builder
+                .comment("Play press-to-talk clicks at the start and end of radio voice transmissions.")
+                .define("radioVoiceClicks", true);
         HELMET_GRAYSCALE = builder
                 .comment("Desaturate only the PMC MICH DogTag UV to low-contrast grey (logo alpha kept).")
                 .define("helmetGrayscale", true);
@@ -141,6 +170,54 @@ public final class ClientConfig {
         MINIMAP_HIDE_RADAR_FOR_MARKED = builder
                 .comment("Hide Xaero's own radar icon for units that already have a marker (and their crews).")
                 .define("minimapHideRadarForMarked", true);
+        builder.pop();
+
+        builder.push("compat");
+        GEMRENDER_PARTS_PALETTE_LIFT = builder
+                .comment("Coltan + GemRender only. Let rigid-parts models import with more than 256 bones.",
+                        "GemRender rejects them although the parts path never stores a palette index, so tracked",
+                        "hulls (T-90A, Bradley, M1A2, BMP-2 and others) fall back to SBW's slower renderer.",
+                        "Read when a model loads; reload resources after changing it.")
+                .define("gemrenderPartsPaletteLift", true);
+        DOG_TAG_ICON_CACHE = builder
+                .comment("Reuse each vehicle's dog tag icon texture until its pattern changes, instead of",
+                        "rebuilding and uploading it every frame.")
+                .define("dogTagIconCache", true);
+        VEHICLE_REST_SKIP = builder
+                .comment("Skip client-side collision for vehicles you are not riding while they are parked.",
+                        "The server stays authoritative; position still follows its updates.")
+                .define("vehicleRestSkip", true);
+        VEHICLE_FAR_SIM_DISTANCE = builder
+                .comment("Beyond this many blocks, vehicles you are not riding skip client-side collision,",
+                        "follow server updates more tightly and refresh their slope tilt less often. 0 = off.")
+                .defineInRange("vehicleFarSimDistance", 48, 0, 1024);
+        VEHICLE_TURN_SOUND_DISTANCE = builder
+                .comment("Do not start turret traverse sounds for vehicles farther than this many blocks. 0 = off.")
+                .defineInRange("vehicleTurnSoundDistance", 48, 0, 1024);
+        SEM_UNIT_FRUSTUM_CULL = builder
+                .comment("Skip drawing SEM units that are outside the view. SEM draws every unit inside its",
+                        "render distance, including the ones behind the camera.")
+                .define("semUnitFrustumCull", true);
+        TACZ_THIRD_PERSON_FLUSH_SKIP = builder
+                .comment("Without a shader pack, let third-person TaCZ guns without a scope join the normal",
+                        "entity batch instead of forcing a flush per gun and per attachment.")
+                .define("taczThirdPersonFlushSkip", true);
+        TACZ_FAST_CUBE_EMIT = builder
+                .comment("Write TaCZ gun and attachment cubes without per-vertex allocations. Same vertices.")
+                .define("taczFastCubeEmit", true);
+        SEM_ATTACHMENT_LOD = builder
+                .comment("Skip attachment models (scopes, grips, muzzles) on third-person guns beyond",
+                        "semAttachmentLodDistance. The gun itself is always drawn.")
+                .define("semAttachmentLod", true);
+        SEM_ATTACHMENT_LOD_DISTANCE = builder
+                .comment("Distance in blocks for semAttachmentLod. 0 = off.")
+                .defineInRange("semAttachmentLodDistance", 48, 0, 1024);
+        SEM_ARMOR_LOD = builder
+                .comment("Skip Bedrock armor models on units beyond semArmorLodDistance.")
+                .define("semArmorLod", false);
+        SEM_ARMOR_LOD_DISTANCE = builder
+                .comment("Distance in blocks for semArmorLod. 0 = off.")
+                .defineInRange("semArmorLodDistance", 64, 0, 1024);
         builder.pop();
 
         builder.push("debug");

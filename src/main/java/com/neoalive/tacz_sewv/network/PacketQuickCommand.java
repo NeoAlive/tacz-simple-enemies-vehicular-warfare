@@ -61,6 +61,13 @@ public class PacketQuickCommand {
             if (!com.neoalive.tacz_sewv.item.TacticalTerminal.canUseQuickWheel(player)) return;
             QuickCommandPipeline pipeline = QuickCommandRegistry.get(this.pipelineId);
             if (pipeline == null) return;
+            // Units ordered by one wheel pick share a batch, which is what groups them on the map ribbon.
+            for (int id : this.unitIds) {
+                if (player.level().getEntity(id) instanceof net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity pmc
+                        && com.neoalive.tacz_sewv.invasion.PmcOwnerSupport.isOwner(player, pmc)) {
+                    com.neoalive.tacz_sewv.order.OrderBatch.stamp(pmc);
+                }
+            }
             pipeline.execute(player, new QuickCommandPipeline.QuickCommandContext(
                     this.unitIds, this.explicit, this.aimBlock));
         });

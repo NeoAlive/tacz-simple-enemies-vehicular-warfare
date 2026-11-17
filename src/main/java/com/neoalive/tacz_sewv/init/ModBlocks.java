@@ -70,4 +70,8 @@ public class ModBlocks {
     /** Decorative helipad decal. */
     public static final DeferredHolder<Block, Block> HELIPAD =
             BLOCKS.register("helipad", HelipadBlock::new);
+
+    /** Powered no-spawn zone source. */
+    public static final DeferredHolder<Block, Block> ZONE_BEACON =
+            BLOCKS.register("zone_beacon", com.neoalive.tacz_sewv.block.ZoneBeaconBlock::new);
 }

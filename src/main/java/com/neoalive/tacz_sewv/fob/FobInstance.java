@@ -36,6 +36,9 @@ public final class FobInstance {
     public long lastThreatEvalTime;
     public boolean scrambleActive;
     public int threatScore;
+    /** Highest score seen this scramble, and when it was last beaten. Transient. */
+    public transient int scoreHighWater;
+    public transient long lastEscalationTime;
     /** Periodic Refill interval in ticks; 0 = off. Set at the quarters bench. */
     public int periodicRefillTicks = SewvConfig.FOB_PERIODIC_REFILL_TICKS.get();
 

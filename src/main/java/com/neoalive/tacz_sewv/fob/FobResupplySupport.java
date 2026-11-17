@@ -29,6 +29,7 @@ import com.neoalive.tacz_sewv.block.StockpileBlockEntity;
 import com.neoalive.tacz_sewv.compat.VehicleAmmoStorage;
 import com.neoalive.tacz_sewv.crew.UnitInventory;
 import com.neoalive.tacz_sewv.entity.ai.support.PmcDownedSupport;
+import com.neoalive.tacz_sewv.platform.Caps;
 import com.neoalive.tacz_sewv.spawn.TankSpawner;
 
 /**
@@ -285,6 +286,38 @@ public final class FobResupplySupport {
             if (needy(new ResupplyTarget(eligible, dest)).isEmpty()) break;
         }
         return moved;
+    }
+
+    /** How much more of an ammo stack a unit's own TACZ guns want, up to {@code stacks} full stacks in its pockets. */
+    public static AmmoNeeds ammoNeeds(PmcUnitEntity pmc, int stacks) {
+        IItemHandler inv = Caps.entityItems(pmc);
+        return new AmmoNeeds(resolveEligibleTaczAmmo(pmc), inv == null ? null : new PmcStorageView(inv), stacks);
+    }
+
+    public static final class AmmoNeeds {
+        private final List<AmmoKind> eligible;
+        @Nullable
+        private final IItemHandler pockets;
+        private final int stacks;
+
+        private AmmoNeeds(List<AmmoKind> eligible, @Nullable IItemHandler pockets, int stacks) {
+            this.eligible = eligible;
+            this.pockets = pockets;
+            this.stacks = stacks;
+        }
+
+        public boolean any() {
+            return !this.eligible.isEmpty() && this.pockets != null;
+        }
+
+        /** 0 when the stack is not this unit's ammo or it already holds enough. */
+        public int wanted(ItemStack stack) {
+            if (this.pockets == null) return 0;
+            AmmoKind kind = match(this.eligible, stack);
+            if (kind == null) return 0;
+            int want = kind.prototype().getMaxStackSize() * this.stacks - countOf(this.pockets, kind);
+            return Math.max(0, want);
+        }
     }
 
     public static boolean isUnderFobCommand(PmcUnitEntity pmc) {

@@ -6,6 +6,7 @@ import java.util.UUID;
 import com.atsuishio.superbwarfare.data.vehicle.subdata.EngineType;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.core.BlockPos;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.Entity;
@@ -24,6 +25,7 @@ import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.goal.DriveVehicleGoal;
 import com.neoalive.tacz_sewv.entity.ai.navigation.GroundVehicleNodeEvaluator;
+import com.neoalive.tacz_sewv.util.LoadedTerrain;
 
 /**
  * The area tasks a unit can be given, read by whichever goal moves it: the drive goals for a crew
@@ -210,6 +212,56 @@ public final class PatrolSupport {
         ((IVehiclePatrol) pmc).sewv$setCruise(route, true);
     }
 
+    /**
+     * Moves a live patrol or search area to {@code origin} (a map waypoint drag). A patrol drops a leg
+     * that now falls outside the ring, and a final move drops it anyway so the next leg is picked in
+     * the new area. A final search move restarts its sweep from the first leg.
+     */
+    public static void moveOrigin(PmcUnitEntity pmc, BlockPos origin, boolean fin) {
+        IVehiclePatrol task = (IVehiclePatrol) pmc;
+        if (task.sewv$getPatrolOrigin() == null) return;
+        CompoundTag tag = pmc.getPersistentData();
+        tag.putLong(IVehiclePatrol.TAG_ORIGIN, origin.asLong());
+        BlockPos waypoint = task.sewv$getPatrolWaypoint();
+        int radius = task.sewv$getPatrolRadius();
+        boolean outside = waypoint != null && horizontalDistSq(waypoint, origin) > (double) radius * radius;
+        if (task.sewv$getPatrolMode() == IVehiclePatrol.MODE_SEARCH) {
+            if (!fin) return;
+            tag.putInt(IVehiclePatrol.TAG_STEP, 0);
+            tag.remove(IVehiclePatrol.TAG_WAYPOINT);
+            tag.remove(IVehiclePatrol.TAG_STEP_DEADLINE);
+            return;
+        }
+        if (fin || outside) {
+            tag.remove(IVehiclePatrol.TAG_WAYPOINT);
+            tag.remove(IVehiclePatrol.TAG_NEXT_ROTATE);
+        }
+    }
+
+    /**
+     * Moves node {@code index} of a live cruise. Node 0 is also the task origin. The leg in progress
+     * keeps its index and gets a fresh timeout if it was the one moved.
+     */
+    public static void moveCruiseNode(PmcUnitEntity pmc, int index, BlockPos pos) {
+        IVehiclePatrol task = (IVehiclePatrol) pmc;
+        if (task.sewv$getPatrolMode() != IVehiclePatrol.MODE_CRUISE) return;
+        CompoundTag tag = pmc.getPersistentData();
+        long[] route = tag.getLongArray(IVehiclePatrol.TAG_ROUTE);
+        if (index < 0 || index >= route.length) return;
+        route[index] = pos.asLong();
+        tag.putLongArray(IVehiclePatrol.TAG_ROUTE, route);
+        if (index == 0) tag.putLong(IVehiclePatrol.TAG_ORIGIN, pos.asLong());
+        if (Math.floorMod(task.sewv$getPatrolStep(), route.length) == index) {
+            task.sewv$setPatrolStepDeadline(pmc.level().getGameTime() + SWEEP_STEP_TIMEOUT);
+        }
+    }
+
+    private static double horizontalDistSq(BlockPos a, BlockPos b) {
+        double dx = a.getX() - b.getX();
+        double dz = a.getZ() - b.getZ();
+        return dx * dx + dz * dz;
+    }
+
     /** Drive the plotted route once, then stand down — manual preferred-pathway funnel for hulls. */
     public static void beginFunnelRoute(PmcUnitEntity pmc, List<BlockPos> route) {
         EntrenchSupport.clear(pmc);
@@ -394,7 +446,11 @@ public final class PatrolSupport {
 
         if (waypoint != null) {
             Entity body = vehicle != null ? vehicle : pmc;
-            boolean reached = horizontalDistSq(body, waypoint) <= SWEEP_ARRIVE_SQ;
+            // A hull parks at its arrival distance, which for a wide one is past the flat 12: it would never
+            // "reach" a leg and sat out the step timeout on every one. Same slack as a cruise leg.
+            double hullReach = vehicle != null
+                    ? VehicleTargeting.arrivalDistance(pmc, vehicle) + CRUISE_ARRIVE_SLACK : 0.0;
+            boolean reached = horizontalDistSq(body, waypoint) <= Math.max(SWEEP_ARRIVE_SQ, hullReach * hullReach);
             // A leg it cannot reach must not stall the sweep — time out and move on.
             if (!reached && now < task.sewv$getPatrolStepDeadline()) return waypoint;
             step++;
@@ -509,7 +565,7 @@ public final class PatrolSupport {
     @Nullable
     private static BlockPos column(Level level, int x, int z, boolean air) {
         if (!air) return drivableColumn(level, x, z);
-        if (!level.hasChunkAt(x, z)) return null;
+        if (!LoadedTerrain.loadedAt(level, x, z)) return null;
         return new BlockPos(x, level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z), z);
     }
 
@@ -517,7 +573,7 @@ public final class PatrolSupport {
     // Unloaded columns answer null rather than being force-loaded.
     @Nullable
     public static BlockPos drivableColumn(Level level, int x, int z) {
-        if (!level.hasChunkAt(x, z)) return null;
+        if (!LoadedTerrain.loadedAt(level, x, z)) return null;
         int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
         return CLASSIFIER.getBlockPathType(level, x, y, z) == PathType.WALKABLE
                 ? new BlockPos(x, y, z) : null;

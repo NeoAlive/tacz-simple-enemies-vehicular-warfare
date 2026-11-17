@@ -21,6 +21,7 @@ import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.debug.PathingPerf;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
+import com.neoalive.tacz_sewv.entity.ai.formation.DrivableGround;
 import com.neoalive.tacz_sewv.entity.ai.maneuver.Maneuver;
 import com.neoalive.tacz_sewv.entity.ai.maneuver.ManeuverPlanner;
 import com.neoalive.tacz_sewv.entity.ai.maneuver.SweepCheck;
@@ -66,7 +67,10 @@ public final class VehicleDriver {
     // Pathfinding throttles: A* over the vehicle's block volume is the most expensive thing this
     // does, so a still-valid path is reused instead of recomputed on a fixed timer. Defaults live
     // in SewvConfig (recalc 40 / drift 6 blocks) — tighter values used to repath ~1 Hz while chasing.
-    private static final double PATH_ABANDON_DRIFT_SQ = 256.0; // dest jumped >16 blocks → repath now
+    private static final double PATH_ABANDON_DRIFT = 16.0; // dest jumped this far → repath now (see jumpTolerance)
+    // A jump may skip the recalc cooldown only this long after the last search, so a crew flipping plans every tick
+    // cannot search every tick.
+    private static final long JUMP_MIN_GAP_TICKS = 10;
     // How close (squared) the hull must be to a waypoint to treat it as reached and aim at the
     // next one. Re-evaluated from the live position every tick, so the aimed waypoint stays put
     // while the hull turns in place instead of jittering.
@@ -145,9 +149,30 @@ public final class VehicleDriver {
         return SewvConfig.PATH_MAX_AGE_TICKS.get();
     }
 
-    private static double pathTargetDriftSq() {
-        double d = SewvConfig.PATH_TARGET_DRIFT_BLOCKS.get();
-        return d * d;
+    private static double pathTargetDrift() {
+        return SewvConfig.PATH_TARGET_DRIFT_BLOCKS.get();
+    }
+
+    /**
+     * How far a path target may slide before the route is replaced: the configured floor close in, a fifth of the
+     * remaining distance further out. Flank, follow, assist and march points slide with the hull or the target, and a
+     * flat 6 blocks re-searched a route to a point 80 blocks away every cooldown for a few blocks of slide.
+     */
+    static double driftTolerance(double floor, double distToDest) {
+        return Math.max(floor, 0.2 * distToDest);
+    }
+
+    /** Past this the destination has jumped (a new plan or order), and the cooldown is skipped. */
+    static double jumpTolerance(double distToDest) {
+        return Math.max(PATH_ABANDON_DRIFT, 0.4 * distToDest);
+    }
+
+    /**
+     * May the route swapped out by the last jump be put back instead of searching? Only for a flip back to where it
+     * went (ATTACK → FLANK → ATTACK), soon enough that the hull has not left it behind.
+     */
+    static boolean mayRestore(double driftSq, double toleranceSq, long sinceSwap, long window) {
+        return driftSq <= toleranceSq && sinceSwap >= 0 && sinceSwap <= window;
     }
 
     // Stuck recovery: if the hull neither moves nor turns for this long while it is being told to
@@ -219,6 +244,12 @@ public final class VehicleDriver {
     private int pathRecalcCooldown;
     private int pathAge;
     private BlockPos lastPathTarget;
+    // The route the last jump replaced, kept so a flip straight back reuses it (see mayRestore).
+    private Path prevPath;
+    private BlockPos prevPathTarget;
+    private int prevPathAge;
+    private long prevSwappedAt = Long.MIN_VALUE;
+    private long lastSearchAt = Long.MIN_VALUE;
 
     private Vec3 lastStuckPos;
     private float lastStuckYaw;
@@ -293,6 +324,7 @@ public final class VehicleDriver {
     }
 
     public void attach(VehicleEntity v) {
+        if (this.sbw != v) forgetPath(); // a route kept over a goal stop belongs to the hull it was planned for
         if (this.sbw != v || this.input == null) this.input = new SbwHullInput(v);
         this.vehicle = v;
         this.sbw = v;
@@ -303,6 +335,7 @@ public final class VehicleDriver {
     /** Drive a hull that is not an SBW {@code VehicleEntity}: steering through {@code in}, size
      * and mobility from {@code p}. SBW-only recovery hooks are skipped for it. */
     public void attach(Entity hull, HullInput in, HullProfile p) {
+        if (this.vehicle != hull) forgetPath();
         this.vehicle = hull;
         this.sbw = null;
         this.input = in;
@@ -326,7 +359,6 @@ public final class VehicleDriver {
     public void tickTimers() {
         if (this.pathRecalcCooldown > 0) this.pathRecalcCooldown--;
         if (this.maneuverCooldown > 0) this.maneuverCooldown--;
-        this.pathAge++;
     }
 
     /**
@@ -338,7 +370,15 @@ public final class VehicleDriver {
      * which reset the turn ramp constantly and left the tank pivoting in place forever.
      */
     public void navigateTo(BlockPos dest, double distanceSq) {
+        // Route age counts driving ticks only: a hull parked for a while still holds a good route for a short
+        // correction, and ageing it while parked forced a full search on every re-drive.
+        this.pathAge++;
         if (repairLocked()) { stop(); return; }
+        // An emplacement cannot move: no path, no steering, no stuck recovery.
+        if (this.sbw != null && HullFacts.engineType(this.sbw) == com.atsuishio.superbwarfare.data.vehicle.subdata.EngineType.FIXED) {
+            stop();
+            return;
+        }
         if (checkSubmergedFailsafe()) return;
         if (tickArrivalHysteresis(dest)) return;
         // Bank-lip reverse: face the blocked destination (usually into the water) and reverse off
@@ -447,6 +487,7 @@ public final class VehicleDriver {
                 return;
             }
         } else if (updateStuck()) {
+            if (settleFromPerch()) return;
             if (this.sbw != null) TowRecoverySupport.onStuckThresholdReached(this.sbw);
             this.unstickTicksLeft = UNSTICK_DURATION;
             this.stuckTicks = 0;
@@ -471,6 +512,11 @@ public final class VehicleDriver {
      */
     public void retreatFrom(BlockPos targetPos, double retreatRadius, double distanceSq) {
         if (repairLocked()) { stop(); return; }
+        // An emplacement cannot move: no path, no steering, no stuck recovery.
+        if (this.sbw != null && HullFacts.engineType(this.sbw) == com.atsuishio.superbwarfare.data.vehicle.subdata.EngineType.FIXED) {
+            stop();
+            return;
+        }
         if (checkSubmergedFailsafe()) return;
         navigateTo(VehicleTargeting.computeStandoffPoint(this.vehicle, this.input::forwardDirection, targetPos, retreatRadius, 0.0),
                 distanceSq);
@@ -539,22 +585,40 @@ public final class VehicleDriver {
 
     /** Forget the hull entirely, for a crew leaving its seat. */
     public void clear() {
+        softClear();
+        forgetPath();
         this.vehicle = null;
         this.sbw = null;
         this.input = null;
         this.profile = null;
+    }
+
+    /**
+     * Reset everything but the route, for a goal stop. The goal stops whenever there is briefly nowhere to go (an
+     * idle dwell, inside the assist ring, a HOLD); dropping the route there made every restart a forced search, even
+     * back to the same point. The drift and jump tests decide on restart whether the route still serves, and
+     * {@link #attach} drops it if the crew comes back in a different hull.
+     */
+    public void softClear() {
         this.maneuverWaitingSince = Long.MIN_VALUE;
         this.maneuverCooldown = 0;
         resetArrival();
-        this.currentPath = null;
-        this.lastPathTarget = null;
         this.lastLoggedSteerTarget = null;
         this.lastPathNode = null;
-        this.pathRecalcCooldown = 0;
         this.pathWaitingSince = Long.MIN_VALUE;
         this.speedCap = Double.NaN;
         this.sensor.clear();
         clearRecovery();
+    }
+
+    private void forgetPath() {
+        this.currentPath = null;
+        this.lastPathTarget = null;
+        this.pathRecalcCooldown = 0;
+        this.prevPath = null;
+        this.prevPathTarget = null;
+        this.prevSwappedAt = Long.MIN_VALUE;
+        this.lastSearchAt = Long.MIN_VALUE;
     }
 
     /**
@@ -567,19 +631,50 @@ public final class VehicleDriver {
         double targetDriftSq = this.lastPathTarget == null
                 ? Double.MAX_VALUE
                 : this.lastPathTarget.distSqr(pathDest);
+        double toDest = Math.sqrt(this.vehicle.distanceToSqr(pathDest.getX() + 0.5, this.vehicle.getY(),
+                pathDest.getZ() + 0.5));
+        double driftTol = driftTolerance(pathTargetDrift(), toDest);
+        double jumpTol = jumpTolerance(toDest);
         boolean pathStale = this.currentPath == null
                 || this.currentPath.isDone()
                 || this.pathAge > EasyMode.pathCadence(this.unit, pathMaxAge())
-                || targetDriftSq > pathTargetDriftSq();
+                || targetDriftSq > driftTol * driftTol;
         // A far jump in destination (order change, retreat flip) means the route in hand points
         // somewhere we no longer want to go, so ignore the throttle and repath immediately rather
         // than coast toward the stale goal for ~20 ticks.
-        boolean destJumped = targetDriftSq > PATH_ABANDON_DRIFT_SQ;
+        boolean destJumped = targetDriftSq > jumpTol * jumpTol;
+        long now = this.unit.level().getGameTime();
+
+        // A flip straight back to the route the last jump replaced: put it back instead of searching.
+        if (destJumped && this.prevPath != null && !this.prevPath.isDone()
+                && mayRestore(this.prevPathTarget.distSqr(pathDest), driftTol * driftTol,
+                        now - this.prevSwappedAt, pathRecalcCooldown())) {
+            Path swappedPath = this.currentPath;
+            BlockPos swappedTarget = this.lastPathTarget;
+            int swappedAge = this.pathAge;
+            this.currentPath = this.prevPath;
+            this.lastPathTarget = this.prevPathTarget;
+            this.pathAge = this.prevPathAge + (int) (now - this.prevSwappedAt);
+            this.prevPath = swappedPath;
+            this.prevPathTarget = swappedTarget;
+            this.prevPathAge = swappedAge;
+            this.prevSwappedAt = now;
+            PathingPerf.pathRestored++;
+            if (SewvDiag.groundPathingVerbose()) {
+                SewvDiag.pathing("repath RESTORE unit={}#{} vehicle={}#{} dest={}",
+                        this.unit.getClass().getSimpleName(), this.unit.getId(),
+                        this.vehicle.getName().getString(), this.vehicle.getId(), dest);
+            }
+            destJumped = false;
+            pathStale = this.pathAge > EasyMode.pathCadence(this.unit, pathMaxAge());
+        }
 
         // Refresh on the throttle only; between refreshes keep following the path in hand (a route
         // to where the target was a few blocks ago is still a fine approximation) so steering
         // stays continuous.
-        boolean wantSearch = pathStale && (this.pathRecalcCooldown <= 0 || destJumped);
+        boolean jumpMayBypass = destJumped
+                && (this.lastSearchAt == Long.MIN_VALUE || now - this.lastSearchAt >= JUMP_MIN_GAP_TICKS);
+        boolean wantSearch = pathStale && (this.pathRecalcCooldown <= 0 || jumpMayBypass);
         // pathSearchesPerTick: refused hulls keep the route in hand and ask again next tick.
         if (wantSearch && !PathBudget.tryAcquire(this.unit.level(), this.pathWaitingSince, this.farIdle)) {
             if (this.pathWaitingSince == Long.MIN_VALUE) this.pathWaitingSince = this.unit.level().getGameTime();
@@ -601,6 +696,13 @@ public final class VehicleDriver {
                         destJumped,
                         this.currentPath == null);
             }
+            if (destJumped && this.currentPath != null && this.lastPathTarget != null) {
+                this.prevPath = this.currentPath;
+                this.prevPathTarget = this.lastPathTarget;
+                this.prevPathAge = this.pathAge;
+                this.prevSwappedAt = now;
+            }
+            this.lastSearchAt = now;
             long t0 = System.nanoTime();
             recomputePath(pathDest);
             PathingPerf.pathNanos += System.nanoTime() - t0;
@@ -739,6 +841,33 @@ public final class VehicleDriver {
      * while being told to drive. Rotation counts as progress, so a legitimate (even slow)
      * turn-in-place is never flagged — only a hull truly pinned on terrain.
      */
+    /**
+     * A hull stuck on top of a tree has no input that brings it down: every way off reads as a wall, and a
+     * reverse only grinds the canopy. Put it on the nearest clear drivable column instead, with the
+     * spawner's own collision-checked search. Never with a player aboard.
+     */
+    private boolean settleFromPerch() {
+        VehicleEntity hull = this.sbw;
+        if (hull == null || !(hull.level() instanceof net.minecraft.server.level.ServerLevel level)) return false;
+        if (!DrivableGround.perched(hull)) return false;
+        for (Entity p : hull.getPassengers()) {
+            if (p instanceof net.minecraft.world.entity.player.Player) return false;
+        }
+        BlockPos to = com.neoalive.tacz_sewv.spawn.TankSpawner.findClearSpawn(level, hull.blockPosition(), hull.getType());
+        if (to == null) return false;
+        Vec3 from = hull.position();
+        hull.setDeltaMovement(Vec3.ZERO);
+        hull.teleportTo(to.getX() + 0.5, to.getY(), to.getZ() + 0.5);
+        this.stuckTicks = 0;
+        this.lastStuckPos = null;
+        this.currentPath = null;
+        this.pathRecalcCooldown = 0;
+        SewvDiag.pathingEvent("perch settle unit={}#{} vehicle={}#{} from={} to={}",
+                this.unit.getClass().getSimpleName(), this.unit.getId(),
+                hull.getName().getString(), hull.getId(), BlockPos.containing(from), to);
+        return true;
+    }
+
     private boolean updateStuck() {
         Vec3 pos = this.vehicle.position();
         float yaw = this.vehicle.getYRot();
@@ -818,8 +947,11 @@ public final class VehicleDriver {
         // at the target's distance, so an intermediate steer point lands in exactly the bands the
         // old 110-degree test had; only the final point brings in the radius test.
         double dist = Math.sqrt(horizontalDistSq(targetPos));
+        // The final point is judged against the radius the goal will call "arrived": a slot the hull
+        // rolls past inside it is reached, not a reason for a three-point turn (ManeuverPlanner#passesWithin).
+        double arrive = this.steerIsFinal ? VehicleTargeting.arrivalDistance(this.unit, hullWidth()) : -1.0;
         ManeuverPlanner.Decision decision = ManeuverPlanner.classify(maneuverInput(forward,
-                dist * Math.cos(angle), dist * Math.sin(angle), Double.NaN, -1.0,
+                dist * Math.cos(angle), dist * Math.sin(angle), Double.NaN, arrive,
                 this.steerIsFinal, !this.hull.isWheeled(), angleThreshold));
         if (decision.state() == ManeuverPlanner.State.MULTI_POINT) {
             if (decision.plan() && sternClearOrNoSensor(forward) && tryRoutePlan(forward, targetPos, distanceSq)) {
@@ -977,6 +1109,8 @@ public final class VehicleDriver {
      * only has to catch what moved into them, or a hull off the planning speed band. A full
      * lookahead straight ahead would abort every forward leg of a turn made next to a wall. */
     private static final double RUN_CONTACT_PROBE = 2.0;
+    /** A running maneuver yields to a peer it would touch within this many ticks (see VehicleOrca#yieldsTo). */
+    private static final double RUN_YIELD_TICKS = 20.0;
 
     /** One planned maneuver being driven: segment cursor plus the measured net yaw of the segment. */
     private static final class ManeuverRun {
@@ -1028,6 +1162,17 @@ public final class VehicleDriver {
             if (!this.sensor.headingClear(travel.normalize(), RUN_CONTACT_PROBE)) {
                 if (SewvDiag.groundPathingVerbose()) {
                     SewvDiag.pathing("multipoint BLOCKED unit={}#{} vehicle={}#{} seg={} reverse={}: abort",
+                            this.unit.getClass().getSimpleName(), this.unit.getId(),
+                            this.vehicle.getName().getString(), this.vehicle.getId(), run.seg, reverse);
+                }
+                return RUN_ABORTED;
+            }
+            // The keys are pressed directly here, past the whisker fan, so ORCA's spacing never
+            // applies while a plan runs; give way when a peer is about to meet us. The abort's
+            // cooldown hands steering back to the fan, which does keep the soft distance.
+            if (this.sensor.maneuverMustYield(RUN_YIELD_TICKS)) {
+                if (SewvDiag.groundPathingVerbose()) {
+                    SewvDiag.pathing("multipoint YIELD unit={}#{} vehicle={}#{} seg={} reverse={}: abort",
                             this.unit.getClass().getSimpleName(), this.unit.getId(),
                             this.vehicle.getName().getString(), this.vehicle.getId(), run.seg, reverse);
                 }

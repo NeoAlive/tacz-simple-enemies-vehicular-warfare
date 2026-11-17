@@ -34,7 +34,29 @@ public final class GroundSnap {
         if (water) {
             BlockPos projected = WaterSupport.projectToWater(level, BlockPos.containing(center.x, anchorY, center.z));
             if (projected != null) return projected;
+            return BlockPos.containing(center.x, groundY(level, center.x, center.z, anchorY), center.z);
         }
-        return BlockPos.containing(center.x, groundY(level, center.x, center.z, anchorY), center.z);
+        return hullSlot(level, center.x, center.z, anchorY);
+    }
+
+    /** How far a ground hull slot may be moved to get it off a tree or out of the water. */
+    public static final int HULL_SLOT_PULL = 8;
+
+    /**
+     * Drive-to block for a ground hull at (x, z): moved to the nearest drivable column within
+     * {@link #HULL_SLOT_PULL} when the spot is a trunk top or water, else dropped onto the terrain as is.
+     * One chunk read when the spot is already fine.
+     */
+    public static BlockPos hullSlot(Level level, double x, double z, double anchorY) {
+        int bx = Mth.floor(x);
+        int bz = Mth.floor(z);
+        if (!DrivableGround.drivable(level, bx, bz)) {
+            int[] p = DrivableGround.nearest(DrivableGround.column(level), bx, bz, HULL_SLOT_PULL);
+            if (p != null) {
+                x = p[0] + 0.5;
+                z = p[1] + 0.5;
+            }
+        }
+        return BlockPos.containing(x, groundY(level, x, z, anchorY), z);
     }
 }

@@ -17,6 +17,7 @@ import org.ywzj.vehicle.vehicle.control.ControlUnit;
 
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleWeapons;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleWeapons.TargetCategory;
+import com.neoalive.tacz_sewv.util.LoadedTerrain;
 
 /**
  * Flies a Limitless Vehicles rotorcraft from seat 0. Nothing of ours flies an LV aircraft
@@ -229,7 +230,7 @@ final class LvRotorGoal extends Goal {
         Level level = this.hull.level();
         int bx = Mth.floor(x);
         int bz = Mth.floor(z);
-        if (!level.hasChunk(bx >> 4, bz >> 4)) return this.hull.getY() - CRUISE_HEIGHT;
+        if (!LoadedTerrain.loaded(level, bx >> 4, bz >> 4)) return this.hull.getY() - CRUISE_HEIGHT;
         return level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, bx, bz);
     }
 

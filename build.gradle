@@ -55,11 +55,30 @@ def dormantSources = [
         'com/neoalive/tacz_sewv/compat/lv/**',
         // Berezka
         'com/neoalive/tacz_sewv/compat/BerezkaStructureCompat.java',
+        // Frontline Combat Pack 2.0 (FcpHulls is stubbed, FcpCompat stays real)
+        'com/neoalive/tacz_sewv/compat/fcp/FcpHulls.java',
+        'com/neoalive/tacz_sewv/mixin/fcp/**',
+        // Tripod Invasion (TripodCompat is stubbed)
+        'com/neoalive/tacz_sewv/compat/TripodCompat.java',
+        'com/neoalive/tacz_sewv/mixin/tripod/**',
+        'com/neoalive/tacz_sewv/mixin/TripodMixinPlugin.java',
+        // GemRender
+        'com/neoalive/tacz_sewv/mixin/gemrender/**',
+        'com/neoalive/tacz_sewv/mixin/GemRenderMixinPlugin.java',
+        // Simple Voice Chat (the plugin side; VoicechatCompat answers inactive without it)
+        'com/neoalive/tacz_sewv/compat/voicechat/SewvVoicechatPlugin.java',
+        'com/neoalive/tacz_sewv/compat/voicechat/RadioVoiceClient.java',
+        'com/neoalive/tacz_sewv/compat/voicechat/RadioVoiceClientHooks.java',
+        'com/neoalive/tacz_sewv/compat/voicechat/RadioVoiceEcho.java',
+        'com/neoalive/tacz_sewv/compat/voicechat/RadioVoiceRelay.java',
 ]
 def dormantMixinConfigs = [
         'tacz_sewv.komodo.mixins.json',
         'tacz_sewv.corpse.mixins.json',
         'tacz_sewv.minecolonies.mixins.json',
+        'tacz_sewv.fcp.mixins.json',
+        'tacz_sewv.tripod.mixins.json',
+        'tacz_sewv.gemrender.mixins.json',
 ]
 sourceSets {
     main {
@@ -79,6 +98,8 @@ sourceSets {
         java {
             // LV's steering self-check reads compat/lv sources that are dormant on this branch.
             exclude 'com/neoalive/tacz_sewv/compat/lv/**'
+            // FCP's self-check reads the dormant FcpMixinPlugin.
+            exclude 'com/neoalive/tacz_sewv/compat/fcp/FcpSelfCheck.java'
         }
     }
 }
@@ -401,6 +422,24 @@ tasks.register('selfCheckUtility', JavaExec) {
     jvmArgs '-ea'
 }
 
+tasks.register('selfCheckSpawnZones', JavaExec) {
+    group = 'verification'
+    description = 'Runs the spawn zone layer and geometry self-check.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
+    mainClass = 'com.neoalive.tacz_sewv.zone.SpawnZonesSelfCheck'
+    jvmArgs '-ea'
+}
+
+tasks.register('selfCheckSignal', JavaExec) {
+    group = 'verification'
+    description = 'Runs the FPAS signal target assignment self-check.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
+    mainClass = 'com.neoalive.tacz_sewv.fpas.SignalAssignSelfCheck'
+    jvmArgs '-ea'
+}
+
 tasks.register('selfCheckEasyMode', JavaExec) {
     group = 'verification'
     description = 'Runs the Easy Mode tuning-table self-check.'
@@ -416,6 +455,24 @@ tasks.register('selfCheckRadial', JavaExec) {
     dependsOn tasks.named('testClasses')
     classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
     mainClass = 'com.neoalive.tacz_sewv.client.radial.RadialInputStateSelfCheck'
+    jvmArgs '-ea'
+}
+
+tasks.register('selfCheckCoverHold', JavaExec) {
+    group = 'verification'
+    description = 'Runs the Cover and Hold geometry self-check.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
+    mainClass = 'com.neoalive.tacz_sewv.entity.ai.support.CoverHoldSelfCheck'
+    jvmArgs '-ea'
+}
+
+tasks.register('selfCheckShellRanking', JavaExec) {
+    group = 'verification'
+    description = 'Runs the cannon shell ranking self-check.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
+    mainClass = 'com.neoalive.tacz_sewv.entity.ai.core.ShellRankingSelfCheck'
     jvmArgs '-ea'
 }
 
@@ -482,6 +539,15 @@ tasks.register('selfCheckPlayerFormation', JavaExec) {
     jvmArgs '-ea'
 }
 
+tasks.register('selfCheckFormationSubject', JavaExec) {
+    group = 'verification'
+    description = 'Runs the formation-subject self-check (order policy table, leader election, re-head bearing).'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
+    mainClass = 'com.neoalive.tacz_sewv.entity.ai.support.FormationSubjectSelfCheck'
+    jvmArgs '-ea'
+}
+
 tasks.register('selfCheckInfantryFormation', JavaExec) {
     group = 'verification'
     description = 'Runs the on-foot formation self-check (squad splits, squad wedge/column, escort files).'
@@ -518,6 +584,15 @@ tasks.register('selfCheckHeli', JavaExec) {
     jvmArgs '-ea'
 }
 
+tasks.register('selfCheckWing', JavaExec) {
+    group = 'verification'
+    description = 'Runs the fixed-wing flight-stack self-check (airframe model, determinism, layering, SBW envelope report).'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
+    mainClass = 'com.neoalive.tacz_sewv.wing.WingFlightSelfCheck'
+    jvmArgs '-ea'
+}
+
 tasks.register('selfCheckManeuver', JavaExec) {
     group = 'verification'
     description = 'Runs the wheeled maneuver planner self-check (rudder model, classification, veto, mirror, purity).'
@@ -533,6 +608,15 @@ tasks.register('selfCheckArtillery', JavaExec) {
     dependsOn tasks.named('testClasses')
     classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
     mainClass = 'com.neoalive.tacz_sewv.entity.ai.support.BallisticArcSelfCheck'
+    jvmArgs '-ea'
+}
+
+tasks.register('selfCheckShieldRay', JavaExec) {
+    group = 'verification'
+    description = 'Runs the tripod shield ray self-check (barrel line against the shield ellipsoid).'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
+    mainClass = 'com.neoalive.tacz_sewv.compat.ShieldRaySelfCheck'
     jvmArgs '-ea'
 }
 
@@ -572,6 +656,15 @@ tasks.register('selfCheckContactBoard', JavaExec) {
     jvmArgs '-ea'
 }
 
+tasks.register('selfCheckMinefield', JavaExec) {
+    group = 'verification'
+    description = 'Runs the minefield planner self-check (shapes, spacing, facing, engineer split).'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
+    mainClass = 'com.neoalive.tacz_sewv.entity.ai.support.mines.MinefieldSelfCheck'
+    jvmArgs '-ea'
+}
+
 tasks.register('selfCheckDismount', JavaExec) {
     group = 'verification'
     description = 'Runs the IFV dismount corner / sequencing geometry self-check.'
@@ -596,6 +689,15 @@ tasks.register('selfCheckTactics', JavaExec) {
     dependsOn tasks.named('testClasses')
     classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
     mainClass = 'com.neoalive.tacz_sewv.entity.ai.command.TacticsSelfCheck'
+    jvmArgs '-ea'
+}
+
+tasks.register('selfCheckBattlePosition', JavaExec) {
+    group = 'verification'
+    description = 'Runs the battle-position lifecycle self-check (keep/swap/drop, lease, breaker hand-off).'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
+    mainClass = 'com.neoalive.tacz_sewv.entity.ai.cover.BattlePositionSelfCheck'
     jvmArgs '-ea'
 }
 
@@ -653,6 +755,24 @@ tasks.register('selfCheckCues', JavaExec) {
     jvmArgs '-ea'
 }
 
+tasks.register('selfCheckSuppression', JavaExec) {
+    group = 'verification'
+    description = 'Runs the suppression table and bus maths self-check.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
+    mainClass = 'com.neoalive.tacz_sewv.entity.ai.suppression.SuppressionSelfCheck'
+    jvmArgs '-ea'
+}
+
+tasks.register('selfCheckAcquisition', JavaExec) {
+    group = 'verification'
+    description = 'Runs the target-acquisition, infantry armour doctrine and fire rhythm self-check.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
+    mainClass = 'com.neoalive.tacz_sewv.entity.ai.sensor.AcquisitionSelfCheck'
+    jvmArgs '-ea'
+}
+
 tasks.register('selfCheckEngineGates', JavaExec) {
     group = 'verification'
     description = 'Fails if getEngineInfo() instanceof Helicopter gates remain in src/main.'
@@ -660,6 +780,15 @@ tasks.register('selfCheckEngineGates', JavaExec) {
     classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
     mainClass = 'com.neoalive.tacz_sewv.EngineGateSelfCheck'
     workingDir = project.projectDir
+    jvmArgs '-ea'
+}
+
+tasks.register('selfCheckRadioQueue', JavaExec) {
+    group = 'verification'
+    description = 'Pins the crew radio queue rules.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
+    mainClass = 'com.neoalive.tacz_sewv.crew.RadioQueueSelfCheck'
     jvmArgs '-ea'
 }
 
@@ -782,12 +911,12 @@ tasks.register('selfCheckDiplomacy', JavaExec) {
     jvmArgs '-ea'
 }
 
-tasks.register('selfCheckMinimap', JavaExec) {
+tasks.register('selfCheckVehicleAccess', JavaExec) {
     group = 'verification'
-    description = 'Runs the shared map-drawing / minimap projection and isolation self-check.'
+    description = 'Runs the hull interact-lock self-check.'
     dependsOn tasks.named('testClasses')
     classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
-    mainClass = 'com.neoalive.tacz_sewv.client.map.MinimapSelfCheck'
+    mainClass = 'com.neoalive.tacz_sewv.crew.VehicleAccessSelfCheck'
     jvmArgs '-ea'
 }
 
@@ -845,6 +974,53 @@ tasks.register('selfCheckMiscPacks', JavaExec) {
     jvmArgs '-ea'
 }
 
+tasks.register('selfCheckRadioDsp', JavaExec) {
+    group = 'verification'
+    description = 'Runs the realtime radio voice DSP and Voice Chat isolation self-check.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
+    mainClass = 'com.neoalive.tacz_sewv.audio.RadioDspSelfCheck'
+    workingDir = project.projectDir
+    jvmArgs '-ea'
+}
+
+tasks.register('radioDspRender', JavaExec) {
+    group = 'verification'
+    description = 'Runs a wav through the radio voice DSP: -Pin=voice.wav -Pout=radio.wav'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
+    mainClass = 'com.neoalive.tacz_sewv.audio.RadioDspRender'
+    workingDir = project.projectDir
+    args = [project.findProperty('in') ?: '', project.findProperty('out') ?: '']
+}
+
+tasks.register('selfCheckEventMarks', JavaExec) {
+    group = 'verification'
+    description = 'Event mark election band, footprint fit, creep and deal fairness.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
+    mainClass = 'com.neoalive.tacz_sewv.procedural.marks.EventMarksSelfCheck'
+    jvmArgs '-ea'
+}
+
+tasks.register('selfCheckEventSpots', JavaExec) {
+    group = 'verification'
+    description = 'Event spot ring stays inside the simulated radius.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
+    mainClass = 'com.neoalive.tacz_sewv.procedural.events.EventSpotsSelfCheck'
+    jvmArgs '-ea'
+}
+
+tasks.register('selfCheckLoadedTerrain', JavaExec) {
+    group = 'verification'
+    description = 'Bans Level.hasChunk as a loaded test in server code (LoadedTerrain only).'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
+    mainClass = 'com.neoalive.tacz_sewv.util.LoadedTerrainSelfCheck'
+    jvmArgs '-ea'
+}
+
 
 // The self-checks are plain JavaExec mains: run them on the Java 21 toolchain the classes are
 // compiled for, not on whatever JVM is running Gradle.
@@ -862,11 +1038,83 @@ tasks.register('selfCheckDormantStubs', JavaExec) {
     workingDir = projectDir
 }
 
+tasks.register('selfCheckFcp', JavaExec) {
+    group = 'verification'
+    description = 'Runs the Frontline Combat Pack isolation and roster self-check.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
+    mainClass = 'com.neoalive.tacz_sewv.compat.fcp.FcpSelfCheck'
+    jvmArgs '-ea'
+}
+
+tasks.register('selfCheckRibbon', JavaExec) {
+    group = 'verification'
+    description = 'Runs the map unit ribbon visibility / bracket nesting self-check.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
+    mainClass = 'com.neoalive.tacz_sewv.client.map.RibbonSelfCheck'
+    jvmArgs '-ea'
+}
+
+tasks.register('selfCheckWaypointDrag', JavaExec) {
+    group = 'verification'
+    description = 'Runs the map waypoint drag handle / send gate self-check.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
+    mainClass = 'com.neoalive.tacz_sewv.client.map.WaypointDragSelfCheck'
+    jvmArgs '-ea'
+}
+
+tasks.register('selfCheckMinimap', JavaExec) {
+    group = 'verification'
+    description = 'Runs the shared map-drawing / minimap projection and isolation self-check.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
+    mainClass = 'com.neoalive.tacz_sewv.client.map.MinimapSelfCheck'
+    jvmArgs '-ea'
+}
+
+tasks.register('selfCheckVehicleClientLod', JavaExec) {
+    group = 'verification'
+    description = 'Runs the client vehicle simulation thinning self-check.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
+    mainClass = 'com.neoalive.tacz_sewv.client.perf.VehicleClientLodSelfCheck'
+    jvmArgs '-ea'
+}
+
+tasks.register('selfCheckTaczCube', JavaExec) {
+    group = 'verification'
+    description = 'Pins the fast TaCZ cube emitter to TaCZ cube compile output.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
+    mainClass = 'com.neoalive.tacz_sewv.client.perf.TaczCubeEmitterSelfCheck'
+    jvmArgs '-ea'
+}
+
+tasks.register('selfCheckScavenge', JavaExec) {
+    group = 'verification'
+    description = 'Runs the Scavenge and Airplane Mode self-check (stages, caps, full pockets, role filter).'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
+    mainClass = 'com.neoalive.tacz_sewv.command.quick.scavenge.ScavengeSelfCheck'
+    jvmArgs '-ea'
+}
+
+tasks.register('selfCheckLang', JavaExec) {
+    group = 'verification'
+    description = 'Checks locale files against en_us for keys, placeholders, and banned phrasing.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
+    mainClass = 'com.neoalive.tacz_sewv.LangFilesSelfCheck'
+    jvmArgs '-ea'
+}
+
 tasks.register('selfCheck') {
     group = 'verification'
     description = 'Runs all headless AI self-checks.'
-    // selfCheckLv is dormant on this branch (Limitless Vehicles is not ported).
-    dependsOn 'selfCheckArmor', 'selfCheckArtillery', 'selfCheckReducedCharge', 'selfCheckCamo', 'selfCheckLoadout', 'selfCheckVehiclePacks', 'selfCheckMiscPacks', 'selfCheckUtility', 'selfCheckEasyMode', 'selfCheckRadial', 'selfCheckWeapons', 'selfCheckGrouping', 'selfCheckElection', 'selfCheckInfluence', 'selfCheckPlay', 'selfCheckFormation', 'selfCheckPlayerFormation', 'selfCheckInfantryFormation', 'selfCheckMarch', 'selfCheckSeam', 'selfCheckHeli', 'selfCheckHeliArmament', 'selfCheckPlane', 'selfCheckContactBoard', 'selfCheckWideScan', 'selfCheckPathBudget', 'selfCheckLofCache', 'selfCheckChunkTickets', 'selfCheckUnitLod', 'selfCheckTaskedDestination', 'selfCheckDismount', 'selfCheckTactics', 'selfCheckCues', 'selfCheckEngineGates', 'selfCheckSounds', 'selfCheckCrewSkins', 'selfCheckAirport', 'selfCheckGround', 'selfCheckOrca', 'selfCheckCover', 'selfCheckBallistics', 'selfCheckIdle', 'selfCheckInvasion', 'selfCheckConfig', 'selfCheckPathway', 'selfCheckStructures', 'selfCheckTerritory', 'selfCheckDiplomacy', 'selfCheckDormantStubs', 'selfCheckMinimap'
+    // selfCheckLv and selfCheckFcp are dormant on this branch (Limitless Vehicles and FCP 2.0 are not ported).
+    dependsOn 'selfCheckArmor', 'selfCheckArtillery', 'selfCheckReducedCharge', 'selfCheckShieldRay', 'selfCheckCamo', 'selfCheckLoadout', 'selfCheckVehiclePacks', 'selfCheckMiscPacks', 'selfCheckUtility', 'selfCheckEasyMode', 'selfCheckRadial', 'selfCheckSignal', 'selfCheckCoverHold', 'selfCheckWeapons', 'selfCheckShellRanking', 'selfCheckGrouping', 'selfCheckElection', 'selfCheckInfluence', 'selfCheckPlay', 'selfCheckFormation', 'selfCheckPlayerFormation', 'selfCheckInfantryFormation', 'selfCheckMarch', 'selfCheckSeam', 'selfCheckHeli', 'selfCheckHeliArmament', 'selfCheckPlane', 'selfCheckContactBoard', 'selfCheckWideScan', 'selfCheckPathBudget', 'selfCheckLofCache', 'selfCheckChunkTickets', 'selfCheckUnitLod', 'selfCheckTaskedDestination', 'selfCheckDismount', 'selfCheckMinefield', 'selfCheckTactics', 'selfCheckCues', 'selfCheckSuppression', 'selfCheckAcquisition', 'selfCheckEngineGates', 'selfCheckSounds', 'selfCheckRadioQueue', 'selfCheckCrewSkins', 'selfCheckAirport', 'selfCheckGround', 'selfCheckOrca', 'selfCheckCover', 'selfCheckBattlePosition', 'selfCheckBallistics', 'selfCheckIdle', 'selfCheckInvasion', 'selfCheckConfig', 'selfCheckPathway', 'selfCheckStructures', 'selfCheckTerritory', 'selfCheckDiplomacy', 'selfCheckVehicleAccess', 'selfCheckRadioDsp', 'selfCheckMinimap', 'selfCheckWaypointDrag', 'selfCheckRibbon', 'selfCheckVehicleClientLod', 'selfCheckTaczCube', 'selfCheckScavenge', 'selfCheckLang', 'selfCheckLoadedTerrain', 'selfCheckEventSpots', 'selfCheckEventMarks', 'selfCheckDormantStubs'
 }
 
 // Average-modpack jars live in modpack/ (gitignored). syncModpack pulls from Prism.
@@ -952,4 +1200,13 @@ spotless {
         trimTrailingWhitespace()
         endWithNewline()
     }
+}
+
+tasks.register('selfCheckFpasPose', JavaExec) {
+    group = 'verification'
+    description = 'Runs the FPAS clip sampler and pose state machine self-check.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
+    mainClass = 'com.neoalive.tacz_sewv.client.fpas.FpasPoseSelfCheck'
+    jvmArgs '-ea'
 }

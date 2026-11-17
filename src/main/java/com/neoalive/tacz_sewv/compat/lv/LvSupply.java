@@ -2,13 +2,13 @@ package com.neoalive.tacz_sewv.compat.lv;
 
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.common.capabilities.ForgeCapabilities;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
 import org.ywzj.vehicle.entity.vehicle.AbstractVehicle;
 import org.ywzj.vehicle.vehicle.weapon.AbstractVehicleWeapon;
 
 import com.neoalive.tacz_sewv.config.EasyMode;
+import com.neoalive.tacz_sewv.platform.Caps;
 
 /**
  * Supply doctrine for LV hulls, mirroring the SBW one ({@code MixinVehicleFactionEnergy} /
@@ -63,7 +63,7 @@ final class LvSupply {
         if (items.length == 0) return;
         ItemStack round = items[0].copy();
         round.setCount(Math.max(1, Math.min(weapon.getMaxCapacity(), round.getMaxStackSize())));
-        hull.getCapability(ForgeCapabilities.ITEM_HANDLER).ifPresent(inv -> {
+        hull.getCapability(Caps.ITEM_HANDLER).ifPresent(inv -> {
             ItemStack rest = round;
             for (int i = 0; i < inv.getSlots() && !rest.isEmpty(); i++) {
                 rest = inv.insertItem(i, rest, false);

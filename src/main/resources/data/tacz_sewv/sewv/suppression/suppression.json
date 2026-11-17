@@ -1,0 +1,6 @@
+{
+  "small_arms": { "amount": 0.12, "radius": 2.5 },
+  "mg":         { "amount": 0.20, "radius": 4.0 },
+  "cannon":     { "amount": 0.30, "radius": 6.0 },
+  "explosion":  { "amount": 0.35, "radius": 2.0 }
+}

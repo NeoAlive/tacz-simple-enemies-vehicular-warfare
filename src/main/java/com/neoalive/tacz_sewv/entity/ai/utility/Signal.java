@@ -50,6 +50,12 @@ public enum Signal {
     SCREENED("screened"),
     /** 1 shortly after taking a hit, decaying to 0. */
     RECENTLY_HIT("recentlyHit"),
+    /**
+     * 0..1, how much fire the HULL is taking: hits on it (raw, before armour) and detonations
+     * nearby, decaying over a few seconds. {@link #RECENTLY_HIT} reads the crewman's own hurt
+     * record, which a shell striking the hull never touches.
+     */
+    UNDER_FIRE("underFire"),
 
     // ---- everyone else ----
     /** 0..1 by how badly the local force ratio is against us. */
@@ -157,7 +163,11 @@ public enum Signal {
     /** Ambush posture armed (orders-gated). */
     POSTURE_AMBUSH("postureAmbush"),
     /** Seeking hard cover under retreat/smoke (or debug force). */
-    POSTURE_SEEK_COVER("postureSeekCover");
+    POSTURE_SEEK_COVER("postureSeekCover"),
+    /** Per-crew temperament, -1 (bold) to +1 (cautious), 0 at the middle ({@link Doctrine#caution}). */
+    CAUTION("caution"),
+    /** 1 while the hull sits on its latched battle position ({@code cover.BattlePosition}). */
+    IN_BATTLE_POSITION("inBattlePosition");
 
     /** The key naming this signal in the weights file. */
     public final String key;

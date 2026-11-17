@@ -21,6 +21,7 @@ import net.neoforged.neoforge.event.entity.EntityMountEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 
 import com.neoalive.tacz_sewv.TaczSewv;
+import com.neoalive.tacz_sewv.crew.VehicleAccessLive;
 import com.neoalive.tacz_sewv.init.ModSounds;
 
 /**
@@ -60,6 +61,9 @@ public class LockItem extends Item {
         Entity target = event.getTarget();
         if (!eligible(target)) return;
         if (!(event.getItemStack().getItem() instanceof LockItem)) return;
+
+        if (event.isCanceled()) return;
+        if (VehicleAccessLive.denies(event.getEntity(), target)) return;
 
         event.setCanceled(true);
         event.setCancellationResult(InteractionResult.SUCCESS);

@@ -1,0 +1,28 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "LCL",
+    "PBP",
+    "SSS"
+  ],
+  "key": {
+    "L": {
+      "item": "minecraft:blaze_rod"
+    },
+    "C": {
+      "item": "minecraft:compass"
+    },
+    "P": {
+      "tag": "c:plates/copper"
+    },
+    "B": {
+      "item": "superbwarfare:battery"
+    },
+    "S": {
+      "tag": "c:plates/steel"
+    }
+  },
+  "result": {
+    "id": "tacz_sewv:zone_beacon"
+  }
+}

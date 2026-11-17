@@ -7,13 +7,16 @@ package com.neoalive.tacz_sewv.entity.ai.support;
  * POSITION centres on a frozen world point instead ({@link IFormationMember#sewv$getFormationAnchorPos}
  * via {@link com.neoalive.tacz_sewv.bridge.IFormationMember}) — the formation holds its shape
  * where it was formed (or where a MOVE_TO_POSITION order last sent it) even while the commander
- * walks off.
+ * walks off. UNIT centres on an elected unit instead of the player — the formation's <i>subject</i>
+ * ({@link FormationSubjects}): the leader stands where the player would, runs whatever order it is
+ * given, and the followers keep their slots on it until Cancel.
  *
  * <p>The ordinal is the wire/NBT id, so this enum is append-only.
  */
 public enum FormationAnchorMode {
     PLAYER,
-    POSITION;
+    POSITION,
+    UNIT;
 
     public int id() {
         return ordinal();

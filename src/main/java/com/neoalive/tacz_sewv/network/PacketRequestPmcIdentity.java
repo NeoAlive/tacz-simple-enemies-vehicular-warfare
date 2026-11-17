@@ -31,7 +31,8 @@ public final class PacketRequestPmcIdentity {
             PmcIdentityPreference.PmcIdentity identity = PmcIdentityPreference.get(player);
             NetworkHandler.CHANNEL.send(
                     PacketDistributor.PLAYER.with(() -> player),
-                    new PacketSyncPmcIdentity(identity, category));
+                    new PacketSyncPmcIdentity(identity, category,
+                            com.neoalive.tacz_sewv.crew.VoicePreference.get(player)));
         });
         ctx.get().setPacketHandled(true);
     }

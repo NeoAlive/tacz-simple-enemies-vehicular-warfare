@@ -26,6 +26,7 @@ import net.neoforged.fml.loading.FMLPaths;
 import org.slf4j.Logger;
 
 import com.neoalive.tacz_sewv.TaczSewv;
+import com.neoalive.tacz_sewv.skin.WebLogoCache;
 
 /**
  * Server-side index of {@code config/tacz_sewv/logo_pools/{pmc,ru,us}_*} folders. Used to
@@ -67,10 +68,13 @@ public final class LogoPoolIndex {
     }
 
     public static boolean isValidPool(String poolId) {
+        if (WebLogoCache.POOL.equals(poolId)) return WebLogoCache.enabled();
         return pools.containsKey(poolId);
     }
 
+    /** A web logo id only has to be well formed here; it may still be downloading. */
     public static boolean isValidIcon(String poolId, String iconId) {
+        if (WebLogoCache.POOL.equals(poolId)) return WebLogoCache.isId(iconId);
         List<String> icons = pools.get(poolId);
         return icons != null && icons.contains(iconId);
     }
@@ -98,7 +102,7 @@ public final class LogoPoolIndex {
                 for (Path sub : stream) {
                     if (!Files.isDirectory(sub)) continue;
                     String poolId = sub.getFileName().toString().toLowerCase(Locale.ROOT);
-                    if (!POOL_ID.matcher(poolId).matches()) continue;
+                    if (!POOL_ID.matcher(poolId).matches() || WebLogoCache.POOL.equals(poolId)) continue;
                     List<String> icons = scanIcons(sub);
                     if (!icons.isEmpty()) {
                         next.put(poolId, icons);
@@ -166,6 +170,7 @@ public final class LogoPoolIndex {
     /** Opens a logo PNG for dogTag encoding. Caller closes the stream. */
     @Nullable
     public static InputStream openIcon(String poolId, String iconId) {
+        if (WebLogoCache.POOL.equals(poolId)) return WebLogoCache.open(iconId);
         Path file = iconFile(poolId, iconId);
         if (Files.isRegularFile(file)) {
             try {

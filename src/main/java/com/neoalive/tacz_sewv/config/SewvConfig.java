@@ -19,8 +19,14 @@ public final class SewvConfig {
     public static final ModConfigSpec.BooleanValue ROTOR_IN_EVENTS;
     public static final ModConfigSpec.DoubleValue ROTOR_SPAWN_CHANCE_RU;
     public static final ModConfigSpec.DoubleValue ROTOR_SPAWN_CHANCE_US;
-    /** When on, SEM event spawn min/max distance is multiplied by 2.5. Formerly gamerule sewvFarEventSpawns. */
-    public static final ModConfigSpec.BooleanValue FAR_EVENT_SPAWNS;
+    /** SEM's own random roller instead of the event mark engine (procedural/marks). Replaces farEventSpawns. */
+    public static final ModConfigSpec.BooleanValue LEGACY_EVENT_ENGINE;
+    public static final ModConfigSpec.IntValue EVENT_MARKS_PER_PLAYER;
+    public static final ModConfigSpec.IntValue EVENT_MARK_EXPIRY_SECONDS;
+    public static final ModConfigSpec.DoubleValue EVENT_MARK_TRIGGER_CHANCE;
+    public static final ModConfigSpec.IntValue EVENT_MARK_COOLDOWN_SECONDS;
+    public static final ModConfigSpec.BooleanValue EVENT_MARK_CREEP;
+    public static final ModConfigSpec.IntValue EVENT_MARK_CREEP_IDLE_SECONDS;
     public static final ModConfigSpec.BooleanValue PLANES_IN_EVENTS;
     public static final ModConfigSpec.DoubleValue PLANE_SPAWN_CHANCE_RU;
     public static final ModConfigSpec.DoubleValue PLANE_SPAWN_CHANCE_US;
@@ -91,6 +97,7 @@ public final class SewvConfig {
 
     public static final ModConfigSpec.BooleanValue NAME_ASSIGNMENT_ENABLED;
     public static final ModConfigSpec.ConfigValue<String> DEFAULT_NAME_CATEGORY;
+    public static final ModConfigSpec.BooleanValue WEB_LOGOS_ENABLED;
 
     public static final ModConfigSpec.ConfigValue<List<? extends String>> NVG_ELIGIBLE_ITEMS;
     public static final ModConfigSpec.DoubleValue NVG_SPAWN_CHANCE;
@@ -105,6 +112,8 @@ public final class SewvConfig {
     public static final ModConfigSpec.ConfigValue<List<? extends String>> RU_VEHICLE_STRUCTURES;
     // Limitless Vehicles (ywzj_vehicle, optional) — read only when that mod is loaded.
     public static final ModConfigSpec.BooleanValue LV_AI_ENABLED;
+    /** When true, {@code /sewv diplomacy} needs permission level 2. Default false: any player. */
+    public static final ModConfigSpec.BooleanValue DIPLOMACY_REQUIRES_OP;
     public static final ModConfigSpec.ConfigValue<List<? extends String>> US_VEHICLE_STRUCTURES;
     public static final ModConfigSpec.ConfigValue<List<? extends String>> PMC_VEHICLE_STRUCTURES;
 
@@ -227,6 +236,7 @@ public final class SewvConfig {
     public static final ModConfigSpec.DoubleValue PATH_TARGET_DRIFT_BLOCKS;
     // groundPathingDebug/shipPathingDebug/sewvDiagDebug → ClientConfig (Config UI Client → Debug).
     public static final ModConfigSpec.BooleanValue KOMODO_RENDER_FIX_ENABLED;
+    public static final ModConfigSpec.DoubleValue TRIPOD_STANDOFF_DISTANCE;
     public static final ModConfigSpec.IntValue PATROL_ROTATE_INTERVAL_TICKS;
     public static final ModConfigSpec.BooleanValue IDLE_WANDER_ENABLED;
     public static final ModConfigSpec.IntValue IDLE_WANDER_RADIUS;
@@ -247,12 +257,20 @@ public final class SewvConfig {
     public static final ModConfigSpec.DoubleValue MARCH_STRAGGLE_DISTANCE;
     public static final ModConfigSpec.IntValue UTILITY_REFRESH_INTERVAL_TICKS;
     public static final ModConfigSpec.BooleanValue FACTION_ORGANIC_COMMS;
+    public static final ModConfigSpec.BooleanValue NOTIFICATIONS_REQUIRE_RADIO;
+    public static final ModConfigSpec.BooleanValue RADIO_VOICE_ENABLED;
     public static final ModConfigSpec.IntValue SUPPORT_CALL_INTERVAL_TICKS;
     public static final ModConfigSpec.BooleanValue AWARENESS_CUES_ENABLED;
+    public static final ModConfigSpec.BooleanValue SUPPRESSION_BUS_ENABLED;
+    public static final ModConfigSpec.BooleanValue INFANTRY_ARMOR_AWARENESS;
+    public static final ModConfigSpec.BooleanValue ACQUISITION_DELAY_ENABLED;
+    public static final ModConfigSpec.BooleanValue SUPPRESSIVE_FIRE_ENABLED;
 
     public static final ModConfigSpec.BooleanValue COVER_CACHE_ENABLED;
     public static final ModConfigSpec.IntValue COVER_CACHE_BAKE_CELLS_PER_TICK;
     public static final ModConfigSpec.BooleanValue INDIVIDUAL_TACTICS_ENABLED;
+    public static final ModConfigSpec.BooleanValue BATTLE_POSITIONS_ENABLED;
+    public static final ModConfigSpec.IntValue BATTLE_POSITION_LEASE_TICKS;
 
     public static final ModConfigSpec.BooleanValue COMMAND_SYSTEM_ENABLED;
     public static final ModConfigSpec.DoubleValue COMMAND_GROUP_JOIN_RADIUS;
@@ -277,9 +295,12 @@ public final class SewvConfig {
     // heliCombatDebug/heliFlightDebug → ClientConfig (Config UI Client → Debug).
     public static final ModConfigSpec.BooleanValue HELI_CHUNK_LOADING;
     public static final ModConfigSpec.BooleanValue PLANE_CHUNK_LOADING;
+    public static final ModConfigSpec.BooleanValue PLANE_PARKED_AIR_BAIL;
+    public static final ModConfigSpec.BooleanValue WING_FLIGHT_MODEL;
     public static final ModConfigSpec.DoubleValue PLANE_FAR_LOD_BLOCKS;
     public static final ModConfigSpec.DoubleValue HELI_FAR_LOD_BLOCKS;
     public static final ModConfigSpec.DoubleValue PLANE_COMMAND_RADIUS;
+    public static final ModConfigSpec.DoubleValue PLANE_MAX_RANGE;
     public static final ModConfigSpec.DoubleValue PLANE_GUN_CONE_DEG;
     public static final ModConfigSpec.DoubleValue PLANE_MISSILE_CONE_DEG;
     public static final ModConfigSpec.IntValue PLANE_MISSILE_LOCK_TICKS;
@@ -353,8 +374,27 @@ public final class SewvConfig {
     public static final ModConfigSpec.DoubleValue QUICK_EVAC_HELI_SEARCH_RADIUS;
     public static final ModConfigSpec.DoubleValue QUICK_EVAC_BOARD_RADIUS;
     public static final ModConfigSpec.IntValue QUICK_EVAC_BOARD_TIMEOUT_TICKS;
-    public static final ModConfigSpec.IntValue QUICK_REFILL_TIMEOUT_TICKS;
+    public static final ModConfigSpec.IntValue SCAVENGE_TIMEOUT_TICKS;
+    public static final ModConfigSpec.DoubleValue SCAVENGE_RADIUS;
+    public static final ModConfigSpec.IntValue SCAVENGE_AMMO_STACKS;
+    public static final ModConfigSpec.IntValue SCAVENGE_EMPLACEMENT_CAP;
+    public static final ModConfigSpec.IntValue SCAVENGE_MINE_CAP;
+    public static final ModConfigSpec.IntValue SCAVENGE_GRENADE_CAP;
+    public static final ModConfigSpec.IntValue SCAVENGE_MEDKIT_CAP;
+    public static final ModConfigSpec.IntValue SCAVENGE_SHOVEL_CAP;
+    public static final ModConfigSpec.IntValue SCAVENGE_REPAIR_TOOL_CAP;
+    public static final ModConfigSpec.IntValue SCAVENGE_RADIO_CAP;
+    public static final ModConfigSpec.BooleanValue SCAVENGE_ARMOR;
     public static final ModConfigSpec.DoubleValue QUICK_LAND_RADIUS;
+    public static final ModConfigSpec.DoubleValue QUICK_GEAR_SEARCH_RADIUS;
+    public static final ModConfigSpec.IntValue QUICK_GEAR_SEARCH_TIMEOUT_TICKS;
+    public static final ModConfigSpec.IntValue MINEFIELD_MAX_MINES;
+    public static final ModConfigSpec.DoubleValue MINEFIELD_MAX_RANGE;
+    public static final ModConfigSpec.DoubleValue MINEFIELD_STANDOFF;
+    public static final ModConfigSpec.DoubleValue MINEFIELD_THREAT_RADIUS;
+    public static final ModConfigSpec.DoubleValue MINEFIELD_MOVE_SPEED;
+    public static final ModConfigSpec.IntValue MINEFIELD_PLANT_TICKS;
+    public static final ModConfigSpec.IntValue MINEFIELD_TIMEOUT_TICKS;
     /**
      * Max ids the server sends in admin-editor add-catalogs (guns / attachments / armor /
      * vehicles / target types). Overflow is truncated, never a disconnect.
@@ -367,6 +407,18 @@ public final class SewvConfig {
     public static final ModConfigSpec.DoubleValue MAP_IDENTITY_RADIUS;
     public static final ModConfigSpec.IntValue MAP_IDENTITY_TTL_TICKS;
     public static final ModConfigSpec.IntValue ADVANCE_PLAN_MAX_CHUNKS;
+
+    public static final ModConfigSpec.BooleanValue ZONES_ENABLED;
+    public static final ModConfigSpec.BooleanValue ONLY_SPAWN_IN_PRIORITIZATION;
+    public static final ModConfigSpec.DoubleValue PRIORITIZATION_REROLL_CHANCE;
+    public static final ModConfigSpec.DoubleValue ZONE_BEACON_FE_PER_CHUNK;
+    public static final ModConfigSpec.IntValue ZONE_BEACON_BUFFER_FE;
+    public static final ModConfigSpec.IntValue ZONE_BEACON_MAX_RADIUS;
+    public static final ModConfigSpec.DoubleValue ZONE_BEACON_MTI_UPKEEP_MULT;
+    public static final ModConfigSpec.BooleanValue SIGNAL_INFANTRY_ENGAGES_VEHICLES;
+    public static final ModConfigSpec.DoubleValue SIGNAL_ALLY_RADIUS;
+    public static final ModConfigSpec.DoubleValue SIGNAL_INFANTRY_RANGE;
+    public static final ModConfigSpec.IntValue SIGNAL_MOVE_SECONDS;
 
     /** Invasion HUD colours (hex RGB). Team A/B match the left/right bases on the layout. */
     public static final ModConfigSpec.BooleanValue UNLIMITED_TEAM_BASES;
@@ -425,6 +477,7 @@ public final class SewvConfig {
     public static final ModConfigSpec.BooleanValue EASY_SOFT_INFANTRY;
     public static final ModConfigSpec.BooleanValue EASY_PLAYER_SUSTAIN;
     public static final ModConfigSpec.BooleanValue EASY_PROTECT_VEHICLES;
+    public static final ModConfigSpec.BooleanValue EASY_SOFT_TRIPOD_HEAT_RAY;
     public static final ModConfigSpec.BooleanValue EASY_BUFF_PMC;
     public static final ModConfigSpec.BooleanValue EASY_FEWER_EVENTS;
     public static final ModConfigSpec.BooleanValue EASY_HIGHLIGHT_THREATS;
@@ -459,10 +512,28 @@ public final class SewvConfig {
         ROTOR_SPAWN_CHANCE_US = builder.comment("Chance a US helicopter appears when Simple Enemy Mod rolls a distant fight.",
                         "Rolled separately from the ground vehicle, so a fight can bring both.")
                 .defineInRange("rotorSpawnChanceUs", 0.06, 0.0, 1.0);
-        FAR_EVENT_SPAWNS = builder.comment(
-                        "Multiply SEM event spawn distance by 2.5 for wider, more spread-out fights.",
-                        "(This mod's events and SEM's own.) Off restores packed base ranges.")
-                .define("farEventSpawns", true);
+        LEGACY_EVENT_ENGINE = builder.comment(
+                        "Use Simple Enemy Mod's own random event roller (2.5x distance, placed inside the simulated",
+                        "area) instead of event marks. Marks pick a spot out past the simulated area and the event",
+                        "starts there once you walk into range. Servers simulating under 8 chunks always use legacy.")
+                .define("legacyEventEngine", false);
+        EVENT_MARKS_PER_PLAYER = builder.comment("Event marks kept out in the world per online player.")
+                .defineInRange("eventMarksPerPlayer", 3, 1, 8);
+        EVENT_MARK_EXPIRY_SECONDS = builder.comment(
+                        "How long a mark waits to be walked into before it is replaced. Shorter means more turnover",
+                        "and so more events for a player who travels.")
+                .defineInRange("eventMarkExpirySeconds", 600, 60, 3600);
+        EVENT_MARK_TRIGGER_CHANCE = builder.comment("Chance a mark fires its event when a player walks into range of it.")
+                .defineInRange("eventMarkTriggerChance", 0.6, 0.0, 1.0);
+        EVENT_MARK_COOLDOWN_SECONDS = builder.comment(
+                        "After an event fires for a player, marks cannot fire for that player for this long.")
+                .defineInRange("eventMarkCooldownSeconds", 180, 0, 3600);
+        EVENT_MARK_CREEP = builder.comment(
+                        "A player who stays in one area but keeps playing has their marks drift in toward them, so",
+                        "staying put is not a way to avoid events. Idle (AFK) players are never crept on.")
+                .define("eventMarkCreep", true);
+        EVENT_MARK_CREEP_IDLE_SECONDS = builder.comment("How long a player must stay within 32 blocks before marks creep in.")
+                .defineInRange("eventMarkCreepIdleSeconds", 300, 60, 1800);
         PLANES_IN_EVENTS = builder.comment("Allow rare RU/US planes to appear in combat events.").define("planesInEvents", true);
         PLANE_SPAWN_CHANCE_RU = builder.comment("Chance an RU plane appears when Simple Enemy Mod rolls a distant fight.")
                 .defineInRange("planeSpawnChanceRu", 0.02, 0.0, 1.0);
@@ -633,6 +704,11 @@ public final class SewvConfig {
                         "a player who never set one via the TDT's Identity/\"Full Names\" control. \"RANDOM\" draws",
                         "the name and surname independently from every category's pooled union.")
                 .define("defaultNameCategory", "RANDOM");
+        WEB_LOGOS_ENABLED = builder.comment(
+                        "Let players use an image from a web link as their PMC logo in the TDT.",
+                        "The server downloads each link once, at server start or when it is first set, and keeps",
+                        "it in memory until the server stops. Clients never contact the link themselves.")
+                .define("webLogosEnabled", true);
         builder.pop();
 
         builder.push("nvg");
@@ -1017,6 +1093,11 @@ public final class SewvConfig {
                         "replay. This makes that fallback no-op for that one frame instead of crashing when it is",
                         "not safely on the render thread. No known downside; turn off only to isolate a Komodo bug report.")
                 .define("komodoRenderFixEnabled", true);
+        TRIPOD_STANDOFF_DISTANCE = builder.comment(
+                        "Tripod Invasion only. RU/US units (on foot, ground hulls, boats) back off when a tripod",
+                        "is closer than this many blocks (horizontal), and fight it from beyond it. Fixed weapons",
+                        "inside it are abandoned. The tripod's heat ray reaches 96 blocks by default.")
+                .defineInRange("tripodStandoffDistance", 70.0, 16.0, 256.0);
         PATROL_ROTATE_INTERVAL_TICKS = builder.comment("How long (game ticks) a patrol holds one spot before moving on.")
                 .defineInRange("patrolRotateIntervalTicks", 3600, 200, 24000);
         IDLE_WANDER_ENABLED = builder.comment(
@@ -1069,11 +1150,33 @@ public final class SewvConfig {
                 .defineInRange("utilityRefreshIntervalTicks", 30, 5, 200);
         FACTION_ORGANIC_COMMS = builder.comment("RU/US crews can call mortars/TOWs/air support without holding a radio item.")
                 .define("factionOrganicComms", true);
+        NOTIFICATIONS_REQUIRE_RADIO = builder.comment(
+                        "HUD notifications reach a player only while they carry a handheld radio. Off = everyone gets them.")
+                .define("notificationsRequireRadio", true);
+        RADIO_VOICE_ENABLED = builder.comment(
+                        "With Simple Voice Chat installed, talking with a handheld radio in hand reaches allied radios on the same net.")
+                .define("radioVoiceEnabled", true);
         SUPPORT_CALL_INTERVAL_TICKS = builder.comment("Minimum wait (game ticks) between support call attempts.")
                 .defineInRange("supportCallIntervalTicks", 200, 20, 2400);
         AWARENESS_CUES_ENABLED = builder.comment(
                         "Let idle crews investigate gunfire and cannon fire they hear, and contacts seen only through leaves.")
                 .define("awarenessCuesEnabled", true);
+        SUPPRESSION_BUS_ENABLED = builder.comment(
+                        "Let vehicle fire, SBW bullet impacts, explosions and players' near misses suppress SEM infantry",
+                        "(SEM itself only counts TaCZ impacts and its own rifles). Amounts: data/tacz_sewv/sewv/suppression.")
+                .define("suppressionBusEnabled", true);
+        INFANTRY_ARMOR_AWARENESS = builder.comment(
+                        "Teach SEM infantry that a target riding a vehicle is armour: riflemen take cover from it,",
+                        "anti-armour gunners close in on it. (SEM rates a target only by the item in its hand.)")
+                .define("infantryArmorAwareness", true);
+        ACQUISITION_DELAY_ENABLED = builder.comment(
+                        "SEM infantry and AI crews take time to notice a new target: longer at range, in the dark,",
+                        "against a still or sneaking target; near-instant against a hull or someone who just fired.")
+                .define("acquisitionDelayEnabled", true);
+        SUPPRESSIVE_FIRE_ENABLED = builder.comment(
+                        "For a few seconds after losing sight of an enemy, a crew machine gun may rake the spot it",
+                        "vanished from (one gun per lost enemy). Also gates the player's Suppress Area order.")
+                .define("suppressiveFireEnabled", true);
         COVER_CACHE_ENABLED = builder.comment(
                         "Shared Killzone-style cover visibility table (2x2 columns, 8 compass dirs at turret height).",
                         "Used by individual tactics for exposure / keyhole / scoot without per-tick raycasts.")
@@ -1085,6 +1188,15 @@ public final class SewvConfig {
                         "Per-crew tactical posture (shoot-and-scoot, covering advance, keyhole, ambush, infantry cover).",
                         "Only a soft bias under player or command orders. It never stops a push.")
                 .define("individualTacticsEnabled", true);
+        BATTLE_POSITIONS_ENABLED = builder.comment(
+                        "Ground crews in contact pick a battle position on their engagement band (hull-down where the",
+                        "terrain allows), hold it while they are firing from it, and move to a pre-picked alternate when",
+                        "they come under fire or cannot shoot. Needs individualTacticsEnabled.")
+                .define("battlePositionsEnabled", true);
+        BATTLE_POSITION_LEASE_TICKS = builder.comment(
+                        "Game ticks a battle position is held without a shot fired from it before the crew gives it up.",
+                        "Every shot from the position renews it.")
+                .defineInRange("battlePositionLeaseTicks", 600, 100, 6000);
         builder.pop();
 
         builder.push("command");
@@ -1154,6 +1266,16 @@ public final class SewvConfig {
                         "Default true (matches mortarChunkLoading). Existing installs keep whatever",
                         "value is already in serverconfig/tacz_sewv-server.toml until that file is deleted.")
                 .define("planeChunkLoading", true);
+        PLANE_PARKED_AIR_BAIL = builder.comment(
+                        "A parked plane whose hull is hit by an enemy aircraft puts its crew out to take cover,",
+                        "instead of sitting on the ground with the pilot aboard. Off keeps parked crews aboard.")
+                .define("planeParkedAirBail", true);
+        WING_FLIGHT_MODEL = builder.comment(
+                        "Fly AI-crewed planes with this mod's own fixed-wing flight model (aerodynamics,",
+                        "TECS/attitude controller, procedures) instead of SBW's engine, from liftoff to",
+                        "touchdown; SBW keeps the ground roll and taxi. Experimental while it is built out:",
+                        "default false. Player-flown planes are never affected.")
+                .define("wingFlightModel", false);
         PLANE_FAR_LOD_BLOCKS = builder.comment(
                         "Past this distance (blocks) from every player, a ticketed plane in cruise/hold/",
                         "RTB/ingress uses cheaper terrain and ally scans. Combat, takeoff and landing",
@@ -1169,7 +1291,14 @@ public final class SewvConfig {
                         "Must stay comfortably larger than planeEngageRadius: a plane repositions by flying",
                         "outbound until it is clear of its own engage bubble before turning back in, so a",
                         "leash near the bubble size recalls it in the middle of every run-in.")
-                .defineInRange("planeCommandRadius", 1024.0, 32.0, 4096.0);
+                .defineInRange("planeCommandRadius", 512.0, 32.0, 4096.0);
+        PLANE_MAX_RANGE = builder.comment(
+                        "Hard limit (blocks) on how far ANY AI plane may get from the nearest player. Past it",
+                        "the plane turns back toward that player, whatever it was doing, and is released again",
+                        "inside 80% of it. Bounds force-loaded chunks and stops planes wandering off forever.",
+                        "Keep it well above planeEngageRadius, or bombing run-ins are cut short.",
+                        "No player in the dimension: no limit (nothing to measure from).")
+                .defineInRange("planeMaxRange", 384.0, 192.0, 2048.0);
         PLANE_GUN_CONE_DEG = builder.comment(
                         "Widest angle (degrees) off the gun line at which a plane will fire guns, rockets",
                         "and bombs. This is a ceiling, not the gate itself: the plane works out the angle",
@@ -1247,12 +1376,12 @@ public final class SewvConfig {
                         "a degree per tick, so a short bubble is a short line, and a short line is a pass",
                         "flown with the gun still swinging through the aim point.",
                         "Lowering this makes planes commit sooner and hit less.")
-                .defineInRange("planeEngageRadius", 384.0, 32.0, 1024.0);
+                .defineInRange("planeEngageRadius", 192.0, 32.0, 1024.0);
         PLANE_ATTACK_RUN_LENGTH = builder.comment(
                         "Length (blocks) of one straight attack run before the plane breaks off and turns back.",
                         "A floor, not a cap: the run is never cut shorter than the engage bubble it started",
                         "from, or it would end before the weapon's own release point.")
-                .defineInRange("planeAttackRunLength", 400.0, 40.0, 1024.0);
+                .defineInRange("planeAttackRunLength", 200.0, 40.0, 1024.0);
         PLANE_MAX_ALTITUDE = builder.comment(
                         "Absolute world Y a plane will never fly above. This is a ceiling, not a cruise",
                         "height: the cruise band is measured above the ground under the aircraft, so over",
@@ -1476,14 +1605,73 @@ public final class SewvConfig {
                         "Absolute game-time budget (ticks) for Quick Evac: each heli takes off when",
                         "its reserved seats are filled or when this timeout elapses, whichever comes first.")
                 .defineInRange("quickEvacBoardTimeoutTicks", 350, 40, 2400);
-        QUICK_REFILL_TIMEOUT_TICKS = builder.comment(
-                        "Absolute game-time budget (ticks) for Quick Refill walks to a chest/stockpile",
-                        "before the MOVE is dropped back to FREE_FIRE.")
-                .defineInRange("quickRefillTimeoutTicks", 350, 40, 2400);
+        SCAVENGE_TIMEOUT_TICKS = builder.comment(
+                        "Absolute game-time budget (ticks) for a whole Scavenge order before every walk is",
+                        "dropped back to FREE_FIRE and the summary is sent.")
+                .defineInRange("scavengeTimeoutTicks", 1200, 40, 6000);
+        SCAVENGE_RADIUS = builder.comment(
+                        "How far (blocks) from each unit Scavenge looks for containers, items on the ground,",
+                        "corpses and unmanned emplacements.")
+                .defineInRange("scavengeRadius", 48.0, 4.0, 128.0);
+        SCAVENGE_AMMO_STACKS = builder.comment(
+                        "Full stacks of each ammo its own guns use that a unit scavenges up to.")
+                .defineInRange("scavengeAmmoStacks", 3, 1, 12);
+        SCAVENGE_EMPLACEMENT_CAP = builder.comment(
+                        "Most packed emplacements (TOW, mortar and similar) one unit carries after Scavenge.")
+                .defineInRange("scavengeEmplacementCap", 2, 0, 9);
+        SCAVENGE_MINE_CAP = builder.comment("Most mines one unit carries after Scavenge.")
+                .defineInRange("scavengeMineCap", 6, 0, 32);
+        SCAVENGE_GRENADE_CAP = builder.comment("Most grenades one unit carries after Scavenge.")
+                .defineInRange("scavengeGrenadeCap", 4, 0, 16);
+        SCAVENGE_MEDKIT_CAP = builder.comment("Most medical kits one unit carries after Scavenge.")
+                .defineInRange("scavengeMedkitCap", 2, 0, 16);
+        SCAVENGE_SHOVEL_CAP = builder.comment("Most military shovels one unit carries after Scavenge.")
+                .defineInRange("scavengeShovelCap", 1, 0, 4);
+        SCAVENGE_REPAIR_TOOL_CAP = builder.comment("Most repair tools one unit carries after Scavenge.")
+                .defineInRange("scavengeRepairToolCap", 1, 0, 4);
+        SCAVENGE_RADIO_CAP = builder.comment("Most handheld radios one unit carries after Scavenge.")
+                .defineInRange("scavengeRadioCap", 1, 0, 4);
+        SCAVENGE_ARMOR = builder.comment(
+                        "Scavenge also swaps worn armor for a found piece that is no worse in protection or",
+                        "durability left and better in one. The old piece is left where the new one was.")
+                .define("scavengeArmor", false);
         QUICK_LAND_RADIUS = builder.comment(
-                        "How far (blocks) Quick Board / Entrench / Refill / General / Formation look",
-                        "for owned PMCs, friendly vehicles, trenches, and chests.")
+                        "How far (blocks) Quick Board / Entrench / Scavenge / General / Formation look",
+                        "for owned PMCs, friendly vehicles and trenches.")
                 .defineInRange("quickLandRadius", 64.0, 8.0, 256.0);
+        QUICK_GEAR_SEARCH_RADIUS = builder.comment(
+                        "How far (blocks) from each unit Search equipment looks for a medical kit, repair",
+                        "tool or shovel, on the ground or in a container.")
+                .defineInRange("quickGearSearchRadius", 32.0, 4.0, 128.0);
+        QUICK_GEAR_SEARCH_TIMEOUT_TICKS = builder.comment(
+                        "Absolute game-time budget (ticks) for Search equipment walks before the MOVE is",
+                        "dropped back to FREE_FIRE.")
+                .defineInRange("quickGearSearchTimeoutTicks", 600, 40, 2400);
+        MINEFIELD_MAX_MINES = builder.comment(
+                        "Most mines one Deploy Minefield order lays, across every engineer it reaches.")
+                .defineInRange("minefieldMaxMines", 16, 1, 48);
+        MINEFIELD_MAX_RANGE = builder.comment(
+                        "How far (blocks) from the player the aimed block may be for Deploy Minefield to",
+                        "lay around it; further away, the field goes around the engineers instead.")
+                .defineInRange("minefieldMaxRange", 48.0, 8.0, 128.0);
+        MINEFIELD_STANDOFF = builder.comment(
+                        "How far (blocks) a minefield is pushed out toward the nearest known enemy",
+                        "(never more than half the way there).")
+                .defineInRange("minefieldStandoff", 8.0, 0.0, 32.0);
+        MINEFIELD_THREAT_RADIUS = builder.comment(
+                        "How far (blocks) Deploy Minefield and Deploy Equipment look for the enemy they",
+                        "should face. Read off the combatant index, nobody is targeted.")
+                .defineInRange("minefieldThreatRadius", 128.0, 16.0, 256.0);
+        MINEFIELD_MOVE_SPEED = builder.comment(
+                        "Navigation speed multiplier for engineers moving between mine slots.")
+                .defineInRange("minefieldMoveSpeed", 1.4, 1.0, 2.0);
+        MINEFIELD_PLANT_TICKS = builder.comment(
+                        "Game ticks an engineer kneels at a slot before the mine is down.")
+                .defineInRange("minefieldPlantTicks", 20, 5, 100);
+        MINEFIELD_TIMEOUT_TICKS = builder.comment(
+                        "Absolute game-time budget (ticks) for a whole Deploy Minefield order; mines not",
+                        "laid by then stay in the engineers' pockets.")
+                .defineInRange("minefieldTimeoutTicks", 1800, 200, 6000);
         EDITOR_CATALOG_MAX = builder.comment(
                         "Max registry ids sent in /sewv pool (and similar) add-catalogs.",
                         "If a pack has more guns/armor/vehicles than this, the rest are omitted from",
@@ -1519,6 +1707,45 @@ public final class SewvConfig {
                         "Largest region (in chunks) an Advance Plan may cover. Validated when the plan is baked;",
                         "existing plans are not re-validated against a changed cap.")
                 .defineInRange("advancePlanMaxChunks", 25, 1, 1024);
+        builder.pop();
+
+        builder.push("spawn_zones");
+        ZONES_ENABLED = builder.comment(
+                        "Master switch for chunk spawn zones. Off, every chunk is neutral and",
+                        "no-zones and prioritization zones are ignored (they stay saved).")
+                .define("zonesEnabled", true);
+        ONLY_SPAWN_IN_PRIORITIZATION = builder.comment(
+                        "When true, units may only spawn inside prioritization chunks. An event that",
+                        "finds no prioritization chunk in its range is skipped without resetting its chance.")
+                .define("onlySpawnInPrioritization", false);
+        PRIORITIZATION_REROLL_CHANCE = builder.comment(
+                        "Chance an event spot outside a prioritization chunk is moved to a random",
+                        "prioritization chunk within the event's own distance band from the player.")
+                .defineInRange("prioritizationRerollChance", 0.6, 0.0, 1.0);
+        ZONE_BEACON_FE_PER_CHUNK = builder.comment(
+                        "FPAS upkeep in FE per tick per covered chunk, rounded up. Radius r covers (2r+1)^2 chunks.",
+                        "At 0.15 the largest radius costs about half of one SBW charging station's output.")
+                .defineInRange("zoneBeaconUpkeepPerChunk", 0.15, 0.0, 10000.0);
+        ZONE_BEACON_BUFFER_FE = builder.comment("FPAS internal energy buffer (FE).")
+                .defineInRange("zoneBeaconBufferCapacity", 1000000, 1000, 100000000);
+        ZONE_BEACON_MAX_RADIUS = builder.comment("Largest radius (chunks) a zone beacon may be set to. Minimum is 2.")
+                .defineInRange("zoneBeaconMaxRadius", 10, 2, 10);
+        ZONE_BEACON_MTI_UPKEEP_MULT = builder.comment(
+                        "FPAS upkeep multiplier while in MTI (radar) mode. MTI keeps no spawn zone.")
+                .defineInRange("zoneBeaconMtiUpkeepMultiplier", 2.0, 0.0, 100.0);
+        SIGNAL_INFANTRY_ENGAGES_VEHICLES = builder.comment(
+                        "When true, FPAS Signal orders also send on-foot units without an anti-armour launcher",
+                        "against vehicles. Off: riflemen only take infantry.")
+                .define("signalInfantryEngagesVehicles", false);
+        SIGNAL_ALLY_RADIUS = builder.comment(
+                        "FPAS Signal orders take every owned unit within this many blocks of a contact.")
+                .defineInRange("signalAllyRadius", 150.0, 16.0, 512.0);
+        SIGNAL_INFANTRY_RANGE = builder.comment(
+                        "Blocks short of its contact an on-foot unit stops on a Signal order. Launchers use 1.5x.")
+                .defineInRange("signalInfantryRange", 40.0, 8.0, 96.0);
+        SIGNAL_MOVE_SECONDS = builder.comment(
+                        "Seconds a unit may take to reach its Signal point before it gives up and goes free fire.")
+                .defineInRange("signalMoveSeconds", 90, 15, 600);
         builder.pop();
 
         builder.push("invasion");
@@ -1728,6 +1955,9 @@ public final class SewvConfig {
         EASY_PROTECT_VEHICLES = builder.comment(
                         "Easy Mode: hulls crewed by a player or their own PMC take half damage from hostiles.")
                 .define("easyProtectVehicles", true);
+        EASY_SOFT_TRIPOD_HEAT_RAY = builder.comment(
+                        "Easy Mode: a Tripod Invasion heat ray burns vehicles at a fifth of its normal damage.")
+                .define("easySoftTripodHeatRay", true);
         EASY_BUFF_PMC = builder.comment(
                         "Easy Mode: the player's own PMC units get 50% more health and take 60% hostile damage.",
                         "They are never slowed by any Easy Mode nerf either way.")
@@ -1745,6 +1975,13 @@ public final class SewvConfig {
                         "Crews drive, fly and gun Limitless Vehicles hulls (ground, boats, rotorcraft). Needs ywzj_vehicle.",
                         "LV vehicle ids go in the ordinary ground / surface / rotor pools (pool editor preset: Limitless Vehicles).")
                 .define("lvAiEnabled", true);
+        builder.pop();
+
+        builder.push("diplomacy");
+        DIPLOMACY_REQUIRES_OP = builder.comment(
+                        "When true, /sewv diplomacy requires operator (permission level 2).",
+                        "When false, any player can set and list diplomacy.")
+                .define("diplomacyRequiresOp", false);
         builder.pop();
 
         SPEC = builder.build();

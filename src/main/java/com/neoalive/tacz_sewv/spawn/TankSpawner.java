@@ -45,13 +45,17 @@ import com.neoalive.tacz_sewv.compat.McspAmmoCompat;
 import com.neoalive.tacz_sewv.compat.NpcVehicleOverrides;
 import com.neoalive.tacz_sewv.compat.VehicleAmmoStorage;
 import com.neoalive.tacz_sewv.compat.VvpAmmoCompat;
+import com.neoalive.tacz_sewv.compat.fcp.FcpCompat;
 import com.neoalive.tacz_sewv.compat.lv.LvCompat;
 import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.SewvConfig;
+import com.neoalive.tacz_sewv.entity.ai.formation.DrivableGround;
 import com.neoalive.tacz_sewv.init.ModGameRules;
 import com.neoalive.tacz_sewv.skin.VehicleSkinSupport;
+import com.neoalive.tacz_sewv.util.LoadedTerrain;
 import com.neoalive.tacz_sewv.util.VehicleEngineLoot;
 import com.neoalive.tacz_sewv.util.WorldVehiclePools;
+import com.neoalive.tacz_sewv.zone.SpawnZones;
 
 public final class TankSpawner {
 
@@ -174,6 +178,23 @@ public final class TankSpawner {
         };
     }
 
+    /** {@link #spawnsEnabled} that records a gamerule refusal for the command / forced-event message. */
+    private static boolean acceptsFaction(ServerLevel level, TankFaction faction) {
+        if (spawnsEnabled(level, faction)) return true;
+        SpawnDeny.set(SpawnDeny.Why.GAMERULE, faction.name());
+        return false;
+    }
+
+    @Nullable
+    private static VehicleEntity refuseType(@Nullable String vehicleId) {
+        if (vehicleId != null && NpcVehicleOverrides.refusesNpcRiders(vehicleId)) {
+            SpawnDeny.set(SpawnDeny.Why.PLAYER_ONLY, vehicleId);
+        } else if (SpawnDeny.unset()) {
+            SpawnDeny.set(SpawnDeny.Why.POOL);
+        }
+        return null;
+    }
+
     private static boolean hasSpawnable(ServerLevel level, List<? extends String> pool) {
         for (String id : pool) {
             ResourceLocation rl = ResourceLocation.tryParse(id);
@@ -249,20 +270,32 @@ public final class TankSpawner {
     public static Entity spawnFromPool(ServerLevel level, BlockPos requestedPos, TankFaction faction,
                                        WorldVehiclePools.Category category, @Nullable UUID ownerId,
                                        @Nullable String vehicleId) {
-        if (!spawnsEnabled(level, faction)) return null;
+        if (!acceptsFaction(level, faction)) return null;
         List<? extends String> pool = faction.pool(level, category);
         if (vehicleId != null && !pool.contains(vehicleId)) return null;
         String id = vehicleId != null ? vehicleId : pickSpawnable(level, pool, category);
-        if (id == null) return null;
+        if (id == null) {
+            SpawnDeny.set(SpawnDeny.Why.POOL);
+            return null;
+        }
         if (LvCompat.isLvVehicleId(id)) {
-            return LvCompat.aiEnabled() ? LvCompat.spawnCrewed(level, requestedPos, faction, ownerId, id, category) : null;
+            if (!LvCompat.aiEnabled()) {
+                SpawnDeny.set(SpawnDeny.Why.POOL);
+                return null;
+            }
+            Entity spawned = LvCompat.spawnCrewed(level, requestedPos, faction, ownerId, id, category);
+            if (spawned == null && SpawnDeny.unset()) SpawnDeny.set(SpawnDeny.Why.POOL);
+            return spawned;
         }
         return switch (category) {
             case GROUND -> spawnGroundWithCrew(level, requestedPos, faction, ownerId, id);
             case SURFACE -> spawnSurfaceWithCrew(level, requestedPos, faction, ownerId, id);
             case ROTOR -> spawnRotorWithCrew(level, requestedPos, faction, ownerId, id);
             case PLANE -> spawnPlaneWithCrew(level, requestedPos, faction, ownerId, id);
-            default -> null;
+            default -> {
+                SpawnDeny.set(SpawnDeny.Why.POOL);
+                yield null;
+            }
         };
     }
 
@@ -293,8 +326,38 @@ public final class TankSpawner {
      */
     private static final double PLANE_AIR_SPAWN_ALT = 105.0;
 
-    /** Horizontal speed (blocks/tick) given to an airborne spawn so SBW's lift is non-zero before throttle spools. */
+    /** Floor on the airborne spawn speed (blocks/tick), only reached if the hull's data is unreadable. */
     private static final double PLANE_AIR_SPAWN_SPEED = 0.55;
+
+    /** SBW's level-flight throttle ceiling: aircraftEngine caps power at 1 unless sprinting. */
+    private static final float PLANE_CRUISE_POWER = 1.0F;
+
+    /**
+     * The speed SBW's {@code aircraftEngine} settles at in level flight at {@link #PLANE_CRUISE_POWER},
+     * for this hull's own SpeedRate/Resistance. Iterates SBW's per-tick airborne recurrence (view-axis
+     * nudge x1.04, drag {@code 0.96 - 0.0017 * res * v²}, thrust {@code 0.047 * power * speedRate}),
+     * so a slow, draggy airframe (Ju-87, KV-16) gets its real cruise and not a jet's. Lift scales
+     * with speed, so this is what keeps every airframe up from the first tick.
+     */
+    static double cruiseSpeed(double speedRate, double resistance) {
+        double v = PLANE_AIR_SPAWN_SPEED;
+        for (int i = 0; i < 600; i++) {
+            double f = Math.max(0.01, Math.min(0.99, 0.96 - 0.0017 * resistance * v * v));
+            v = 1.04 * f * v + 0.047 * PLANE_CRUISE_POWER * speedRate;
+        }
+        return Math.max(PLANE_AIR_SPAWN_SPEED, v);
+    }
+
+    private static double cruiseSpeed(VehicleEntity plane) {
+        try {
+            var info = plane.computed().getEngineInfo();
+            double rate = info != null && info.has("SpeedRate") ? info.get("SpeedRate").getAsDouble() : 1.0;
+            double res = info != null && info.has("Resistance") ? info.get("Resistance").getAsDouble() : 1.0;
+            return cruiseSpeed(rate, res);
+        } catch (Exception e) {
+            return PLANE_AIR_SPAWN_SPEED;
+        }
+    }
 
     /**
      * Same contract as {@link #spawnGroundWithCrew} for the faction's plane pool. RU/US planes spawn
@@ -311,7 +374,7 @@ public final class TankSpawner {
     @Nullable
     public static VehicleEntity spawnPlaneWithCrew(ServerLevel level, BlockPos requestedPos, TankFaction faction,
                                                    @Nullable UUID ownerId, @Nullable String vehicleId) {
-        if (!spawnsEnabled(level, faction)) return null;
+        if (!acceptsFaction(level, faction)) return null;
         return spawnPlane(level, requestedPos, faction, ownerId, vehicleId, faction.planePool(level),
                 faction != TankFaction.PMC, null);
     }
@@ -330,18 +393,23 @@ public final class TankSpawner {
     }
 
     /**
-     * Level flight at spawn: pitch zero, gear up and forward speed along {@code yaw}, so SBW's lift
-     * is non-zero before the throttle spools. Call before the hull is added to the level — once a
-     * player is aboard, the client owns the hull's motion.
+     * Level flight at spawn, as if the hull had been flying all along: pitch zero, gear up, engine
+     * running at cruise power and the hull's own cruise airspeed along {@code yaw}. A fresh hull has
+     * power 0 and no airspeed, and SBW's lift is proportional to speed, so anything less sinks
+     * before the throttle can spool (it takes ~100+ ticks). Call before the hull is added to the
+     * level — once a player is aboard, the client owns the hull's motion.
      */
     public static void placeAirborne(VehicleEntity plane, float yaw) {
         // A fresh entity's pitch can be anything; lofted or inverted ruins the lift nudge.
         plane.setYRot(yaw);
         plane.setXRot(0.0F);
         plane.setGearUp(true);
+        plane.setPower(PLANE_CRUISE_POWER);
+        plane.setEngineStart(true);
+        plane.setEngineStartOver(true);
+        double speed = cruiseSpeed(plane);
         float yawRad = yaw * ((float) Math.PI / 180.0F);
-        plane.setDeltaMovement(new Vec3(-Math.sin(yawRad) * PLANE_AIR_SPAWN_SPEED, 0.0,
-                Math.cos(yawRad) * PLANE_AIR_SPAWN_SPEED));
+        plane.setDeltaMovement(new Vec3(-Math.sin(yawRad) * speed, 0.0, Math.cos(yawRad) * speed));
     }
 
     @Nullable
@@ -349,7 +417,7 @@ public final class TankSpawner {
                                             @Nullable UUID ownerId, @Nullable String vehicleId,
                                             List<? extends String> pool, boolean airborne, @Nullable Float yaw) {
         EntityType<?> planeType = selectVehicleType(crewablePool(pool), vehicleId, level.random);
-        if (planeType == null) return null;
+        if (planeType == null) return refuseType(vehicleId);
 
         BlockPos ground = findClearSpawn(level, requestedPos, planeType);
         if (ground == null) return null;
@@ -359,7 +427,10 @@ public final class TankSpawner {
         double y = airborne ? ground.getY() + PLANE_AIR_SPAWN_ALT : ground.getY();
 
         Entity planeEntity = planeType.create(level);
-        if (!(planeEntity instanceof VehicleEntity plane)) return null;
+        if (!(planeEntity instanceof VehicleEntity plane)) {
+            SpawnDeny.set(SpawnDeny.Why.NOT_VEHICLE);
+            return null;
+        }
 
         plane.setPos(x, y, z);
         if (airborne) {
@@ -370,6 +441,7 @@ public final class TankSpawner {
         if (plane.hasEnergyStorage()) {
             plane.setEnergy(plane.getMaxEnergy());
         }
+        FcpCompat.startEngineNow(plane);
         stockAmmo(plane, faction);
 
         int seats = Math.max(1, plane.getMaxPassengers());
@@ -388,6 +460,7 @@ public final class TankSpawner {
 
         if (mounted == 0) {
             plane.discard();
+            SpawnDeny.set(SpawnDeny.Why.CREW);
             return null;
         }
 
@@ -426,9 +499,9 @@ public final class TankSpawner {
                                                      @Nullable UUID ownerId, @Nullable String vehicleId,
                                                      List<? extends String> pool, boolean water,
                                                      boolean requireSpawnsEnabled, boolean exact) {
-        if (requireSpawnsEnabled && !spawnsEnabled(level, faction)) return null;
+        if (requireSpawnsEnabled && !acceptsFaction(level, faction)) return null;
         EntityType<?> tankType = selectVehicleType(crewablePool(pool), vehicleId, level.random);
-        if (tankType == null) return null; // nothing valid configured/requested — bail safely
+        if (tankType == null) return refuseType(vehicleId); // nothing valid configured/requested — bail safely
 
         BlockPos pos = water
                 ? findClearWaterSpawn(level, requestedPos, tankType)
@@ -437,7 +510,10 @@ public final class TankSpawner {
         if (pos == null) return null; // no room (or no water) within snap radius — bail safely
 
         Entity tankEntity = tankType.create(level);
-        if (!(tankEntity instanceof VehicleEntity tank)) return null; // configured id isn't an SW vehicle
+        if (!(tankEntity instanceof VehicleEntity tank)) {
+            SpawnDeny.set(SpawnDeny.Why.NOT_VEHICLE);
+            return null; // configured id isn't an SW vehicle
+        }
 
         tank.setPos(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5);
         level.addFreshEntity(tank);
@@ -448,6 +524,7 @@ public final class TankSpawner {
         if (tank.hasEnergyStorage()) {
             tank.setEnergy(tank.getMaxEnergy());
         }
+        FcpCompat.startEngineNow(tank);
         stockAmmo(tank, faction);
 
         // One unit per seat, mounted in join order: SW's VehicleEntity assigns
@@ -470,6 +547,7 @@ public final class TankSpawner {
         }
 
         if (mounted == 0) {
+            SpawnDeny.set(SpawnDeny.Why.CREW);
             // The very first seat was refused: a fully fuelled, fully armed hull with nobody
             // aboard is completely empty by SeekAbandonedVehicleGoal's own test, which makes it
             // a scavenge magnet for any nearby RU/US infantry — the exact "bare hull near
@@ -583,6 +661,7 @@ public final class TankSpawner {
         if (tank.hasEnergyStorage()) {
             tank.setEnergy(tank.getMaxEnergy());
         }
+        FcpCompat.startEngineNow(tank);
         stockAmmo(tank, TankFaction.PMC);
 
         // Player first → seat 0 (driver). startRiding relocates the player onto the hull.
@@ -630,7 +709,7 @@ public final class TankSpawner {
      */
     @Nullable
     public static VehicleEntity spawnBareVehicle(ServerLevel level, BlockPos requestedPos, TankFaction faction) {
-        if (!spawnsEnabled(level, faction)) return null;
+        if (!acceptsFaction(level, faction)) return null;
         return spawnBareVehicleFromPool(level, requestedPos, faction.groundPool(level), false);
     }
 
@@ -642,12 +721,15 @@ public final class TankSpawner {
     public static VehicleEntity spawnBareVehicleFromPool(ServerLevel level, BlockPos requestedPos,
                                                          List<? extends String> pool, boolean exact) {
         EntityType<?> type = selectVehicleType(pool, null, level.random);
-        if (type == null) return null;
+        if (type == null) return refuseType(null);
         BlockPos pos = exact ? findClearSpawnAt(level, requestedPos, type) : findClearSpawn(level, requestedPos, type);
         if (pos == null) return null;
 
         Entity entity = type.create(level);
-        if (!(entity instanceof VehicleEntity vehicle)) return null;
+        if (!(entity instanceof VehicleEntity vehicle)) {
+            SpawnDeny.set(SpawnDeny.Why.NOT_VEHICLE);
+            return null;
+        }
         vehicle.setPos(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5);
         level.addFreshEntity(vehicle);
         return vehicle; // no setEnergy, no stockAmmo, no crew — deliberately inert
@@ -772,6 +854,9 @@ public final class TankSpawner {
     }
 
     private static void stockAmmo(VehicleEntity tank, TankFaction faction) {
+        // FCP arms its hulls from a per-vehicle loadout table into its own hold.
+        boolean fcp = FcpCompat.isFcp(tank);
+        if (fcp) FcpCompat.fillCombatLoad(tank);
         if (!VehicleAmmoStorage.hasStorage(tank)) return;
 
         String id = entityId(tank);
@@ -784,6 +869,7 @@ public final class TankSpawner {
             VehicleAmmoStorage.setStack(tank, 0, new ItemStack(ModItems.CREATIVE_AMMO_BOX.get()));
             return;
         }
+        if (fcp && !VehicleAmmoStorage.isEmpty(tank)) return;
 
         List<Item> ammo = resolveWithFallback(tank, id);
         if (ammo.isEmpty()) {
@@ -971,19 +1057,31 @@ public final class TankSpawner {
      * maps a feet-centre point to the hull's box there) — a Limitless Vehicles hull. */
     @Nullable
     public static BlockPos findClearSpawn(ServerLevel level, BlockPos pos, Function<Vec3, AABB> boxAt) {
+        boolean blocked = false, zone = false;
         for (int r = 0; r <= SNAP_RADIUS; r++) {
             for (int dx = -r; dx <= r; dx++) {
                 for (int dz = -r; dz <= r; dz++) {
                     if (Math.max(Math.abs(dx), Math.abs(dz)) != r) continue; // ring perimeter only, nearest-first
                     int x = pos.getX() + dx, z = pos.getZ() + dz;
                     // Never sync-load: noCollision/getBlockState force-generate an unloaded column.
-                    if (!level.hasChunk(x >> 4, z >> 4)) continue;
+                    if (!LoadedTerrain.loaded(level, x >> 4, z >> 4)) continue;
+                    if (!SpawnZones.allowsChunk(level, x >> 4, z >> 4)) {
+                        zone = true;
+                        continue;
+                    }
+                    // The heightmap counts a trunk top as ground; a hull spawned there is stranded on the tree.
+                    if (!DrivableGround.drivable(level, x, z)) {
+                        blocked = true;
+                        continue;
+                    }
                     int gy = groundY(level, x, z, pos.getY()) + 1; // +1 lift: hull drops onto the surface
                     var box = boxAt.apply(new Vec3(x + 0.5, gy, z + 0.5));
                     if (level.noCollision(box)) return new BlockPos(x, gy, z);
+                    blocked = true;
                 }
             }
         }
+        SpawnDeny.placementMiss(level, pos, blocked, false, zone);
         return null;
     }
 
@@ -994,19 +1092,26 @@ public final class TankSpawner {
      */
     @Nullable
     public static BlockPos findClearSpawnAt(ServerLevel level, BlockPos pos, EntityType<?> type) {
+        boolean blocked = false, zone = false;
         for (int r = 0; r <= SNAP_RADIUS; r++) {
             for (int dx = -r; dx <= r; dx++) {
                 for (int dz = -r; dz <= r; dz++) {
                     if (Math.max(Math.abs(dx), Math.abs(dz)) != r) continue;
                     int x = pos.getX() + dx, z = pos.getZ() + dz;
-                    if (!level.hasChunk(x >> 4, z >> 4)) continue;
+                    if (!LoadedTerrain.loaded(level, x >> 4, z >> 4)) continue;
+                    if (!SpawnZones.allowsChunk(level, x >> 4, z >> 4)) {
+                        zone = true;
+                        continue;
+                    }
                     for (int dy = 0; dy <= 3; dy++) {
                         var box = type.getDimensions().makeBoundingBox(x + 0.5, pos.getY() + dy, z + 0.5);
                         if (level.noCollision(box)) return new BlockPos(x, pos.getY() + dy, z);
                     }
+                    blocked = true;
                 }
             }
         }
+        SpawnDeny.placementMiss(level, pos, blocked, false, zone);
         return null;
     }
 
@@ -1028,20 +1133,30 @@ public final class TankSpawner {
     /** {@link #findClearWaterSpawn} with a caller-supplied footprint, as {@link #findClearSpawn(ServerLevel, BlockPos, Function)}. */
     @Nullable
     public static BlockPos findClearWaterSpawn(ServerLevel level, BlockPos pos, Function<Vec3, AABB> boxAt) {
+        boolean blocked = false, dry = false, zone = false;
         for (int r = 0; r <= SNAP_RADIUS; r++) {
             for (int dx = -r; dx <= r; dx++) {
                 for (int dz = -r; dz <= r; dz++) {
                     if (Math.max(Math.abs(dx), Math.abs(dz)) != r) continue;
                     int x = pos.getX() + dx, z = pos.getZ() + dz;
-                    if (!level.hasChunk(x >> 4, z >> 4)) continue; // same sync-load ban as findClearSpawn
+                    if (!LoadedTerrain.loaded(level, x >> 4, z >> 4)) continue; // same sync-load ban as findClearSpawn
+                    if (!SpawnZones.allowsChunk(level, x >> 4, z >> 4)) {
+                        zone = true;
+                        continue;
+                    }
                     int rawY = groundY(level, x, z, pos.getY());
-                    if (!isWaterSurface(level, x, rawY, z)) continue; // dry column — never fall back to land
+                    if (!isWaterSurface(level, x, rawY, z)) {
+                        dry = true;
+                        continue; // dry column — never fall back to land
+                    }
                     int gy = rawY + 1;
                     var box = boxAt.apply(new Vec3(x + 0.5, gy, z + 0.5));
                     if (level.noCollision(box)) return new BlockPos(x, gy, z);
+                    blocked = true;
                 }
             }
         }
+        SpawnDeny.placementMiss(level, pos, blocked, dry, zone);
         return null;
     }
 

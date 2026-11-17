@@ -149,9 +149,11 @@ public final class MiscPackPresets {
 
     private static Tables fcp() {
         return new Builder()
-                .cue(CueKind.IFV, "bmp", "btr", "brdm", "lav25", "stryker", "aavp")
-                .cue(CueKind.ANTI_AIR, "pantsir", "avenger", "asrad", "zu23")
-                .cue(CueKind.ARTILLERY, "msta", "m109", "ural_grad", "stryker_mortar", "toyota_hilux_mortar")
+                .cue(CueKind.IFV, "bmp", "brm3k", "btr", "brdm", "lav25", "stryker", "aavp",
+                        "m2a2", "m2a3", "puma", "marder", "m113", "skif")
+                .cue(CueKind.ANTI_AIR, "pantsir", "avenger", "asrad", "zu23", "m6a2")
+                .cue(CueKind.ARTILLERY, "msta", "m109", "2s31", "ural_grad", "stryker_mortar",
+                        "toyota_hilux_mortar", "toyota_hilux_rocket_pod")
                 .freeze();
     }
 

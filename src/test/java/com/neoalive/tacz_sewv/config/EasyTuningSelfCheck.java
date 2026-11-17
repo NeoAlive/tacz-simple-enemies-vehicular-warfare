@@ -49,6 +49,9 @@ public final class EasyTuningSelfCheck {
         assert inOpenUnit(EasyTuning.FORCE_BALANCE_MULT) : "force balance";
         assert inOpenUnit(EasyTuning.HOSTILE_HEALTH_MULT) : "hostile health";
         assert inOpenUnit(EasyTuning.INFANTRY_BULLET_MULT) : "infantry bullet";
+        // Suppression leans the hostile way and softens the player's side, but never to nothing.
+        assert EasyTuning.SUPPRESSION_HOSTILE_MULT >= 1.0f : "hostile suppression";
+        assert inOpenUnit(EasyTuning.SUPPRESSION_FRIENDLY_MULT) : "friendly suppression";
         assert inOpenUnit(EasyTuning.SQUAD_SIZE_MULT) : "squad size";
         // Damage the player's side takes shrinks; its health grows.
         assert inOpenUnit(EasyTuning.EXPLOSION_EXTRA_MULT) && inOpenUnit(EasyTuning.PMC_DAMAGE_TAKEN);

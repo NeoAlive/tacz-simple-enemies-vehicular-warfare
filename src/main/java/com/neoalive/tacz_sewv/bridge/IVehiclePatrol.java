@@ -68,6 +68,7 @@ public interface IVehiclePatrol {
         tag.remove(TAG_SWEEP_TOP);
         tag.remove(TAG_SWEEP_RIGHT);
         tag.remove(TAG_SWEEP_BOTTOM);
+        com.neoalive.tacz_sewv.order.OrderBatch.stamp((Entity) this);
     }
 
     /** Begin a rect sweep (MODE_SWEEP). Origin/radius are derived for assist reach. */

@@ -22,7 +22,7 @@ public final class FobTickHandler {
             if (wasScramble && !fob.scrambleActive) {
                 FobNetworking.routeToFob(level, fob);
             }
-            if (fob.scrambleActive) {
+            if (fob.scrambleActive && !ThreatEvaluator.quiet(fob, gameTime)) {
                 ThreatEvaluator.playAlarm(level, fob, gameTime);
             }
             FobResupplySupport.tickPeriodic(level, fob, gameTime);

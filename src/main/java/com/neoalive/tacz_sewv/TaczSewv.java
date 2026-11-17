@@ -38,6 +38,7 @@ import com.neoalive.tacz_sewv.crew.NpcSbwWeapon;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.utility.Doctrine;
 import com.neoalive.tacz_sewv.entity.ai.utility.UtilityWeights;
+import com.neoalive.tacz_sewv.fob.FobLifecycleEvents;
 import com.neoalive.tacz_sewv.fob.FobTickHandler;
 import com.neoalive.tacz_sewv.grace.GracePeriodData;
 import com.neoalive.tacz_sewv.grace.GraceTickHandler;
@@ -70,7 +71,7 @@ public class TaczSewv {
     public static final Logger LOGGER = LogUtils.getLogger();
 
     public TaczSewv(IEventBus modEventBus, ModContainer modContainer) {
-        // On main (Forge) this grows BlockPathTypes before any Mob.<init>; on NeoForge 1.21.1 TRENCH
+        // On main (Forge) this grows PathType before any Mob.<init>; on NeoForge 1.21.1 TRENCH
         // borrows a vanilla PathType and this is a no-op — see TrenchPathTypes.
         TrenchPathTypes.bootstrap();
 
@@ -98,12 +99,18 @@ public class TaczSewv {
         NeoForge.EVENT_BUS.register(com.neoalive.tacz_sewv.util.ChunkTicketCoverage.class);
         NeoForge.EVENT_BUS.register(com.neoalive.tacz_sewv.entity.ai.core.ObbHitIndex.class);
         NeoForge.EVENT_BUS.register(com.neoalive.tacz_sewv.entity.ai.support.UnitLod.class);
+        if (com.neoalive.tacz_sewv.compat.TripodCompat.present()) {
+            NeoForge.EVENT_BUS.register(com.neoalive.tacz_sewv.compat.TripodCompat.Events.class);
+        }
         NeoForge.EVENT_BUS.register(com.neoalive.tacz_sewv.crew.UnitJoinBudget.class);
         // Server-side half of the map markers: it only ever SENDS, so it is registered
         // unconditionally — a client with no map mod simply ignores the packet.
         NeoForge.EVENT_BUS.register(OwnedVehicleTracker.class);
         NeoForge.EVENT_BUS.register(MapIdentity.class);
         NeoForge.EVENT_BUS.register(FobTickHandler.class);
+        NeoForge.EVENT_BUS.register(FobLifecycleEvents.class);
+        NeoForge.EVENT_BUS.register(com.neoalive.tacz_sewv.procedural.marks.EventMarkEngine.class);
+        NeoForge.EVENT_BUS.register(com.neoalive.tacz_sewv.airport.RunwayIntegrity.class);
         NeoForge.EVENT_BUS.register(GraceTickHandler.class);
         NeoForge.EVENT_BUS.register(com.neoalive.tacz_sewv.invasion.InvasionSession.class);
         NeoForge.EVENT_BUS.register(com.neoalive.tacz_sewv.invasion.InvasionHudTracker.class);
@@ -114,6 +121,7 @@ public class TaczSewv {
         NeoForge.EVENT_BUS.register(com.neoalive.tacz_sewv.util.VehicleDrops.class);
         NeoForge.EVENT_BUS.register(com.neoalive.tacz_sewv.util.CreativeAmmoConsumable.class);
         NeoForge.EVENT_BUS.register(com.neoalive.tacz_sewv.territory.TerritoryManager.class);
+        NeoForge.EVENT_BUS.register(com.neoalive.tacz_sewv.zone.SpawnZoneViewers.class);
         NeoForge.EVENT_BUS.register(com.neoalive.tacz_sewv.territory.AdvancePlanManager.class);
         NeoForge.EVENT_BUS.register(com.neoalive.tacz_sewv.territory.LegacySweepCleanup.class);
         NeoForge.EVENT_BUS.register(com.neoalive.tacz_sewv.order.OrderReport.class);
@@ -143,6 +151,10 @@ public class TaczSewv {
                 (unit, context) -> unit.getInventory());
         event.registerBlockEntity(Capabilities.ItemHandler.BLOCK, ModBlockEntities.STOCKPILE.get(),
                 (stockpile, side) -> stockpile.getItems());
+        event.registerBlockEntity(Capabilities.EnergyStorage.BLOCK, ModBlockEntities.ZONE_BEACON.get(),
+                (beacon, side) -> beacon.energy());
+        event.registerBlockEntity(Capabilities.ItemHandler.BLOCK, ModBlockEntities.ZONE_BEACON.get(),
+                (beacon, side) -> beacon.battery());
     }
 
     private void commonSetup(final FMLCommonSetupEvent event) {
@@ -168,9 +180,11 @@ public class TaczSewv {
     CorpseCompat.reportAvailability();
     // Limitless Vehicles: LvCompat imports no LV type, so this is safe with the mod absent.
     com.neoalive.tacz_sewv.compat.lv.LvCompat.reportAvailability();
+    com.neoalive.tacz_sewv.compat.fcp.FcpCompat.reportAvailability();
     com.neoalive.tacz_sewv.compat.NeoArmsCompat.bootstrap();
     // MixinVehicleDamageRedirect yields the DamageModifier.compute call to DNV's own redirect
-    // (two @Redirects on one call is a load-time crash), so say what that turns off.
+    // (two @Redirects on one call is a load-time crash), so say what that turns off. FCP 2.0
+    // redirects the same call and reports it from FcpCompat.
     if (ModList.get().isLoaded("doggiesnewvehicle")) {
         LOGGER.warn("[sewv] Doggie's New Vehicle owns SBW's vehicle damage hook - TaCZ ballistic "
                 + "translation and mob melee damage against vehicles are inactive on this install.");
@@ -181,6 +195,7 @@ public class TaczSewv {
     @SubscribeEvent
     public void onRegisterCommands(RegisterCommandsEvent event) {
         SewvCommand.register(event.getDispatcher());
+        com.neoalive.tacz_sewv.command.RelightCommand.register(event.getDispatcher());
     }
 
     /**
@@ -192,10 +207,16 @@ public class TaczSewv {
         event.addListener(new UtilityWeights.Loader());
         // Helicopter airframe rows (physics rework); see com.neoalive.tacz_sewv.heli.data.HeliAirframes.
         event.addListener(new com.neoalive.tacz_sewv.heli.data.HeliAirframes.Loader());
+        // Fixed-wing airframe rows; see com.neoalive.tacz_sewv.wing.data.WingAirframes.
+        event.addListener(new com.neoalive.tacz_sewv.wing.data.WingAirframes.Loader());
         // Which formation each play role takes; see com.neoalive.tacz_sewv.entity.ai.formation.FormationTemplates.
         event.addListener(new com.neoalive.tacz_sewv.entity.ai.formation.FormationTemplates.Loader());
         // See com.neoalive.tacz_sewv.ballistics.TranslationTable.
         event.addListener(new com.neoalive.tacz_sewv.ballistics.TranslationTable.Loader());
+        // See com.neoalive.tacz_sewv.entity.ai.suppression.SuppressionTable.
+        event.addListener(new com.neoalive.tacz_sewv.entity.ai.suppression.SuppressionTable.Loader());
+        // How each MINE pool item is laid; see com.neoalive.tacz_sewv.entity.ai.support.mines.MineKinds.
+        event.addListener(new com.neoalive.tacz_sewv.entity.ai.support.mines.MineKinds.Loader());
         // See com.neoalive.tacz_sewv.crew.NamePools.
         event.addListener(new com.neoalive.tacz_sewv.crew.NamePools.Loader());
         event.addListener(new com.neoalive.tacz_sewv.crew.LogoPoolIndex.Loader());
@@ -248,6 +269,11 @@ public class TaczSewv {
             if (GracePeriodData.active(event.getLevel())
                     && ModList.get().isLoaded(BerezkaStructureCompat.MODID)
                     && BerezkaStructureCompat.refusesOnJoin(event.getLevel(), unit)) {
+                event.setCanceled(true);
+                return;
+            }
+            if (event.getLevel() instanceof net.minecraft.server.level.ServerLevel sl
+                    && com.neoalive.tacz_sewv.zone.SpawnZoneJoin.refuses(sl, unit, event.loadedFromDisk())) {
                 event.setCanceled(true);
                 return;
             }

@@ -24,7 +24,26 @@ public final class TacticsSelfCheck {
         shippedFormations();
         commanderBack();
         coverPoints();
+        latchHolding();
         System.out.println("TacticsSelfCheck OK");
+    }
+
+    private static void latchHolding() {
+        Roles prev = new Roles(new Assignment[] {
+                a(1, Role.BASE_OF_FIRE, null, 61, 100),
+                a(2, Role.MANEUVER, FlankSide.LEFT, -2, 32),
+                a(3, Role.HOLD, null, 10, 10)});
+        Roles fresh = new Roles(new Assignment[] {
+                a(1, Role.BASE_OF_FIRE, null, 66, 75),
+                a(2, Role.MANEUVER, FlankSide.LEFT, 5, 30),
+                a(3, Role.BASE_OF_FIRE, null, 12, 12)});
+        Roles out = TacticPostProcess.latchHolding(prev, fresh);
+        assert find(out, 1).destX == 61 && find(out, 1).destZ == 100 : "base of fire keeps last pass's point";
+        assert find(out, 2).destX == 5 : "a mover keeps refreshing";
+        assert find(out, 3).destX == 12 : "a changed role is laid fresh";
+        assert TacticPostProcess.latchHolding(null, fresh) == fresh : "nothing to latch to on the first pass";
+        Roles same = TacticPostProcess.latchHolding(fresh, fresh);
+        assert same == fresh : "unchanged points allocate nothing";
     }
 
     private static Assignment a(int id, Role role, FlankSide side, double x, double z) {
@@ -59,6 +78,26 @@ public final class TacticsSelfCheck {
                 a(1, Role.OVERWATCH, null, 0, 10), a(2, Role.WITHDRAW, null, 0, 90)});
         Roles wSwapped = TacticPostProcess.leapfrog(PlayId.FIGHTING_WITHDRAWAL, withdraw, withdraw, wFresh, g, 8);
         assert find(wSwapped, 2).role == Role.WITHDRAW && find(wSwapped, 2).destZ == 90 : "withdrawal leapfrogs too";
+
+        coveringFire(g, previous, fresh, withdraw, wFresh);
+    }
+
+    /** In contact, a bound waits for real covering fire, but never longer than the timeout. */
+    private static void coveringFire(GroupSnapshot g, Roles previous, Roles fresh, Roles withdraw, Roles wFresh) {
+        PlayId bound = PlayId.BOUNDING_OVERWATCH_ADVANCE;
+        long early = TacticPostProcess.SWAP_TIMEOUT_TICKS - 1;
+        assert TacticPostProcess.leapfrog(bound, previous, previous, fresh, g, 8, true, id -> false, early)
+                == previous : "in contact, a silent overwatch holds the bound";
+        assert find(TacticPostProcess.leapfrog(bound, previous, previous, fresh, g, 8, true, id -> id == 2, early), 2)
+                .role == Role.MANEUVER : "overwatch firing: the bound goes";
+        assert TacticPostProcess.leapfrog(bound, previous, previous, fresh, g, 8, true, id -> id == 1, early)
+                == previous : "only the OVERWATCH's fire counts, not the mover's";
+        assert find(TacticPostProcess.leapfrog(bound, previous, previous, fresh, g, 8, true, id -> false,
+                TacticPostProcess.SWAP_TIMEOUT_TICKS), 2).role == Role.MANEUVER : "the timeout keeps a group moving";
+        assert find(TacticPostProcess.leapfrog(bound, previous, previous, fresh, g, 8, false, id -> false, 0), 2)
+                .role == Role.MANEUVER : "out of contact, arrival alone swaps";
+        assert TacticPostProcess.leapfrog(PlayId.FIGHTING_WITHDRAWAL, withdraw, withdraw, wFresh, g, 8, true,
+                id -> false, early) == withdraw : "a withdrawal waits for cover too";
     }
 
     /**

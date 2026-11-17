@@ -19,6 +19,8 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.CollisionContext;
 
+import com.neoalive.tacz_sewv.compat.TripodCompat;
+
 /**
  * A block raycast that never loads a chunk.
  *
@@ -91,6 +93,9 @@ public final class LoadedClip implements BlockGetter {
                 && !state.is(BlockTags.MINEABLE_WITH_AXE)) {
             return Blocks.AIR.defaultBlockState();
         }
+        // A tripod's shield is invisible blocks with full collision: an AI line of fire looks
+        // through it (the round still hits it and drains it). See TripodCompat.
+        if (TripodCompat.isShield(state)) return Blocks.AIR.defaultBlockState();
         return state;
     }
 

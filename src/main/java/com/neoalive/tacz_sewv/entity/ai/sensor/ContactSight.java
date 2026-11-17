@@ -50,8 +50,11 @@ public final class ContactSight {
 
         for (int i = 0; i < MAX_SKIPS; i++) {
             // Never loads a chunk: a wide-scan sight line can span hundreds of blocks.
-            HitResult hit = LoadedClip.clip(level, new ClipContext(
-                    cursor, to, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, context));
+            // NeoForge port: 1.21 ClipContext no longer accepts a null entity.
+            HitResult hit = LoadedClip.clip(level, context == null
+                    ? new ClipContext(cursor, to, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE,
+                            net.minecraft.world.phys.shapes.CollisionContext.empty())
+                    : new ClipContext(cursor, to, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, context));
             if (hit.getType() == HitResult.Type.MISS) {
                 return foliage ? Kind.UNCERTAIN : Kind.CLEAR;
             }

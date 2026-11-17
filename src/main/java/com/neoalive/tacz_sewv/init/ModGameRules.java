@@ -9,7 +9,7 @@ import net.neoforged.neoforge.server.ServerLifecycleHooks;
  * Toggle in-game with {@code /gamerule <name> true|false}, or via Config UI → World rules.
  *
  * <p>Diagnostic toggles live in {@link com.neoalive.tacz_sewv.config.ClientConfig} (Config UI
- * Client → Debug). {@code farEventSpawns} is a server config under Events.
+ * Client → Debug). {@code legacyEventEngine} is a server config under Events.
  */
 public final class ModGameRules {
 

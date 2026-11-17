@@ -129,6 +129,7 @@ public final class FobMarkerElements {
 
         @Override
         public boolean isHidden(FobMarker marker, Ctx context) {
+            if (com.neoalive.tacz_sewv.client.zone.ZoneViewClient.active()) return true;
             return context.mapDimension != null && !context.mapDimension.equals(marker.dimension());
         }
 

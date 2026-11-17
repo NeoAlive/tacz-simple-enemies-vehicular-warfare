@@ -24,6 +24,22 @@ public final class QuickCommandUnits {
      * Owned PMCs from the client id list (team-aware). Skips dead units.
      * Optional radius re-check against the issuer (client pick is not authoritative).
      */
+    /**
+     * A crewman of an aircraft is in reach out to the aircraft command radius, not the on-foot one:
+     * an aircraft in flight is essentially never within 64 blocks of whoever is ordering it, and the
+     * on-foot radius here used to drop every such order silently.
+     */
+    static boolean aircrew(PmcUnitEntity pmc) {
+        return pmc.getVehicle() instanceof com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity hull
+                && (com.neoalive.tacz_sewv.entity.ai.core.HullFacts.isPlaneHull(hull)
+                        || com.neoalive.tacz_sewv.entity.ai.core.HullFacts.isHelicopterHull(hull));
+    }
+
+    private static double aircraftR2() {
+        double r = com.neoalive.tacz_sewv.config.SewvConfig.PLANE_COMMAND_RADIUS.get();
+        return r * r;
+    }
+
     public static List<PmcUnitEntity> owned(ServerPlayer issuer, ServerLevel level,
                                             List<Integer> unitIds, double radius) {
         double r2 = radius * radius;
@@ -32,7 +48,7 @@ public final class QuickCommandUnits {
             Entity e = level.getEntity(id);
             if (!(e instanceof PmcUnitEntity pmc) || !pmc.isAlive()) continue;
             if (!OrderAuth.check(issuer, pmc, "QuickCommand")) continue;
-            if (pmc.distanceToSqr(issuer) > r2) continue;
+            if (pmc.distanceToSqr(issuer) > (aircrew(pmc) ? Math.max(r2, aircraftR2()) : r2)) continue;
             out.add(pmc);
         }
         return out;

@@ -32,14 +32,25 @@ import com.neoalive.tacz_sewv.client.NotificationHudOverlay;
 import com.neoalive.tacz_sewv.client.map.FlatMapProjection;
 import com.neoalive.tacz_sewv.client.map.MapOverlayPainter;
 import com.neoalive.tacz_sewv.client.map.MapProjection;
+import com.neoalive.tacz_sewv.client.map.SpawnZonePainter;
+import com.neoalive.tacz_sewv.client.map.WaypointHandles;
 import com.neoalive.tacz_sewv.client.xaero.CruisePlot;
 import com.neoalive.tacz_sewv.client.xaero.GuardPlot;
+import com.neoalive.tacz_sewv.client.xaero.MapLegend;
+import com.neoalive.tacz_sewv.client.xaero.MapOrderCatalog;
+import com.neoalive.tacz_sewv.client.xaero.OrderCategoryOption;
+import com.neoalive.tacz_sewv.client.xaero.OrderEntryOption;
+import com.neoalive.tacz_sewv.client.xaero.OrderFlyout;
 import com.neoalive.tacz_sewv.client.xaero.OrderPreview;
 import com.neoalive.tacz_sewv.client.xaero.PathwayMapRender;
 import com.neoalive.tacz_sewv.client.xaero.PathwayPathMenuOptions;
 import com.neoalive.tacz_sewv.client.xaero.PathwayPlot;
 import com.neoalive.tacz_sewv.client.xaero.RtsPanel;
 import com.neoalive.tacz_sewv.client.xaero.UnitOrderOption;
+import com.neoalive.tacz_sewv.client.xaero.UnitRibbon;
+import com.neoalive.tacz_sewv.client.xaero.WaypointDrag;
+import com.neoalive.tacz_sewv.client.zone.ZoneDrawTool;
+import com.neoalive.tacz_sewv.client.zone.ZoneViewClient;
 import com.neoalive.tacz_sewv.config.ClientConfig;
 import com.neoalive.tacz_sewv.map.VehicleMarker;
 
@@ -120,6 +131,16 @@ public abstract class MixinGuiMap extends Screen {
     public boolean waypointMenu;
 
     @Shadow
+    private int[] cameraDestination;
+
+    @Shadow
+    private static boolean attachedCamera;
+
+    /** A press the ribbon or flyout took, so its release must not reach Xaero as a map click. */
+    @Unique
+    private boolean tacz_sewv$swallowRelease;
+
+    @Shadow
     public boolean playersMenu;
 
     /** Xaero's "no surface height known here" sentinel — an unexplored tile, or cave mode. */
@@ -135,6 +156,14 @@ public abstract class MixinGuiMap extends Screen {
 
     @Unique
     private Button tacz_sewv$cancelButton;
+
+    /** Zone brush toolbar: prioritization, no-zone, erase, size. Shown to operators in zone view only. */
+    @Unique
+    private final List<Button> tacz_sewv$zoneTools = new ArrayList<>();
+
+    /** Toolbar state last drawn, so labels are rebuilt only when it changes. -1 = never. */
+    @Unique
+    private int tacz_sewv$zoneToolState = -1;
 
     /**
      * Live multi-unit line-order drag. All transient client state, and deliberately an <b>instance</b>
@@ -226,16 +255,94 @@ public abstract class MixinGuiMap extends Screen {
                 .bounds(this.width / 2 + 4, y, 100, 20).build());
         this.tacz_sewv$confirmButton.visible = false;
         this.tacz_sewv$cancelButton.visible = false;
+        tacz_sewv$addZoneTools();
+    }
+
+    @Unique
+    private void tacz_sewv$addZoneTools() {
+        this.tacz_sewv$zoneTools.clear();
+        this.tacz_sewv$zoneToolState = -1;
+        int y = this.height - 52;
+        int[] widths = {90, 70, 56, 56};
+        int total = widths[0] + widths[1] + widths[2] + widths[3] + 12;
+        int x = this.width / 2 - total / 2;
+        ZoneDrawTool.Brush[] brushes = {ZoneDrawTool.Brush.PRIORITY, ZoneDrawTool.Brush.NOZONE, ZoneDrawTool.Brush.ERASE};
+        for (int i = 0; i < 4; i++) {
+            Button.OnPress press = i < 3
+                    ? tacz_sewv$selectBrush(brushes[i])
+                    : b -> ZoneDrawTool.cycleSize();
+            Button b = this.addRenderableWidget(Button.builder(Component.empty(), press)
+                    .bounds(x, y, widths[i], 20).build());
+            b.visible = false;
+            this.tacz_sewv$zoneTools.add(b);
+            x += widths[i] + 4;
+        }
+    }
+
+    @Unique
+    private static Button.OnPress tacz_sewv$selectBrush(ZoneDrawTool.Brush brush) {
+        return b -> ZoneDrawTool.select(brush);
+    }
+
+    /** Labels follow the selection; the toolbar exists only for an operator in zone view. */
+    @Unique
+    private void tacz_sewv$syncZoneTools() {
+        boolean show = ZoneDrawTool.allowed();
+        int state = show ? 1 + ZoneDrawTool.brush().ordinal() * 16 + ZoneDrawTool.size() : 0;
+        if (state == this.tacz_sewv$zoneToolState) return;
+        this.tacz_sewv$zoneToolState = state;
+        String[] keys = {"gui.tacz_sewv.zones.draw.priority", "gui.tacz_sewv.zones.draw.nozone",
+                "gui.tacz_sewv.zones.draw.erase"};
+        ZoneDrawTool.Brush[] brushes = {ZoneDrawTool.Brush.PRIORITY, ZoneDrawTool.Brush.NOZONE, ZoneDrawTool.Brush.ERASE};
+        for (int i = 0; i < this.tacz_sewv$zoneTools.size(); i++) {
+            Button b = this.tacz_sewv$zoneTools.get(i);
+            b.visible = show;
+            if (!show) continue;
+            if (i < 3) {
+                Component label = Component.translatable(keys[i]);
+                b.setMessage(ZoneDrawTool.brush() == brushes[i]
+                        ? label.copy().withStyle(ChatFormatting.YELLOW, ChatFormatting.UNDERLINE) : label);
+            } else {
+                b.setMessage(Component.translatable("gui.tacz_sewv.zones.draw.size", ZoneDrawTool.size()));
+            }
+        }
+    }
+
+    /** Width of Xaero's right-hand button column (lower half), so the ribbon and legend stop short of it. */
+    @Unique
+    private int tacz_sewv$rightColumnInset() {
+        int inset = 0;
+        for (var child : this.children()) {
+            if (child instanceof AbstractWidget w && w.visible && w.getX() + w.getWidth() >= this.width - 2
+                    && w.getX() >= this.width - 40 && w.getY() > this.height / 2) {
+                inset = Math.max(inset, this.width - w.getX());
+            }
+        }
+        return inset;
+    }
+
+    /** Right edge of Xaero's left-hand button column, so the legend sits clear of it. */
+    @Unique
+    private int tacz_sewv$leftColumnInset() {
+        int inset = 0;
+        for (var child : this.children()) {
+            if (child instanceof AbstractWidget w && w.visible && w.getX() <= 2) {
+                inset = Math.max(inset, w.getX() + w.getWidth());
+            }
+        }
+        return inset;
     }
 
     @Inject(method = "mapClicked", at = @At("HEAD"), cancellable = true)
     private void tacz_sewv$mapClicked(int button, int x, int y, CallbackInfo ci) {
         // Plot clicks are handled in mouseClicked (screen-space node pick + RMB swallow).
-        if (CruisePlot.armed() || PathwayPlot.armed() || GuardPlot.armed() || RtsPanel.toolArmed()) {
+        if (CruisePlot.armed() || PathwayPlot.armed() || GuardPlot.armed() || RtsPanel.toolArmed()
+                || (button == 0 && ZoneDrawTool.armed())) {
             ci.cancel();
             return;
         }
 
+        if (ZoneViewClient.active()) return;
         if (button != 0 || this.viewed == null) return;
         if (!(this.viewed.getElement() instanceof VehicleMarker marker)) return;
         // OWN orders + HOSTILE designate (Attack this unit). FRIENDLY clicks fall through.
@@ -255,6 +362,33 @@ public abstract class MixinGuiMap extends Screen {
     @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true, remap = true)
     private void tacz_sewv$onMapPress(double mouseX, double mouseY, int button,
                                       CallbackInfoReturnable<Boolean> cir) {
+        if (WaypointDrag.active()) {
+            // A second button mid-drag puts the order back; the left release is still ours.
+            if (button != 0) WaypointDrag.cancel();
+            cir.setReturnValue(true);
+            return;
+        }
+        if (OrderFlyout.mouseClicked(mouseX, mouseY, button)) {
+            if (OrderFlyout.consumeFired() && this.rightClickMenu != null) this.rightClickMenu.setClosed(true);
+            this.tacz_sewv$swallowRelease = true;
+            cir.setReturnValue(true);
+            return;
+        }
+        Minecraft mcRibbon = Minecraft.getInstance();
+        if (!tacz_sewv$dropdownOpen() && mcRibbon.player != null && UnitRibbon.mouseClicked(mouseX, mouseY, button,
+                Screen.hasShiftDown(), mcRibbon.player.level().dimension())) {
+            this.tacz_sewv$swallowRelease = true;
+            cir.setReturnValue(true);
+            return;
+        }
+        if (button == 0 && ZoneDrawTool.armed() && !CruisePlot.armed() && !GuardPlot.armed()
+                && !PathwayPlot.armed() && !tacz_sewv$dropdownOpen() && this.getChildAt(mouseX, mouseY).isEmpty()) {
+            ZoneDrawTool.begin(tacz_sewv$worldX(mouseX), tacz_sewv$worldZ(mouseY));
+            cir.setReturnValue(true);
+            return;
+        }
+        // The spawn zone view is an operator tool, not a command map: no orders, panels or selection.
+        if (ZoneViewClient.active()) return;
         // RTS panel (only when Xaero + OpenPAC are both present): a press on the panel is the panel's, and an
         // armed Frontline Tool takes the map's clicks: left fires at the chunk under the cursor, right cancels.
         if (RtsPanel.enabled()) {
@@ -278,6 +412,15 @@ public abstract class MixinGuiMap extends Screen {
         if (!ClientConfig.mapMarkersEnabled()) return;
         if (tacz_sewv$dropdownOpen()) return; // the right-click menu (or a toggle-menu) owns this click
         if (this.getChildAt(mouseX, mouseY).isPresent()) return; // a Xaero widget, not the map
+
+        // A press on an order waypoint drags it. Checked before the line drag and Xaero's pan.
+        Minecraft mcPress = Minecraft.getInstance();
+        if (button == 0 && mcPress.player != null && !RtsPanel.toolArmed()
+                && WaypointDrag.begin(mouseX, mouseY, tacz_sewv$projection(), mcPress.player.level().dimension(),
+                        Screen.hasShiftDown())) {
+            cir.setReturnValue(true);
+            return;
+        }
 
         if (button == 2) {
             // Middle-press: begin a box. Swallowed so Xaero does not treat MMB as something else;
@@ -311,6 +454,22 @@ public abstract class MixinGuiMap extends Screen {
     @Inject(method = "mouseReleased", at = @At("HEAD"), cancellable = true, remap = true)
     private void tacz_sewv$onMapRelease(double mouseX, double mouseY, int button,
                                         CallbackInfoReturnable<Boolean> cir) {
+        if (WaypointDrag.active()) {
+            if (button == 0) WaypointDrag.release(mouseX, mouseY, tacz_sewv$cursorBlock());
+            cir.setReturnValue(true);
+            return;
+        }
+        if (this.tacz_sewv$swallowRelease) {
+            this.tacz_sewv$swallowRelease = false;
+            cir.setReturnValue(true);
+            return;
+        }
+        if (button == 0 && ZoneDrawTool.stroking()) {
+            ZoneDrawTool.sample(tacz_sewv$worldX(mouseX), tacz_sewv$worldZ(mouseY));
+            ZoneDrawTool.commit();
+            cir.setReturnValue(true);
+            return;
+        }
         if (RtsPanel.consumeRelease(button, tacz_sewv$worldX(mouseX), tacz_sewv$worldZ(mouseY))) {
             cir.setReturnValue(true);
             return;
@@ -356,6 +515,11 @@ public abstract class MixinGuiMap extends Screen {
     private void tacz_sewv$rtsScroll(double mouseX, double mouseY, double scrollX, double delta,
             CallbackInfoReturnable<Boolean> cir) {
         // NeoForge port: 1.21 mouseScrolled carries a horizontal delta too; the roster scrolls on the vertical one.
+        if (ZoneViewClient.active()) return;
+        if (OrderFlyout.mouseScrolled(mouseX, mouseY, delta) || UnitRibbon.mouseScrolled(mouseX, mouseY, delta)) {
+            cir.setReturnValue(true);
+            return;
+        }
         if (!RtsPanel.enabled()) return;
         tacz_sewv$syncRtsColumn();
         if (RtsPanel.mouseScrolled(mouseX, mouseY, delta, this.width, this.height)) cir.setReturnValue(true);
@@ -394,6 +558,16 @@ public abstract class MixinGuiMap extends Screen {
     /** Panel toggle / Frontline keys. Never while a text box (Xaero's hop field) has focus. */
     @Inject(method = "keyPressed", at = @At("HEAD"), cancellable = true, remap = true)
     private void tacz_sewv$rtsKey(int keyCode, int scanCode, int modifiers, CallbackInfoReturnable<Boolean> cir) {
+        if (ZoneViewClient.active()) return;
+        if (WaypointDrag.active() && keyCode == org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE) {
+            WaypointDrag.cancel();
+            cir.setReturnValue(true);
+            return;
+        }
+        if (keyCode == org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE && OrderFlyout.escape()) {
+            cir.setReturnValue(true);
+            return;
+        }
         if (!RtsPanel.enabled() || this.getFocused() instanceof EditBox) return;
         if (RtsPanel.keyPressed(keyCode, scanCode)) cir.setReturnValue(true);
     }
@@ -401,12 +575,40 @@ public abstract class MixinGuiMap extends Screen {
     /** Map closed: let the server stop pushing Territory state. */
     @Inject(method = "removed", at = @At("HEAD"), remap = true)
     private void tacz_sewv$rtsClosed(CallbackInfo ci) {
+        WaypointDrag.cancel();
+        OrderFlyout.close();
+        UnitRibbon.hide();
         RtsPanel.onClosed();
+        ZoneViewClient.closeView();
+    }
+
+    @Inject(method = "render", at = @At("TAIL"), remap = true)
+    private void tacz_sewv$drawSpawnZones(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks,
+                                          CallbackInfo ci) {
+        tacz_sewv$syncZoneTools();
+        if (!ZoneViewClient.active()) return;
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.level == null) return;
+        String dim = mc.level.dimension().location().toString();
+        MapProjection project = tacz_sewv$projection();
+        int minCx = (int) Math.floor(tacz_sewv$worldX(0)) >> 4;
+        int maxCx = (int) Math.floor(tacz_sewv$worldX(this.width)) >> 4;
+        int minCz = (int) Math.floor(tacz_sewv$worldZ(0)) >> 4;
+        int maxCz = (int) Math.floor(tacz_sewv$worldZ(this.height)) >> 4;
+        SpawnZonePainter.drawZones(guiGraphics, project, dim, minCx, maxCx, minCz, maxCz);
+        if (ZoneDrawTool.stroking()) {
+            ZoneDrawTool.sample(tacz_sewv$worldX(mouseX), tacz_sewv$worldZ(mouseY));
+            ZoneDrawTool.Brush brush = ZoneDrawTool.brush();
+            SpawnZonePainter.drawStroke(guiGraphics, project, ZoneDrawTool.stroke(),
+                    brush.previewKind, brush == ZoneDrawTool.Brush.ERASE);
+        }
+        SpawnZonePainter.drawLegend(guiGraphics, mc.font, tacz_sewv$leftColumnInset() + 6, this.height,
+                this.mouseBlockPosX, this.mouseBlockPosZ, dim);
     }
 
     @Inject(method = "render", at = @At("TAIL"), remap = true)
     private void tacz_sewv$drawRts(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks, CallbackInfo ci) {
-        if (!RtsPanel.enabled()) return;
+        if (!RtsPanel.enabled() || ZoneViewClient.active()) return;
         if (CruisePlot.armed() || GuardPlot.armed() || PathwayPlot.armed()) RtsPanel.cancelTool();
         tacz_sewv$syncRtsColumn();
         RtsPanel.sampleDrag(tacz_sewv$worldX(mouseX), tacz_sewv$worldZ(mouseY));
@@ -419,7 +621,7 @@ public abstract class MixinGuiMap extends Screen {
 
     @Inject(method = "getRightClickOptions", at = @At("RETURN"))
     private void tacz_sewv$orderOptions(CallbackInfoReturnable<ArrayList<RightClickOption>> cir) {
-        if (!ClientConfig.mapMarkersEnabled()) return;
+        if (!ClientConfig.mapMarkersEnabled() || ZoneViewClient.active()) return;
         ArrayList<RightClickOption> options = cir.getReturnValue();
         if (options == null) return;
 
@@ -427,9 +629,16 @@ public abstract class MixinGuiMap extends Screen {
         // Attack-this-unit: only when OWN crews are selected AND exactly one HOSTILE is designated.
         int attackTargetId = selectedCount > 0 ? MapMarkers.selectedHostileTargetId() : -1;
 
-        options.addAll(UnitOrderOption.allFor(options.size(), (GuiMap) (Object) this,
-                this.rightClickX, this.rightClickY, this.rightClickZ, this.rightClickDim,
-                selectedCount, attackTargetId));
+        // Wheel-sorted categories; each opens the flyout. Cancel stays a plain row, as on the wheel.
+        UnitOrderOption.MapClick click = new UnitOrderOption.MapClick(this.rightClickX, this.rightClickY,
+                this.rightClickZ, this.rightClickDim, attackTargetId);
+        List<MapOrderCatalog.Category> cats = MapOrderCatalog.categories(selectedCount, attackTargetId);
+        OrderFlyout.prepare(cats, options.size(), click);
+        for (MapOrderCatalog.Category cat : cats) {
+            options.add(new OrderCategoryOption(options.size(), (GuiMap) (Object) this, cat));
+        }
+        options.add(new OrderEntryOption(options.size(), (GuiMap) (Object) this,
+                MapOrderCatalog.cancel(selectedCount), click));
         ResourceKey<Level> dim = this.rightClickDim;
         if (dim == null && Minecraft.getInstance().player != null) {
             dim = Minecraft.getInstance().player.level().dimension();
@@ -441,6 +650,13 @@ public abstract class MixinGuiMap extends Screen {
 
     @Inject(method = "render", at = @At("TAIL"), remap = true)
     private void tacz_sewv$drawPlot(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks, CallbackInfo ci) {
+        if (ZoneViewClient.active()) {
+            UnitRibbon.hide();
+            OrderFlyout.close();
+            if (this.tacz_sewv$confirmButton != null) this.tacz_sewv$confirmButton.visible = false;
+            if (this.tacz_sewv$cancelButton != null) this.tacz_sewv$cancelButton.visible = false;
+            return;
+        }
         // The order-preview overlay draws independently of cruise plotting. Standing orders come
         // straight from the synced markers (so they clear themselves when an order is dismissed or
         // overridden); the live drag is the transient line being laid down right now.
@@ -449,7 +665,14 @@ public abstract class MixinGuiMap extends Screen {
             ResourceKey<Level> dim = mcPlot.player.level().dimension();
             MapProjection project = tacz_sewv$projection();
             MapOverlayPainter.drawAirportOverlay(guiGraphics, project, dim);
+            if (WaypointDrag.active()) WaypointDrag.sample(mouseX, mouseY, tacz_sewv$cursorBlock());
             MapOverlayPainter.drawStandingPreviews(guiGraphics, project, dim);
+            if (!CruisePlot.armed() && !GuardPlot.armed() && !PathwayPlot.armed() && !RtsPanel.toolArmed()) {
+                List<WaypointHandles.Handle> handles = WaypointDrag.handles(dim);
+                MapOverlayPainter.drawWaypointHandles(guiGraphics, project, handles,
+                        WaypointDrag.hovered(handles, mouseX, mouseY, project));
+            }
+            tacz_sewv$drawRibbonAndLegend(guiGraphics, mouseX, mouseY, dim, project);
             if (ClientConfig.MAP_SHOW_COMMAND_DEBUG.get()) {
                 MapOverlayPainter.drawBattleFieldOverlay(guiGraphics, project, dim);
             }
@@ -592,6 +815,48 @@ public abstract class MixinGuiMap extends Screen {
     @Unique
     private boolean tacz_sewv$dropdownOpen() {
         return this.rightClickMenu != null || this.waypointMenu || this.playersMenu;
+    }
+
+    /** Unit ribbon, legend and order flyout, in that order so the flyout sits on top. */
+    @Unique
+    private void tacz_sewv$drawRibbonAndLegend(GuiGraphics g, int mouseX, int mouseY, ResourceKey<Level> dim,
+                                               MapProjection project) {
+        boolean plotting = CruisePlot.armed() || GuardPlot.armed() || PathwayPlot.armed();
+        boolean tool = RtsPanel.toolArmed() || ZoneDrawTool.armed();
+        boolean rtsOpen = RtsPanel.expanded();
+        int right = Math.max(tacz_sewv$rightColumnInset(), rtsOpen ? RtsPanel.reservedRight(this.width, this.height) : 0) + 4;
+        if (rtsOpen || plotting || tool || tacz_sewv$dropdownOpen()) {
+            UnitRibbon.hide();
+        } else {
+            UnitRibbon.View view = new UnitRibbon.View(tacz_sewv$worldX(0), tacz_sewv$worldX(this.width),
+                    tacz_sewv$worldZ(0), tacz_sewv$worldZ(this.height), this.cameraX, this.cameraZ, this.scale, dim);
+            UnitRibbon.render(g, this.font, mouseX, mouseY, this.width, this.height,
+                    tacz_sewv$leftColumnInset() + 8, right + 4, view);
+            VehicleMarker jump = UnitRibbon.takeJump();
+            if (jump != null) {
+                this.cameraDestination = new int[]{(int) Math.floor(jump.x()), (int) Math.floor(jump.z())};
+                attachedCamera = false;
+            }
+        }
+        boolean overHandle = !WaypointDrag.active()
+                && WaypointDrag.hovered(WaypointDrag.handles(dim), mouseX, mouseY, project) != null;
+        MapLegend.State state = new MapLegend.State(WaypointDrag.active(), overHandle, OrderFlyout.active(),
+                OrderFlyout.hoveringValue(mouseX, mouseY), plotting, CruisePlot.armed(),
+                UnitRibbon.hoveringUnit(mouseX, mouseY), MapMarkers.selected().size());
+        int legendBottom = this.height - UnitRibbon.reserved() - (plotting ? 56 : 0);
+        MapLegend.render(g, this.font, this.width - right, legendBottom, state);
+
+        OrderFlyout.Menu menu = null;
+        if (this.rightClickMenu != null && !this.rightClickMenu.isClosed()) {
+            menu = new OrderFlyout.Menu(this.rightClickMenu.getXWithOffset(), this.rightClickMenu.getRenderYWithOffset(),
+                    this.rightClickMenu.getWidth(), ((AccessorDropDownWidget) this.rightClickMenu).tacz_sewv$scroll());
+        }
+        OrderFlyout.render(g, this.font, mouseX, mouseY, this.width, this.height, menu);
+    }
+
+    @Unique
+    private BlockPos tacz_sewv$cursorBlock() {
+        return new BlockPos(this.mouseBlockPosX, tacz_sewv$nodeY(), this.mouseBlockPosZ);
     }
 
     @Unique

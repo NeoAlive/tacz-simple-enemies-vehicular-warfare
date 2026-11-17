@@ -98,6 +98,13 @@ public final class EasyMode {
         return nerfs(e, SewvConfig.EASY_SOFT_INFANTRY);
     }
 
+    /** Multiplier on incoming suppression: timid hostiles flinch harder, the player's side less. */
+    public static float suppressionScale(@Nullable Entity receiver) {
+        if (timid(receiver)) return EasyTuning.SUPPRESSION_HOSTILE_MULT;
+        if (buffs(receiver)) return EasyTuning.SUPPRESSION_FRIENDLY_MULT;
+        return 1.0f;
+    }
+
     public static boolean softAim(@Nullable Entity e) {
         return nerfs(e, SewvConfig.EASY_SOFT_AI_AIM);
     }
@@ -392,6 +399,11 @@ public final class EasyMode {
 
     public static boolean protectVehicles() {
         return on(SewvConfig.EASY_PROTECT_VEHICLES);
+    }
+
+    /** Tripod heat ray on hulls back at the mod's own per-pulse damage instead of 5x. */
+    public static boolean softTripodHeatRay() {
+        return on(SewvConfig.EASY_SOFT_TRIPOD_HEAT_RAY);
     }
 
     public static boolean buffPmc() {

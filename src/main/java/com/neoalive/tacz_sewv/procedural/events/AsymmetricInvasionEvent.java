@@ -87,7 +87,7 @@ public final class AsymmetricInvasionEvent extends DynamicEvent {
         BlockPos position = TankSpawner.adjustHeight(level, centerPos);
         deployDefence(level, position, defender);
 
-        boolean alongX = level.random.nextBoolean();
+        boolean alongX = EventSpawns.acrossX(player, centerPos);
         int direction = level.random.nextBoolean() ? 1 : -1;
         int wanted = MIN_VEHICLES + level.random.nextInt(VEHICLE_VARIANCE);
         int spawned = 0;

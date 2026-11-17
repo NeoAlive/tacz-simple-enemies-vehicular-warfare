@@ -7,10 +7,10 @@ import com.atsuishio.superbwarfare.entity.vehicle.Type63Entity;
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Mob;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
-import net.nekoyuni.SimpleEnemyMod.entity.ai.orders.OrderType;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import org.spongepowered.asm.mixin.Mixin;
@@ -21,15 +21,19 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import com.neoalive.tacz_sewv.bridge.IAiFireTracker;
-import com.neoalive.tacz_sewv.compat.FcpMortarCompat;
+import com.neoalive.tacz_sewv.compat.fcp.FcpMortarCompat;
 import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.core.LineOfFireCache;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.navigation.VehiclePathObstacles;
+import com.neoalive.tacz_sewv.entity.ai.sensor.Acquisition;
 import com.neoalive.tacz_sewv.entity.ai.support.FireHesitation;
+import com.neoalive.tacz_sewv.entity.ai.support.FireRhythm;
+import com.neoalive.tacz_sewv.entity.ai.support.FormationSubjects;
 import com.neoalive.tacz_sewv.entity.ai.support.TowRecoverySupport;
+import com.neoalive.tacz_sewv.entity.ai.suppression.SuppressionBus;
 import com.neoalive.tacz_sewv.entity.ai.utility.TacticalPosture;
 import com.neoalive.tacz_sewv.util.LoadedClip;
 import com.neoalive.tacz_sewv.util.SmokeVision;
@@ -63,6 +67,14 @@ public abstract class MixinVehicleFireCooldown implements IAiFireTracker {
     // stale verdict.
     @Unique
     private LineOfFireCache tacz_sewv$lofCache = new LineOfFireCache();
+
+    // Throttle for SuppressionBus.onVehicleShot. SEM debounces suppression per source anyway, so a
+    // 1200 RPM gun emitting every round would only pay for the weapon lookup and the index query.
+    @Unique
+    private static final int TACZ_SEWV$SUPPRESS_EMIT_TICKS = 10;
+
+    @Unique
+    private long tacz_sewv$lastSuppressEmitTick = Long.MIN_VALUE;
 
     // The AI-crew gate lives on canShoot: SBW's AI fire loop (VehicleEntity.baseTick
     // and each tank's muzzle-flash override) checks it before every shot, for every
@@ -100,7 +112,7 @@ public abstract class MixinVehicleFireCooldown implements IAiFireTracker {
             return true;
         }
 
-        if (living instanceof PmcUnitEntity pmc && pmc.getOrder() == OrderType.CEASE_FIRE) {
+        if (living instanceof PmcUnitEntity pmc && FormationSubjects.ceaseFire(pmc)) {
             return true;
         }
 
@@ -240,7 +252,7 @@ public abstract class MixinVehicleFireCooldown implements IAiFireTracker {
             return;
         }
 
-        if (living instanceof PmcUnitEntity pmc && pmc.getOrder() == OrderType.CEASE_FIRE) {
+        if (living instanceof PmcUnitEntity pmc && FormationSubjects.ceaseFire(pmc)) {
             ci.cancel();
             return;
         }
@@ -259,6 +271,13 @@ public abstract class MixinVehicleFireCooldown implements IAiFireTracker {
             return;
         }
         this.tacz_sewv$lastAiShotTick = now;
+        Acquisition.noteFired(unit.getId(), now);
+
+        if (this.tacz_sewv$lastSuppressEmitTick == Long.MIN_VALUE
+                || now - this.tacz_sewv$lastSuppressEmitTick >= TACZ_SEWV$SUPPRESS_EMIT_TICKS) {
+            this.tacz_sewv$lastSuppressEmitTick = now;
+            SuppressionBus.onVehicleShot(self, unit);
+        }
     }
 
     /**
@@ -280,7 +299,9 @@ public abstract class MixinVehicleFireCooldown implements IAiFireTracker {
     @Unique
     private static int tacz_sewv$effectiveCooldown(VehicleEntity self, LivingEntity living) {
         // Easy Mode stretches the weapon's own interval for a hostile crew instead of taking the min.
-        return EasyMode.aiFireIntervalTicks(self, living);
+        int interval = EasyMode.aiFireIntervalTicks(self, living);
+        LivingEntity target = living instanceof Mob mob ? mob.getTarget() : null;
+        return target == null ? interval : FireRhythm.stretch(interval, living.getId(), target.getId());
     }
 
     // Blocked only when BOTH the target's center and its eyes are behind blocks:

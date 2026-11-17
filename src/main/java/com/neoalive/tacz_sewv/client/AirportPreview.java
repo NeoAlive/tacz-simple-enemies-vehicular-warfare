@@ -11,6 +11,7 @@ import net.minecraft.client.renderer.RenderType;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.api.distmarker.Dist;
@@ -19,6 +20,8 @@ import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
 
 import com.neoalive.tacz_sewv.TaczSewv;
+import com.neoalive.tacz_sewv.block.HelipadBlockEntity;
+import com.neoalive.tacz_sewv.block.RunwayBlockEntity;
 
 /**
  * Client-only wireframe of the strip AABB (and optional blocker). It outlives the airport GUI on
@@ -37,6 +40,9 @@ public final class AirportPreview {
     @Nullable private static BlockPos blocker;
     @Nullable private static AABB slotStart;
     @Nullable private static ResourceKey<Level> dimension;
+    /** The runway or helipad block the box belongs to, and whether it was cleared when drawn. */
+    @Nullable private static BlockPos owner;
+    private static boolean ownerWasCleared;
     private static float r = 0.2f;
     private static float g = 0.9f;
     private static float b = 0.3f;
@@ -44,7 +50,16 @@ public final class AirportPreview {
     private AirportPreview() {}
 
     public static void set(AABB box, @Nullable BlockPos blockerPos, float red, float green, float blue) {
+        set(null, box, blockerPos, red, green, blue);
+    }
+
+    /** As above, tied to the block that owns the box: the preview drops when that block goes or loses clearance. */
+    public static void set(@Nullable BlockPos ownerPos, AABB box, @Nullable BlockPos blockerPos,
+                           float red, float green, float blue) {
         Minecraft mc = Minecraft.getInstance();
+        owner = ownerPos == null ? null : ownerPos.immutable();
+        Boolean cleared = mc.level != null && owner != null ? clearedAt(mc.level, owner) : null;
+        ownerWasCleared = Boolean.TRUE.equals(cleared);
         dimension = mc.level != null ? mc.level.dimension() : null;
         footprint = box;
         blocker = blockerPos;
@@ -68,6 +83,17 @@ public final class AirportPreview {
         blocker = null;
         slotStart = null;
         dimension = null;
+        owner = null;
+        ownerWasCleared = false;
+    }
+
+    /** Cleared state of a runway or helipad block entity, or null when there is none at {@code pos}. */
+    @Nullable
+    private static Boolean clearedAt(Level level, BlockPos pos) {
+        BlockEntity be = level.getBlockEntity(pos);
+        if (be instanceof RunwayBlockEntity runway) return runway.isCleared();
+        if (be instanceof HelipadBlockEntity pad) return pad.isCleared();
+        return null;
     }
 
     @SubscribeEvent
@@ -80,6 +106,13 @@ public final class AirportPreview {
         if (dimension != null && !mc.level.dimension().equals(dimension)) {
             clear();
             return;
+        }
+        if (owner != null && mc.level.isLoaded(owner)) {
+            Boolean cleared = clearedAt(mc.level, owner);
+            if (cleared == null || (ownerWasCleared && !cleared)) {
+                clear();
+                return;
+            }
         }
 
         PoseStack pose = event.getPoseStack();

@@ -32,6 +32,7 @@ import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.debug.PathingPerf;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
+import com.neoalive.tacz_sewv.util.LoadedTerrain;
 
 /**
  * Killzone-style worst-case visibility table over Minecraft columns.
@@ -267,7 +268,7 @@ public final class CoverVisibilityCache {
             if (!cache.dirtySet.remove(ck)) continue;
             int cx = ChunkPosKey.x(ck);
             int cz = ChunkPosKey.z(ck);
-            if (!level.hasChunk(cx, cz)) continue;
+            if (!LoadedTerrain.loaded(level, cx, cz)) continue;
             ChunkCoverGrid grid = cache.grids.computeIfAbsent(ck, k -> new ChunkCoverGrid());
             long t0 = System.nanoTime();
             bakeChunk(level, cx, cz, grid);
@@ -329,10 +330,15 @@ public final class CoverVisibilityCache {
         cache.grids.remove(ck);
     }
 
-    /** Force-enqueue a chunk for bake (tests / first touch). */
+    /**
+     * Warm a chunk: queue it only if it has no grid yet. A ready grid is kept; only a real block change
+     * invalidates it. Dropping it here made every posture pass rebake the hull's own chunk.
+     */
     public static void requestBake(ServerLevel level, int blockX, int blockZ) {
         LevelCache cache = CACHES.computeIfAbsent(level, l -> new LevelCache());
-        enqueueDirty(cache, chunkKey(blockX, blockZ));
+        long ck = chunkKey(blockX, blockZ);
+        if (cache.grids.containsKey(ck) || cache.dirtySet.contains(ck)) return;
+        enqueueDirty(cache, ck);
     }
 
     @Nullable

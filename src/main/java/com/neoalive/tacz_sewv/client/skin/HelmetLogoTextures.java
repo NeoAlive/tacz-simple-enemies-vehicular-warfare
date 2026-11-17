@@ -137,11 +137,11 @@ public final class HelmetLogoTextures {
         if (local == null) return PmcIdentityPreference.PmcIdentity.defaults();
         if (wearer == local) {
             return new PmcIdentityPreference.PmcIdentity(
-                    "", clientPool(), clientLogo());
+                    "", clientPool(), clientLogo(), "");
         }
         if (wearer instanceof PmcUnitEntity pmc && local.getUUID().equals(pmc.getOwnerUUID())) {
             return new PmcIdentityPreference.PmcIdentity(
-                    "", clientPool(), clientLogo());
+                    "", clientPool(), clientLogo(), "");
         }
         return PmcIdentityPreference.PmcIdentity.defaults();
     }

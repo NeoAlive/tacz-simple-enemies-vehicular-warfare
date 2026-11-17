@@ -6,6 +6,8 @@ import net.minecraft.world.level.levelgen.Heightmap;
 
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
+import com.neoalive.tacz_sewv.entity.ai.plane.PlaneRoleFilter;
+import com.neoalive.tacz_sewv.item.PlaneRole;
 
 /**
  * Vertical half of the vehicle target-scan cylinder. Horizontal radius stays elsewhere;
@@ -53,7 +55,10 @@ public final class VehicleScanBand {
      * {@link #groundUpward()}.
      */
     public static double upward(VehicleEntity v) {
-        return isAirObserver(v) ? halfHeight() : groundUpward();
+        if (!isAirObserver(v)) return groundUpward();
+        // A Fighter-mode plane hunts aircraft, which fly above it as often as below.
+        if (PlaneRoleFilter.roleOf(v.getFirstPassenger()) == PlaneRole.FIGHTER) return groundUpward();
+        return halfHeight();
     }
 
     /**

@@ -617,11 +617,14 @@ public class ClientEvents {
 
     @SubscribeEvent
     public static void onLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {
+        SideRelationsClient.clear();
         MapMarkers.clear();
         com.neoalive.tacz_sewv.client.territory.TerritoryClient.clear();
+        com.neoalive.tacz_sewv.client.zone.ZoneViewClient.clear();
         AirportPlots.clear();
         InvasionHudClient.clear();
         VehicleSkinClient.clearAll();
+        com.neoalive.tacz_sewv.client.skin.WebLogoTextures.clear();
         CamoClient.clearAll();
         HeliRunPhaseClient.clearAll();
         PlayerRappelClient.clearAll();

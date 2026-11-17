@@ -44,18 +44,13 @@ final class OrderQueueDraw {
         }
         for (int i = 0; i < labels.size() && i < rows; i++) {
             boolean last = i == rows - 1 && labels.size() > rows;
-            String text = last ? "  +" + (labels.size() - i) + "..."
-                    : (i == 0 ? "> " : "  ") + labels.get(i);
+            String text = last ? I18n.get("gui.tacz_sewv.queue.more", labels.size() - i)
+                    : (i == 0 ? "> " : "  ") + I18n.get(labels.get(i));
             int color = i == 0 ? CURRENT : labelArgb;
             g.drawString(font, font.plainSubstrByWidth(text, W - PAD * 2),
                     left + PAD, listTop + PAD + i * rowH, FormationPreviewDraw.scaleAlpha(color, a));
         }
 
-        int hintY = listTop + LIST_H + 4;
-        for (String line : I18n.get("gui.tacz_sewv.queue.hint").split("\n")) {
-            g.drawCenteredString(font, line, left + W / 2, hintY, muted);
-            hintY += font.lineHeight + 1;
-        }
     }
 
     /**

@@ -157,7 +157,18 @@ public class NetworkHandler {
     // 107: InvasionHud.Snapshot carries the match clock (secondsLeft).
     // 108: PacketQuickCommand carries explicit-selection + crosshair block; PacketDismountVehicle
     //      removed (the wheel's Dismount pipeline replaced the TDT button).
-    private static final String PROTOCOL_VERSION = "108";
+    // 109: PacketVehicleFormation's anchor mode may be UNIT (a formation laid on an elected unit).
+    // 110: PacketSideRelations (S->C) carries the player's diplomacy toward SEM sides ru and us.
+    // 111: PacketZoneView (C->S) + PacketSpawnZoneState (S->C) for the operator spawn zone map.
+    // 112: PacketZoneEdit (C->S), operator brush strokes on the zone map.
+    // 113: PacketRadarContacts (S->C), FPAS MTI contacts for the open panel.
+    // 114: PacketHudNotification carries an urgent flag; NotificationKind.FPAS; PacketRadioSettings (C->S)
+    //      + PacketRadioFlags (S->C) for the handheld radio comms toggles.
+    // 116: WorldVehiclePools.Category.MINE in pool editor packets; PacketMinePool (S->C).
+    // 117: PacketSetVoice (C->S) + crew voice in PacketSyncPmcIdentity.
+    // 118: PacketApplyPmcIdentity carries the whole terminal (PacketSetVoice and PacketSetNameCategory
+    //      removed), PacketSyncPmcIdentity the logo link, PacketFetchWebLogo (C->S) + PacketWebLogo (S->C).
+    private static final String PROTOCOL_VERSION = "120";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             ResourceLocation.fromNamespaceAndPath(TaczSewv.MODID, "main"),
@@ -368,6 +379,13 @@ public class NetworkHandler {
                 PacketReachGuard::new,
                 PacketReachGuard::handle
         );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketMoveWaypoint.class,
+                PacketMoveWaypoint::encode,
+                PacketMoveWaypoint::new,
+                PacketMoveWaypoint::handle
+        );
 
         CHANNEL.registerMessage(
                 nextId(),
@@ -507,13 +525,6 @@ public class NetworkHandler {
         );
 
         // C->S, TDT "Identity" category "Full Names" control (NamePreference / NpcIdentity).
-        CHANNEL.registerMessage(
-                nextId(),
-                PacketSetNameCategory.class,
-                PacketSetNameCategory::encode,
-                PacketSetNameCategory::new,
-                PacketSetNameCategory::handle
-        );
 
         // S->C / C->S, spawn_probe structure-prep editor.
         CHANNEL.registerMessage(
@@ -787,10 +798,80 @@ public class NetworkHandler {
         );
         CHANNEL.registerMessage(
                 nextId(),
+                PacketMinePool.class,
+                PacketMinePool::encode,
+                PacketMinePool::new,
+                PacketMinePool::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
                 PacketGraceStart.class,
                 PacketGraceStart::encode,
                 PacketGraceStart::new,
                 PacketGraceStart::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketSideRelations.class,
+                PacketSideRelations::encode,
+                PacketSideRelations::new,
+                PacketSideRelations::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketZoneView.class,
+                PacketZoneView::encode,
+                PacketZoneView::new,
+                PacketZoneView::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketSpawnZoneState.class,
+                PacketSpawnZoneState::encode,
+                PacketSpawnZoneState::new,
+                PacketSpawnZoneState::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketRadarContacts.class,
+                PacketRadarContacts::encode,
+                PacketRadarContacts::new,
+                PacketRadarContacts::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketRadioSettings.class,
+                PacketRadioSettings::encode,
+                PacketRadioSettings::new,
+                PacketRadioSettings::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketRadioFlags.class,
+                PacketRadioFlags::encode,
+                PacketRadioFlags::new,
+                PacketRadioFlags::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketZoneEdit.class,
+                PacketZoneEdit::encode,
+                PacketZoneEdit::new,
+                PacketZoneEdit::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketFetchWebLogo.class,
+                PacketFetchWebLogo::encode,
+                PacketFetchWebLogo::new,
+                PacketFetchWebLogo::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketWebLogo.class,
+                PacketWebLogo::encode,
+                PacketWebLogo::new,
+                PacketWebLogo::handle
         );
     }
 }

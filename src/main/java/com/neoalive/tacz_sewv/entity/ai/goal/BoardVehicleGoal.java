@@ -15,6 +15,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.PmcUnitEntity;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.compat.NpcVehicleOverrides;
 import com.neoalive.tacz_sewv.compat.lv.LvCompat;
+import com.neoalive.tacz_sewv.crew.VehicleAccessLive;
 import com.neoalive.tacz_sewv.entity.ai.support.CommanderSeating;
 import com.neoalive.tacz_sewv.entity.ai.support.PmcDownedSupport;
 import com.neoalive.tacz_sewv.item.LockItem;
@@ -62,7 +63,7 @@ public class BoardVehicleGoal extends Goal {
         LAST_CANCEL_FEEDBACK.remove(ownerId);
     }
 
-    private enum CancelReason { FULL, WRECKED, TIMEOUT, GONE, PLAYER_ONLY }
+    private enum CancelReason { FULL, WRECKED, TIMEOUT, GONE, PLAYER_ONLY, NOT_OWNED }
 
     private final AbstractUnit unit;
     private VehicleEntity targetVehicle;
@@ -145,6 +146,10 @@ public class BoardVehicleGoal extends Goal {
     @Override
     public void tick() {
         if (this.targetVehicle == null) return;
+        if (VehicleAccessLive.deniesMount(this.unit, this.targetVehicle)) {
+            cancelBoarding(CancelReason.NOT_OWNED);
+            return;
+        }
 
         // Stuck in a crowd, or it can't be reached at all.
         if (++this.boardingTicks > MAX_BOARDING_TICKS) {
@@ -234,6 +239,7 @@ public class BoardVehicleGoal extends Goal {
             case TIMEOUT -> OrderFailure.UNREACHABLE;
             case GONE -> OrderFailure.VEHICLE_GONE;
             case PLAYER_ONLY -> OrderFailure.VEHICLE_PLAYER_ONLY;
+            case NOT_OWNED -> OrderFailure.VEHICLE_NOT_OWNED;
         }, this.unit);
     }
 

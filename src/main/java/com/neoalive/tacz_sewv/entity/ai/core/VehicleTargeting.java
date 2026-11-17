@@ -36,6 +36,7 @@ import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.diplomacy.DiplomacyData;
 import com.neoalive.tacz_sewv.entity.ai.support.EntrenchSupport;
+import com.neoalive.tacz_sewv.entity.ai.support.FormationSubjects;
 import com.neoalive.tacz_sewv.entity.ai.support.IdleSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.MarchObjective;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
@@ -228,9 +229,12 @@ public final class VehicleTargeting {
                 Player leader = commander(pmc);
                 // No axis means this order did not come through our gate — it is a plain SEM
                 // infantry formation that happens to have caught a mounted crew. There is no
-                // hull geometry to drive to, so hold.
-                if (leader == null) return null;
-                return VehicleFormation.formationSlotPos(unit.level(), pmc, leader.position());
+                // hull geometry to drive to, so hold. A UNIT formation is laid on its leader
+                // instead (resolveAnchor ignores the position passed here), so it needs no player
+                // online; with its leader out of reach the slot is null and the crew holds.
+                if (leader == null && !VehicleFormation.isUnitFollower(pmc)) return null;
+                return VehicleFormation.formationSlotPos(unit.level(), pmc,
+                        leader != null ? leader.position() : unit.position());
             }
 
             default:
@@ -248,6 +252,17 @@ public final class VehicleTargeting {
      * collapse onto the point man. A player MOVE click uses a tighter stop so the hull actually
      * reaches the ordered point.
      */
+    /**
+     * Park/drive hysteresis for any "drive to a point, then park" site: arrive inside {@code arrive}, and once parked
+     * stay parked until past {@code max(1.5 x arrive, arrive + 3)}. A single threshold flipped a hull between parked
+     * and driving on the boundary (worst at MOVE's ~2.3-block stop), and every parked tick clears recovery, so the
+     * flapping also dropped maneuvers mid-run.
+     */
+    public static boolean holdsArrival(boolean parked, double distSq, double arrive) {
+        double r = parked ? Math.max(arrive * 1.5, arrive + 3.0) : arrive;
+        return distSq <= r * r;
+    }
+
     public static double arrivalDistance(AbstractUnit unit, VehicleEntity vehicle) {
         return arrivalDistance(unit, vehicle.getBbWidth());
     }
@@ -412,6 +427,9 @@ public final class VehicleTargeting {
         private VehicleEntity assistAlly;
         private long lastAssistScanTime = Long.MIN_VALUE;
         private long lastEngagementTime = Long.MIN_VALUE;
+        // The ally whose ring this hull has parked in. Survives clear(): the goal stops while parked in the ring
+        // (no destination), and forgetting the band there restarted it the moment the ally moved a block.
+        private VehicleEntity ringAlly;
 
         /**
          * Same, but restricted to allies passing {@code allyFilter} (null = any), optionally
@@ -444,8 +462,10 @@ public final class VehicleTargeting {
 
             double dx = ally.getX() - vehicle.getX();
             double dz = ally.getZ() - vehicle.getZ();
-            double arrive = ASSIST_RING_RADIUS + ASSIST_RING_DEADBAND;
-            if (dx * dx + dz * dz <= arrive * arrive) return null; // inside the ring — done
+            boolean inRing = holdsArrival(ally == this.ringAlly, dx * dx + dz * dz,
+                    ASSIST_RING_RADIUS + ASSIST_RING_DEADBAND);
+            this.ringAlly = inRing ? ally : null;
+            if (inRing) return null; // inside the ring — done
 
             return computeStandoffPoint(vehicle, ally.blockPosition(), ASSIST_RING_RADIUS);
         }
@@ -610,7 +630,15 @@ public final class VehicleTargeting {
      */
     public static boolean isNonHostile(AbstractUnit unit, LivingEntity target) {
         if (target instanceof Player p && (p.isCreative() || p.isSpectator())) return true;
+        return isNonHostileIgnoringGameMode(unit, target);
+    }
 
+    /**
+     * {@link #isNonHostile} without the creative/spectator shield: whether {@code unit} would be
+     * hostile to {@code target} on relations alone. For things that only observe (the FPAS radar),
+     * never for targeting.
+     */
+    public static boolean isNonHostileIgnoringGameMode(AbstractUnit unit, LivingEntity target) {
         // Explicit enemy list stamped at invasion spawn — allies on our team never count as enemies.
         if (InvasionHostility.isAlly(unit, target)) {
             return true;
@@ -649,6 +677,14 @@ public final class VehicleTargeting {
      */
     public static boolean isFriendlyPlayer(AbstractUnit unit, Player player) {
         if (player.isCreative() || player.isSpectator()) return true;
+        return isOnPlayersSide(unit, player);
+    }
+
+    /**
+     * {@link #isFriendlyPlayer} on relations alone, without the creative/spectator shield. For
+     * judging a unit from the player's side, where the player's game mode says nothing about it.
+     */
+    public static boolean isOnPlayersSide(AbstractUnit unit, Player player) {
         if (unit instanceof PmcUnitEntity pmc) {
             UUID owner = pmc.getOwnerUUID();
             if (owner == null) return true;
@@ -656,7 +692,7 @@ public final class VehicleTargeting {
             DiplomacyEval dipl = diplomacyEval(pmc, player);
             return dipl.consulted && dipl.relation != DiplomacyData.Relation.ENEMY;
         }
-        return isNonHostile(unit, player);
+        return isNonHostileIgnoringGameMode(unit, player);
     }
 
     /**
@@ -1015,8 +1051,8 @@ public final class VehicleTargeting {
      */
     public static boolean ordersAllowAutoTargets(AbstractUnit unit) {
         if (!(unit instanceof PmcUnitEntity pmc)) return true;
-        OrderType order = pmc.getOrder();
-        return order != OrderType.CEASE_FIRE && order != OrderType.ATTACK_THAT_TARGET;
+        // A UNIT formation follower hears its leader's cease-fire as a posture, not an order.
+        return !FormationSubjects.ceaseFire(pmc) && pmc.getOrder() != OrderType.ATTACK_THAT_TARGET;
     }
 
     /**
@@ -1040,6 +1076,7 @@ public final class VehicleTargeting {
             if (FobSupport.holdsRouteThroughContact(pmc)) return true;
             if (FobSupport.blocksOrders(pmc)) return true;
             if (((ITerritoryPost) pmc).sewv$hasTerritoryPost()) return true;
+            if (com.neoalive.tacz_sewv.entity.ai.support.CoverHoldOrders.has(pmc)) return true;
             return ((IVehiclePatrol) pmc).sewv$isPatrolling() || pmc.getOrder() != OrderType.FREE_FIRE;
         }
         return false;

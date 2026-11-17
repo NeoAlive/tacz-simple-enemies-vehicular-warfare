@@ -12,6 +12,7 @@ import net.minecraft.world.phys.Vec3;
 
 import com.neoalive.tacz_sewv.heli.physics.Airframe;
 import com.neoalive.tacz_sewv.heli.physics.HeliState;
+import com.neoalive.tacz_sewv.util.LoadedTerrain;
 
 /**
  * Rotor downwash as a world effect (plan Phase 5), from the rotor model's own numbers.
@@ -51,7 +52,7 @@ public final class Downwash {
         Level level = hull.level();
         double hubX = s.p.x, hubZ = s.p.z, hubY = s.p.y + af.cgHeight + af.hubHeight;
         int bx = (int) Math.floor(hubX), bz = (int) Math.floor(hubZ);
-        if (!level.hasChunk(bx >> 4, bz >> 4)) return;
+        if (!LoadedTerrain.loaded(level, bx >> 4, bz >> 4)) return;
         double ground = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, bx, bz);
         double h = hubY - ground, radius = af.radius;
         if (h > REACH_RADII * radius || h < 0.0) return;

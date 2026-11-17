@@ -37,11 +37,14 @@ import com.neoalive.tacz_sewv.command.quick.QuickCommandRegistry;
 import com.neoalive.tacz_sewv.entity.ai.support.FormationAnchorMode;
 import com.neoalive.tacz_sewv.entity.ai.support.FormationComposition;
 import com.neoalive.tacz_sewv.entity.ai.support.FormationShape;
+import com.neoalive.tacz_sewv.entity.ai.support.FormationSubjects;
 import com.neoalive.tacz_sewv.entity.ai.support.VehicleFormation;
 import com.neoalive.tacz_sewv.entity.unit.PmcCommanderEntity;
 import com.neoalive.tacz_sewv.init.ModSounds;
 import com.neoalive.tacz_sewv.item.HandheldRadioItem;
+import com.neoalive.tacz_sewv.item.PlaneRole;
 import com.neoalive.tacz_sewv.item.RadioSettings;
+import com.neoalive.tacz_sewv.item.SignalRelayItem;
 import com.neoalive.tacz_sewv.map.VehicleMarker;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketClearBoarding;
@@ -72,6 +75,8 @@ public final class QuickCommandWheelScreen extends Screen {
     private static float formationWidth = IFormationMember.DEFAULT_STRETCH;
     private static float formationLength = IFormationMember.DEFAULT_STRETCH;
     private static FormationComposition.Kind formationFilter = FormationComposition.Kind.GROUND;
+    /** What a formation is laid on: the player (Alt on click still freezes it in place) or an elected unit. */
+    private static FormationAnchorMode formationSubject = FormationAnchorMode.PLAYER;
     /** Mortar Shelling delay (s, 0 = off); seeded from the carried radio on every open. */
     private static int supportDelay = 0;
     private static final int MAX_SUPPORT_DELAY = 120;
@@ -82,6 +87,10 @@ public final class QuickCommandWheelScreen extends Screen {
     private static final float HOT_FADE_SPEED = 0.28f;
     private static final float MENU_FADE_IN_SPEED = 0.18f;
     private static final float MENU_FADE_OUT_SPEED = 0.22f;
+    /** How long Ctrl must be held before the details come up. */
+    private static final long DETAIL_HOLD_MS = 200L;
+    /** Length of the details fade, each way. */
+    private static final float DETAIL_FADE_SECONDS = 0.22f;
 
     /**
      * The crosshair when the wheel opened. The view is frozen while the wheel is up, so this is
@@ -106,12 +115,22 @@ public final class QuickCommandWheelScreen extends Screen {
     private boolean wasNoneDown = true;
     private boolean wasLiveDown = true;
 
+    /** When Ctrl went down (ms), or -1 while it is up. */
+    private long ctrlSince = -1L;
+    /** Ctrl was used for a Formation scroll this hold: no details until it is released. */
+    private boolean ctrlScrolled;
+    /** Linear 0..1 progress of the details overlay; eased when drawn. */
+    private float detailProgress;
+    private long lastFrameNanos = System.nanoTime();
+
     /** 0..1 highlight strength per wedge — lerps toward the current hot index. */
     private float[] wedgeHot = new float[0];
     /** Whole-ring opacity for open / submenu transitions. */
     private float menuAlpha = 0.0f;
     /** Continuous highlight index for the INFY/GRND/SHIP filter strip. */
     private float filterLerp = FormationComposition.Kind.GROUND.ordinal();
+    /** Continuous highlight index for the PLYR./UNIT. subject ribbon. */
+    private float subjectLerp = subjectIndex();
 
     public QuickCommandWheelScreen() {
         super(Component.translatable("gui.tacz_sewv.quick_command_wheel"));
@@ -133,11 +152,20 @@ public final class QuickCommandWheelScreen extends Screen {
     private static List<WedgeEntry> visibleRoot() {
         List<WedgeEntry> root = new ArrayList<>(QuickCommandRegistry.rootWedges());
         Player player = Minecraft.getInstance().player;
-        if (player != null && HandheldRadioItem.canCall(player)) {
-            ItemStack radio = HandheldRadioItem.findCarried(player);
-            if (!radio.isEmpty()) supportDelay = RadioSettings.read(radio).delaySeconds();
-        } else {
-            root.remove(QuickCommandRegistry.SUPPORT_CATEGORY);
+        boolean radio = player != null && HandheldRadioItem.canCall(player);
+        boolean signal = player != null && !SignalRelayItem.findBound(player).isEmpty();
+        if (radio) {
+            ItemStack carried = HandheldRadioItem.findCarried(player);
+            if (!carried.isEmpty()) supportDelay = RadioSettings.read(carried).delaySeconds();
+        }
+        int at = root.indexOf(QuickCommandRegistry.SUPPORT_CATEGORY);
+        if (!radio && !signal) {
+            root.remove(at);
+        } else if (!radio || !signal) {
+            // Only the half the player can use: radio calls need a radio, Signal needs a bound relay.
+            WedgeEntry.CategoryEntry full = QuickCommandRegistry.SUPPORT_CATEGORY;
+            root.set(at, new WedgeEntry.CategoryEntry(full.labelKey(), full.icon(), full.accentRgb(),
+                    radio ? QuickCommandRegistry.RADIO_LEAVES : QuickCommandRegistry.SIGNAL_LEAVES));
         }
         WedgeEntry.CategoryEntry select = SelectLeaves.category();
         if (select != null) root.add(root.size() - 1, select);
@@ -160,6 +188,7 @@ public final class QuickCommandWheelScreen extends Screen {
 
     @Override
     protected void init() {
+        RoleChoice.autoPick();
         disableCursor();
         this.menuAlpha = 0.0f;
     }
@@ -334,46 +363,58 @@ public final class QuickCommandWheelScreen extends Screen {
                 || InputConstants.isKeyDown(window, InputConstants.KEY_RCONTROL));
         boolean shift = mc != null && (InputConstants.isKeyDown(window, InputConstants.KEY_LSHIFT)
                 || InputConstants.isKeyDown(window, InputConstants.KEY_RSHIFT));
+        boolean alt = mc != null && (InputConstants.isKeyDown(window, InputConstants.KEY_LALT)
+                || InputConstants.isKeyDown(window, InputConstants.KEY_RALT));
         int dir = delta > 0.0 ? 1 : -1;
-        // Ctrl+scroll steps the hovered leaf's value — and only that leaf's, so it can never move
-        // a setting the player is not looking at. In a submenu that has values, Ctrl+scroll over
-        // any other leaf is swallowed rather than falling through to the queue skip.
-        if (ctrl && scaleLeafIn(this.input.currentWedges()) != null) {
-            String hot = hotPipelineId();
-            if (hot != null && stepScale(hot, dir, shift)) {
-                playUi(ModSounds.SCALE.get(), scalePitch());
+
+        // Formation keeps its own scheme, Ctrl+scroll included. A Ctrl scroll there is a value
+        // change, not a request for the details, so it keeps the overlay down until Ctrl is let go.
+        if (inFormationSubmenu()) {
+            if (hotFormationShape() == null) return super.mouseScrolled(mouseX, mouseY, scrollX, delta);
+            if (ctrl) this.ctrlScrolled = true;
+            if (alt) {
+                // Two subjects, so either direction flips it.
+                formationSubject = formationSubject == FormationAnchorMode.UNIT
+                        ? FormationAnchorMode.PLAYER : FormationAnchorMode.UNIT;
+            } else if (ctrl) {
+                formationFilter = formationFilter.cycle(dir);
+            } else {
+                float step = dir * STRETCH_STEP;
+                if (shift) {
+                    formationWidth = IFormationMember.clampStretch(formationWidth + step);
+                } else {
+                    formationLength = IFormationMember.clampStretch(formationLength + step);
+                }
             }
-            return true;
-        }
-        // Scroll down skips the running queued order — except in Formation, which owns the wheel.
-        if (!inFormationSubmenu()) {
-            if (delta >= 0.0 || !OrderQueueClient.isOn() || OrderQueueClient.labels().isEmpty()) {
-                return super.mouseScrolled(mouseX, mouseY, scrollX, delta);
-            }
-            OrderQueueClient.skip();
             playUi(ModSounds.SCALE.get(), scalePitch());
             return true;
         }
-        if (hotFormationShape() == null) {
+
+        // Everywhere else a plain scroll steps the hovered leaf's value, and only that leaf's,
+        // so it can never move a setting the player is not looking at.
+        String hot = hotPipelineId();
+        if (alt && hot != null && FieldChoice.isMinefieldLeaf(hot)) {
+            FieldChoice.stepShape(dir);
+            playUi(ModSounds.SCALE.get(), scalePitch());
+            return true;
+        }
+        if (hot != null && hasScale(hot)) {
+            if (stepScale(hot, dir, shift)) playUi(ModSounds.SCALE.get(), scalePitch());
+            return true;
+        }
+        // Over anything else, scroll down skips the running queued order.
+        if (delta >= 0.0 || !OrderQueueClient.isOn() || OrderQueueClient.labels().isEmpty()) {
             return super.mouseScrolled(mouseX, mouseY, scrollX, delta);
         }
-
-        if (ctrl) {
-            formationFilter = formationFilter.cycle(dir);
-        } else {
-            float step = dir * STRETCH_STEP;
-            if (shift) {
-                formationWidth = IFormationMember.clampStretch(formationWidth + step);
-            } else {
-                formationLength = IFormationMember.clampStretch(formationLength + step);
-            }
-        }
+        OrderQueueClient.skip();
         playUi(ModSounds.SCALE.get(), scalePitch());
         return true;
     }
 
     /** @return whether a value moved */
     private static boolean stepScale(String pipelineId, int dir, boolean coarse) {
+        if (RoleChoice.isRoleLeaf(pipelineId)) return RoleChoice.step(pipelineId, dir);
+        if (FieldChoice.isChoiceLeaf(pipelineId)) return FieldChoice.step(pipelineId, dir);
         if (QuickCommandRegistry.ID_SUPPORT_MORTAR.equals(pipelineId)) {
             int next = RadioSettings.stepDelay(supportDelay, dir);
             boolean moved = next != supportDelay;
@@ -386,6 +427,8 @@ public final class QuickCommandWheelScreen extends Screen {
 
     private static boolean hasScale(String pipelineId) {
         return QuickCommandRegistry.ID_SUPPORT_MORTAR.equals(pipelineId)
+                || RoleChoice.isRoleLeaf(pipelineId)
+                || FieldChoice.isChoiceLeaf(pipelineId)
                 || OrderScales.forPipeline(pipelineId) != null;
     }
 
@@ -447,14 +490,14 @@ public final class QuickCommandWheelScreen extends Screen {
                         ? QuickAirClient.pilotsFor(id)
                         : WheelScope.units(id, null);
                 OrderQueueClient.begin(id, hotLabel, units);
-                boolean fired = firePipeline(id);
+                boolean fired = firePipeline(RoleChoice.concreteId(id));
                 OrderQueueClient.endOrAwaitPick();
                 if (fired && (CommanderOverlayRenderer.isSelectingPosition
                         || CommanderOverlayRenderer.isSelectingTarget
                         || ClientEvents.hasPendingOrderPick())) {
                     closeQuiet();
                 }
-            } else if (firePipeline(id)) {
+            } else if (firePipeline(RoleChoice.concreteId(id))) {
                 closeQuiet();
             }
             // Client-side reject (no units, etc.): keep the wheel open.
@@ -549,6 +592,20 @@ public final class QuickCommandWheelScreen extends Screen {
             return true;
         }
 
+        // Signal: no unit scope, the server takes every owned unit under the bound radars.
+        if (QuickCommandRegistry.isSignalLeaf(pipelineId)) {
+            NetworkHandler.CHANNEL.sendToServer(new PacketQuickCommand(pipelineId, List.of(), false, null));
+            return true;
+        }
+
+        // Airplane Mode goes to fixed-wing pilots only, whatever else is in scope.
+        // With nobody in scope the server applies it to every plane the player owns.
+        if (QuickCommandRegistry.isPlaneRole(pipelineId)) {
+            NetworkHandler.CHANNEL.sendToServer(new PacketQuickCommand(pipelineId,
+                    QuickAirClient.planePilots(), WheelScope.explicit(), null));
+            return true;
+        }
+
         // Air client actions: player rappel + takeoff/landing (no PacketQuickCommand).
         if (QuickAirClient.isAirClientAction(pipelineId)) {
             return QuickAirClient.fire(pipelineId);
@@ -590,10 +647,16 @@ public final class QuickCommandWheelScreen extends Screen {
             return fireFormation(mc, pipelineId, units);
         }
 
-        // Entrench resolves the aimed block server-side (trench networks are server data).
-        BlockPos aimBlock = QuickCommandRegistry.ID_QUICK_ENTRENCH.equals(pipelineId) ? this.aim.block() : null;
+        // Entrench resolves the aimed block server-side (trench networks are server data); Suppress
+        // puts its fire on it; Cover and Hold takes cover near it.
+        boolean coverHold = QuickCommandRegistry.ID_QUICK_COVER_HOLD.equals(pipelineId);
+        BlockPos aimBlock = QuickCommandRegistry.ID_QUICK_ENTRENCH.equals(pipelineId)
+                || QuickCommandRegistry.ID_QUICK_SUPPRESS.equals(pipelineId) || coverHold
+                || QuickCommandRegistry.isMinefield(pipelineId) ? this.aim.block() : null;
+        String sendId = coverHold
+                ? QuickCommandRegistry.coverHoldId(OrderScales.get(OrderScales.Scale.HOLD)) : pipelineId;
         NetworkHandler.CHANNEL.sendToServer(
-                new PacketQuickCommand(pipelineId, units, WheelScope.explicit(), aimBlock));
+                new PacketQuickCommand(sendId, units, WheelScope.explicit(), aimBlock));
         return true;
     }
 
@@ -622,14 +685,26 @@ public final class QuickCommandWheelScreen extends Screen {
         // compass points; the axis is that heading's nearest cardinal and still marks the unit as formed.
         float yaw = Mth.wrapDegrees(Math.round(mc.player.getYRot() / 45.0f) * 45.0f);
         Direction axis = Direction.fromYRot(yaw);
-        // Alt anchors the formation where the player stands now instead of following them.
+        // A UNIT formation is laid on a unit the server elects. Under the player, Alt anchors the formation
+        // where the player stands now instead of following them.
         long window = mc.getWindow().getWindow();
-        FormationAnchorMode anchorMode = InputConstants.isKeyDown(window, InputConstants.KEY_LALT)
-                || InputConstants.isKeyDown(window, InputConstants.KEY_RALT)
-                ? FormationAnchorMode.POSITION : FormationAnchorMode.PLAYER;
+        FormationAnchorMode anchorMode;
+        if (formationSubject == FormationAnchorMode.UNIT) {
+            anchorMode = FormationAnchorMode.UNIT;
+            if (VehicleFormation.slotCountFor(units) < 2) {
+                mc.player.displayClientMessage(
+                        Component.translatable(FormationSubjects.MSG_TOO_FEW).withStyle(ChatFormatting.GRAY),
+                        true);
+                return false;
+            }
+        } else {
+            anchorMode = InputConstants.isKeyDown(window, InputConstants.KEY_LALT)
+                    || InputConstants.isKeyDown(window, InputConstants.KEY_RALT)
+                    ? FormationAnchorMode.POSITION : FormationAnchorMode.PLAYER;
+        }
         int rowSize = PacketVehicleFormation.DEFAULT_ROW_SIZE;
         double baseline = FormationComposition.baselineSpacing(kind);
-        int slots = VehicleFormation.slotCountFor(units);
+        int slots = VehicleFormation.slotCountFor(units, anchorMode);
         if (VehicleFormation.slotsOverlap(mc.player.position(), axis, shape, slots, rowSize,
                 baseline, formationWidth, formationLength)) {
             mc.player.displayClientMessage(
@@ -657,7 +732,12 @@ public final class QuickCommandWheelScreen extends Screen {
     private String hotLeafLabel() {
         int hot = this.input.hotIndex();
         List<WedgeEntry> wedges = this.input.currentWedges();
-        return hot >= 0 && hot < wedges.size() ? wedges.get(hot).label() : "";
+        if (hot < 0 || hot >= wedges.size()) return "";
+        WedgeEntry entry = wedges.get(hot);
+        if (entry instanceof WedgeEntry.PipelineEntry leaf && RoleChoice.isRoleLeaf(leaf.pipelineId())) {
+            return QuickCommandRegistry.labelKey(RoleChoice.concreteId(leaf.pipelineId()));
+        }
+        return entry.labelKey();
     }
 
     private boolean inFormationSubmenu() {
@@ -731,6 +811,12 @@ public final class QuickCommandWheelScreen extends Screen {
         }
         this.filterLerp = Mth.lerp(FILTER_LERP_SPEED, this.filterLerp,
                 (float) formationFilter.ordinal());
+        this.subjectLerp = Mth.lerp(FILTER_LERP_SPEED, this.subjectLerp, (float) subjectIndex());
+    }
+
+    /** The subject ribbon's cell: 0 PLYR., 1 UNIT. */
+    private static int subjectIndex() {
+        return formationSubject == FormationAnchorMode.UNIT ? 1 : 0;
     }
 
     @Override
@@ -767,12 +853,12 @@ public final class QuickCommandWheelScreen extends Screen {
             List<Integer> ids = WheelScope.units(QuickCommandRegistry.ID_FORM_WEDGE, null);
             List<PmcUnitEntity> filtered = FormationComposition.filter(
                     resolvePmcList(this.minecraft, ids), formationFilter);
-            int slots = VehicleFormation.slotCountFor(filtered);
+            int slots = VehicleFormation.slotCountFor(filtered, formationSubject);
             double baseline = FormationComposition.baselineSpacing(formationFilter);
             FormationPreviewDraw.render(g, this.font, cx, cy, outer, this.menuAlpha,
                     previewShape, slots, baseline, formationWidth, formationLength,
                     PacketVehicleFormation.DEFAULT_ROW_SIZE, formationFilter, this.filterLerp,
-                    HUB_FILL, LABEL_HOT);
+                    subjectIndex(), this.subjectLerp, HUB_FILL, LABEL_HOT);
         }
 
         renderScaleCard(g, cy, labels.right(), wedges);
@@ -787,7 +873,84 @@ public final class QuickCommandWheelScreen extends Screen {
                 TdtSelection.selectedCount(), this.nearbyCount, QuickCommandKeybind.SELECT_ALL,
                 QuickCommandKeybind.SELECT_NONE, QuickCommandKeybind.LIVE_SELECT, HUB_FILL);
 
+        float detail = tickDetail();
+        if (detail > 0.01f) {
+            int hot = this.input.hotIndex();
+            WedgeEntry hotEntry = hot >= 0 && hot < wedges.size() ? wedges.get(hot) : null;
+            DetailOverlayDraw.render(g, this.font, this.width, this.height, detail,
+                    OrderInfo.of(hotEntry, this.input.currentCategory()));
+        }
+        g.pose().pushPose();
+        g.pose().translate(0.0f, 0.0f, 500.0f);
+        WheelLegendDraw.render(g, this.font, this.width, this.height, this.menuAlpha, legendRows(), HUB_FILL);
+        g.pose().popPose();
+
         super.render(g, mouseX, mouseY, partialTick);
+    }
+
+    /** Advances the details fade by real time and returns its eased strength. */
+    private float tickDetail() {
+        long nanos = System.nanoTime();
+        float dt = Math.min(0.1f, (nanos - this.lastFrameNanos) / 1.0e9f);
+        this.lastFrameNanos = nanos;
+        Minecraft mc = this.minecraft;
+        long window = mc != null ? mc.getWindow().getWindow() : 0L;
+        boolean ctrl = mc != null && (InputConstants.isKeyDown(window, InputConstants.KEY_LCONTROL)
+                || InputConstants.isKeyDown(window, InputConstants.KEY_RCONTROL));
+        long now = System.currentTimeMillis();
+        if (ctrl) {
+            if (this.ctrlSince < 0L) this.ctrlSince = now;
+        } else {
+            this.ctrlSince = -1L;
+            this.ctrlScrolled = false;
+        }
+        boolean show = ctrl && !this.ctrlScrolled && now - this.ctrlSince >= DETAIL_HOLD_MS;
+        float step = dt / DETAIL_FADE_SECONDS;
+        this.detailProgress = Mth.clamp(this.detailProgress + (show ? step : -step), 0.0f, 1.0f);
+        return DetailOverlayDraw.ease(this.detailProgress);
+    }
+
+    /** What every input does right now, for the legend. Mirrors {@link #mouseScrolled} and {@link #tick}. */
+    private List<WheelLegendDraw.Row> legendRows() {
+        List<WheelLegendDraw.Row> rows = new ArrayList<>();
+        List<WedgeEntry> wedges = this.input.currentWedges();
+        int hotIndex = this.input.hotIndex();
+        WedgeEntry hot = hotIndex >= 0 && hotIndex < wedges.size() ? wedges.get(hotIndex) : null;
+        String hotId = hot instanceof WedgeEntry.PipelineEntry leaf ? leaf.pipelineId() : null;
+
+        if (hot instanceof WedgeEntry.CategoryEntry) {
+            rows.add(row("lmb", "open"));
+        } else if (hotId != null && QuickCommandRegistry.isSelectLeaf(hotId)) {
+            rows.add(row("lmb", "toggle"));
+        } else if (hotId != null && isEnabled(hotId)) {
+            rows.add(row("lmb", "give"));
+        }
+        rows.add(row("rmb", this.input.depth() > 1 ? "back" : "close"));
+
+        if (inFormationSubmenu() && hotFormationShape() != null) {
+            rows.add(row("scroll", "length"));
+            rows.add(row("shift_scroll", "width"));
+            rows.add(row("ctrl_scroll", "type"));
+            rows.add(row("alt_scroll", "leader"));
+            if (formationSubject != FormationAnchorMode.UNIT) rows.add(row("hold_alt", "stay"));
+        } else if (hotId != null && hasScale(hotId)) {
+            rows.add(new WheelLegendDraw.Row(I18n.get(LEGEND + "key.scroll"),
+                    I18n.get(LEGEND + "change", cardFor(hotId).title())));
+            if (OrderScales.forPipeline(hotId) != null) rows.add(row("shift_scroll", "faster"));
+            if (FieldChoice.isMinefieldLeaf(hotId)) rows.add(row("alt_scroll", "shape"));
+        } else if (OrderQueueClient.isOn() && !OrderQueueClient.labels().isEmpty()) {
+            rows.add(row("scroll_down", "skip"));
+        }
+
+        rows.add(row("tab", OrderQueueClient.isOn() ? "queue_off" : "queue_on"));
+        rows.add(row("hold_ctrl", "details"));
+        return rows;
+    }
+
+    private static final String LEGEND = "gui.tacz_sewv.wheel.legend.";
+
+    private static WheelLegendDraw.Row row(String key, String action) {
+        return new WheelLegendDraw.Row(I18n.get(LEGEND + "key." + key), I18n.get(LEGEND + action));
     }
 
     /**
@@ -809,6 +972,38 @@ public final class QuickCommandWheelScreen extends Screen {
     }
 
     private static ScaleCardDraw.Card cardFor(String pipelineId) {
+        if (QuickCommandRegistry.ID_QUICK_DEPLOY_EQUIPMENT.equals(pipelineId)) {
+            String man = I18n.get("gui.tacz_sewv.wheel.scale.deploy.man");
+            String place = I18n.get("gui.tacz_sewv.wheel.scale.deploy.place");
+            return new ScaleCardDraw.Card(I18n.get("gui.tacz_sewv.wheel.scale.deploy"),
+                    I18n.get(FieldChoice.manValueKey()), man.length() > place.length() ? man : place,
+                    I18n.get("gui.tacz_sewv.wheel.scale.tag." + pipelineId),
+                    FieldChoice.manNow() ? 1.0f : 0.0f, FieldChoice.manNow());
+        }
+        if (FieldChoice.isPlaneRoleLeaf(pipelineId)) {
+            PlaneRole role = FieldChoice.planeRole();
+            return new ScaleCardDraw.Card(I18n.get("gui.tacz_sewv.wheel.scale.plane_role"),
+                    FieldChoice.planeRoleName(), FieldChoice.widestPlaneRoleName(),
+                    I18n.get("gui.tacz_sewv.wheel.scale.tag." + pipelineId),
+                    role.ordinal() / (float) (PlaneRole.values().length - 1), role != PlaneRole.AUTO);
+        }
+        if (FieldChoice.isMinefieldLeaf(pipelineId)) {
+            return new ScaleCardDraw.Card(I18n.get("gui.tacz_sewv.wheel.scale.mine"), FieldChoice.mineName(),
+                    FieldChoice.widestMineName(),
+                    I18n.get("gui.tacz_sewv.wheel.scale.tag." + pipelineId, FieldChoice.shapeName()),
+                    FieldChoice.mineFraction(), true);
+        }
+        if (RoleChoice.isRoleLeaf(pipelineId)) {
+            String widest = "";
+            for (var kit : RoleChoice.options(pipelineId)) {
+                String name = I18n.get(kit.labelKey());
+                if (name.length() > widest.length()) widest = name;
+            }
+            return new ScaleCardDraw.Card(I18n.get("gui.tacz_sewv.wheel.scale.role"),
+                    I18n.get(RoleChoice.current(pipelineId).labelKey()), widest,
+                    I18n.get("gui.tacz_sewv.wheel.scale.tag." + pipelineId),
+                    RoleChoice.fraction(pipelineId), true);
+        }
         if (QuickCommandRegistry.ID_SUPPORT_MORTAR.equals(pipelineId)) {
             String value = supportDelay <= 0
                     ? I18n.get("gui.tacz_sewv.support.delay.off")
@@ -820,6 +1015,17 @@ public final class QuickCommandWheelScreen extends Screen {
         }
         OrderScales.Scale scale = OrderScales.forPipeline(pipelineId);
         if (scale == null) throw new IllegalArgumentException(pipelineId);
+        if (scale == OrderScales.Scale.HOLD) {
+            int seconds = OrderScales.get(scale);
+            String value = seconds <= 0
+                    ? I18n.get("gui.tacz_sewv.wheel.scale.forever")
+                    : I18n.get("gui.tacz_sewv.wheel.scale.seconds", seconds);
+            String forever = I18n.get("gui.tacz_sewv.wheel.scale.forever");
+            String longest = I18n.get("gui.tacz_sewv.wheel.scale.seconds", scale.max);
+            return new ScaleCardDraw.Card(I18n.get("gui.tacz_sewv.wheel.scale.hold"), value,
+                    forever.length() > longest.length() ? forever : longest,
+                    I18n.get("gui.tacz_sewv.wheel.scale.tag.hold"), scale.fraction(seconds), true);
+        }
         boolean altitude = scale == OrderScales.Scale.ALTITUDE;
         String title = altitude
                 ? I18n.get("gui.tacz_sewv.wheel.scale.altitude")

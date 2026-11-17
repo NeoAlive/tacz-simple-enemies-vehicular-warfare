@@ -53,6 +53,8 @@ public final class FollowLeash {
         if (!(mob instanceof PmcUnitEntity pmc)) return false;
         if (PmcDownedSupport.isDowned(pmc)) return false;
         if (pmc.getVehicle() != null) return false; // mounted: driven by the vehicle AI, not these goals
+        // Cover and Hold: fight from the cover, never chase off it.
+        if (CoverHoldOrders.has(pmc)) return true;
         // Territory post: a definitive answer, decided BEFORE the order switch below — the post takes the
         // HOLD stance, which would otherwise read as "always suppress" and forbid the in-leash pursuit.
         ITerritoryPost territory = (ITerritoryPost) pmc;

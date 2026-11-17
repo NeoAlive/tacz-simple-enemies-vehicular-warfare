@@ -9,7 +9,7 @@ import net.minecraft.world.entity.ai.goal.Goal;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
-import com.neoalive.tacz_sewv.compat.FcpMortarCompat;
+import com.neoalive.tacz_sewv.compat.fcp.FcpMortarCompat;
 import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleWeapons;
@@ -123,6 +123,8 @@ public class TurretGunnerGoal extends Goal {
                 && !FcpMortarCompat.isMortarHull(this.vehicle)) {
             VehicleWeapons.tryAiFireAssist(this.vehicle, this.unit, target,
                     EasyMode.aiFireAssistConeDeg());
+        } else if (this.selectedRole != VehicleWeapons.WEAPON_SPECIAL) {
+            VehicleWeapons.tryTripodShieldShot(this.vehicle, this.unit, target);
         }
     }
 

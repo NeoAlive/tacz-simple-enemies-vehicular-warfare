@@ -1,0 +1,152 @@
+package com.neoalive.tacz_sewv.entity.ai.suppression;
+
+import java.util.HashMap;
+import java.util.Map;
+
+import com.google.gson.JsonElement;
+import com.google.gson.JsonParser;
+import net.minecraft.resources.ResourceLocation;
+
+import com.neoalive.tacz_sewv.entity.ai.suppression.SuppressionTable.Kind;
+
+/**
+ * Self-check for the suppression table and the bus's pure maths: falloff shape, segment distance,
+ * key mapping, clamps, pack-override semantics and the do-nothing fallback.
+ * Run via {@code ./gradlew selfCheckSuppression}.
+ */
+public final class SuppressionSelfCheck {
+
+    public static void main(String[] args) {
+        boolean assertionsOn = false;
+        assert assertionsOn = true;
+        if (!assertionsOn) throw new IllegalStateException("run with -ea, or this checks nothing");
+
+        falloff();
+        segmentDistance();
+        keys();
+        fallbackIsInert();
+        clamps();
+        packOverride();
+        shippedTable();
+        hullPressure();
+        com.neoalive.tacz_sewv.entity.ai.support.SuppressiveFireProbe.check();
+
+        System.out.println("suppression self-check: OK");
+    }
+
+    private static void falloff() {
+        assert SuppressionBus.falloff(0.0, 4.0) == 1.0;
+        assert SuppressionBus.falloff(4.5, 4.0) == 0.0 : "outside the radius";
+        assert SuppressionBus.falloff(4.0, 4.0) > 0.0 : "the edge still counts (SEM's floor)";
+        assert SuppressionBus.falloff(1.0, 4.0) > SuppressionBus.falloff(3.0, 4.0) : "monotonic";
+        assert SuppressionBus.falloff(1.0, 0.0) == 0.0 : "zero radius suppresses nothing";
+    }
+
+    private static void segmentDistance() {
+        // Point beside the middle of a 10-block segment along X.
+        assert near(SuppressionBus.segmentDistanceSq(0, 0, 0, 10, 0, 0, 5, 2, 0), 4.0);
+        // Behind the start clamps to the start.
+        assert near(SuppressionBus.segmentDistanceSq(0, 0, 0, 10, 0, 0, -3, 0, 4), 25.0);
+        // Past the end clamps to the end.
+        assert near(SuppressionBus.segmentDistanceSq(0, 0, 0, 10, 0, 0, 13, 0, 0), 9.0);
+        // Degenerate segment is a point.
+        assert near(SuppressionBus.segmentDistanceSq(1, 1, 1, 1, 1, 1, 1, 4, 1), 9.0);
+    }
+
+    private static void keys() {
+        for (Kind k : Kind.values()) {
+            assert SuppressionTable.byKey(k.name().toLowerCase()) == k : k;
+        }
+        assert SuppressionTable.byKey("artillery") == null;
+    }
+
+    private static void fallbackIsInert() {
+        SuppressionTable t = SuppressionTable.fallback();
+        for (Kind k : Kind.values()) {
+            assert t.row(k).amount() == 0.0f : "fallback must suppress nothing: " + k;
+        }
+        assert SuppressionTable.parse(Map.of()).row(Kind.MG).amount() == 0.0f : "no files -> fallback";
+    }
+
+    private static void clamps() {
+        SuppressionTable t = parse("a", "{\"mg\":{\"amount\":2.0,\"radius\":500},"
+                + "\"explosion\":{\"amount\":0.2,\"radius\":9}}");
+        assert t.row(Kind.MG).amount() == SuppressionTable.MAX_AMOUNT : "amount capped at SEM's per-add cap";
+        assert t.row(Kind.MG).radius() <= 32.0 : "radius capped";
+        assert t.row(Kind.EXPLOSION).radius() == SuppressionTable.MAX_EXPLOSION_RADIUS_MULT
+                : "explosion radius is a blast multiple, capped at Detonate's reach";
+        assert t.row(Kind.CANNON).amount() == 0.0f : "an unnamed kind suppresses nothing";
+    }
+
+    private static void packOverride() {
+        Map<ResourceLocation, JsonElement> files = new HashMap<>();
+        files.put(ResourceLocation.fromNamespaceAndPath("tacz_sewv", "suppression"),
+                JsonParser.parseString("{\"mg\":{\"amount\":0.2,\"radius\":4},\"cannon\":{\"amount\":0.3,\"radius\":6}}"));
+        files.put(ResourceLocation.fromNamespaceAndPath("zpack", "suppression"),
+                JsonParser.parseString("{\"mg\":{\"amount\":0.1}}"));
+        SuppressionTable t = SuppressionTable.parse(files);
+        // The later file names mg, so it replaces mg's WHOLE row: its radius is gone, not inherited.
+        assert t.row(Kind.MG).amount() == 0.1f;
+        assert t.row(Kind.MG).radius() == 0.0 : "a named row is replaced wholesale";
+        assert t.row(Kind.CANNON).amount() == 0.3f : "an unnamed row survives";
+    }
+
+    /** The shipped file names every kind, and the heavier the weapon the harder it suppresses. */
+    private static void shippedTable() {
+        JsonElement json;
+        try (var in = SuppressionSelfCheck.class.getResourceAsStream(
+                "/data/tacz_sewv/sewv/suppression/suppression.json")) {
+            if (in == null) throw new AssertionError("shipped suppression.json is not on the classpath");
+            json = JsonParser.parseReader(new java.io.InputStreamReader(in));
+        } catch (java.io.IOException e) {
+            throw new AssertionError("shipped suppression.json unreadable", e);
+        }
+        for (Map.Entry<String, JsonElement> e : json.getAsJsonObject().entrySet()) {
+            assert SuppressionTable.byKey(e.getKey()) != null : "shipped file names an unknown kind: " + e.getKey();
+        }
+        SuppressionTable t = SuppressionTable.parse(Map.of(ResourceLocation.fromNamespaceAndPath("tacz_sewv", "suppression"), json));
+        for (Kind k : Kind.values()) {
+            assert t.row(k).amount() > 0.0f && t.row(k).radius() > 0.0 : "shipped row missing or inert: " + k;
+        }
+        assert t.row(Kind.SMALL_ARMS).amount() <= t.row(Kind.MG).amount();
+        assert t.row(Kind.MG).amount() <= t.row(Kind.CANNON).amount();
+        assert t.row(Kind.MG).radius() <= t.row(Kind.CANNON).radius();
+    }
+
+    private static void hullPressure() {
+        assert HullPressure.decayed(0.0f, 100) == 0.0f;
+        assert HullPressure.decayed(0.8f, 0) == 0.8f : "no time passed, no decay";
+        assert Math.abs(HullPressure.decayed(0.8f, (long) HullPressure.HALF_LIFE_TICKS) - 0.4f) < 1.0e-4
+                : "halves over one half-life";
+        assert HullPressure.decayed(1.0f, 2000) < 0.001f : "long quiet empties it";
+        // A rifle round off a 500 HP tank: a nudge, not a rout.
+        float plink = HullPressure.hitAmount(8.0f, 500.0f);
+        assert plink >= HullPressure.HIT_FLOOR && plink < 0.15f : "plink=" + plink;
+        // A shell taking a third of the hull: capped, so one hit is never the whole story.
+        assert HullPressure.hitAmount(170.0f, 500.0f) == HullPressure.HIT_CAP;
+        assert HullPressure.hitAmount(0.0f, 500.0f) == 0.0f;
+        assert HullPressure.hitAmount(5.0f, 0.0f) == HullPressure.HIT_FLOOR : "unknown max health still counts";
+
+        // Heavy = worth turning the gun for. A rifle round is not; a rocket is.
+        assert !HullPressure.isHeavy(8.0f, 500.0f);
+        assert HullPressure.isHeavy(120.0f, 500.0f);
+        assert !HullPressure.isHeavy(120.0f, 0.0f) : "unknown max health is never heavy";
+
+        // shouldRetaliate(attackerVisible, attackerIsCurrent, currentVisible, currentIsArmour, attackerCloser)
+        assert HullPressure.shouldRetaliate(true, false, false, false, false) : "no usable lock: turn on the shooter";
+        assert HullPressure.shouldRetaliate(true, false, true, false, false) : "lock is infantry: the shooter matters more";
+        assert HullPressure.shouldRetaliate(true, false, true, true, true) : "a closer shooter beats a tank in sight";
+        assert !HullPressure.shouldRetaliate(true, false, true, true, false)
+                : "a farther shooter never pulls the gun off a tank in sight (no flip-flop)";
+        assert !HullPressure.shouldRetaliate(false, false, false, false, true) : "cannot see it, cannot shoot it";
+        assert !HullPressure.shouldRetaliate(true, true, true, true, true) : "already on it";
+    }
+
+    private static SuppressionTable parse(String name, String json) {
+        return SuppressionTable.parse(Map.of(ResourceLocation.fromNamespaceAndPath("tacz_sewv", name), JsonParser.parseString(json)));
+    }
+
+    private static boolean near(double a, double b) {
+        return Math.abs(a - b) < 1.0e-9;
+    }
+}

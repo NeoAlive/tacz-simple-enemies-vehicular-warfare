@@ -30,11 +30,14 @@ import com.neoalive.tacz_sewv.bridge.IMortarCrew;
 import com.neoalive.tacz_sewv.compat.AshMissileSupport;
 import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.crew.CrewFacts;
+import com.neoalive.tacz_sewv.crew.CrewRadio;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
+import com.neoalive.tacz_sewv.entity.ai.plane.PlaneRoleFilter;
 import com.neoalive.tacz_sewv.init.ModSounds;
 import com.neoalive.tacz_sewv.init.ModSounds.SoundPool;
 import com.neoalive.tacz_sewv.item.PlaneAttackMode;
+import com.neoalive.tacz_sewv.item.PlaneRole;
 import com.neoalive.tacz_sewv.item.RadioFrequency;
 
 /**
@@ -105,7 +108,8 @@ public final class FireMissionSupport {
 
     private static boolean isPlanePilot(AbstractUnit unit) {
         if (!(unit.getVehicle() instanceof VehicleEntity v) || v.getFirstPassenger() != unit) return false;
-        return HullFacts.isPlaneHull(v);
+        // A Fighter-mode plane is not offered for close air support.
+        return HullFacts.isPlaneHull(v) && PlaneRoleFilter.roleOf(unit) != PlaneRole.FIGHTER;
     }
 
     /**
@@ -282,20 +286,26 @@ public final class FireMissionSupport {
     }
 
     /**
-     * PMC radio ack for a fire mission. Only pilot ordnance lines remain (bomb / AGM / cannon).
-     * Mortar / TOW / generic CAS pools were dropped. {@code AUTO} and non-CAS kinds return null
-     * (silent) unless a CAS mode was named.
+     * Radio answer to a fire mission. A named CAS attack (bomb, AGM, cannon) gets the pilot's own
+     * line; an AUTO CAS mission and a mortar or TOW mission get the crew radio's acknowledgement for
+     * the caller's voice. Null when nothing fits or the voice has no clips.
      */
     @Nullable
-    public static SoundEvent ackFor(Set<Kind> triggered, PlaneAttackMode mode) {
-        if (!triggered.contains(Kind.CAS)) return null;
-        SoundPool pool = switch (mode) {
-            case BOMB -> ModSounds.PILOT_BOMB;
-            case CANNON -> ModSounds.PILOT_CANNON;
-            case GUIDED -> ModSounds.PILOT_AGM;
-            case AUTO -> null;
-        };
-        return pool == null ? null : pool.next();
+    public static SoundEvent ackFor(Set<Kind> triggered, PlaneAttackMode mode, String voice) {
+        if (triggered.contains(Kind.CAS)) {
+            SoundPool pool = switch (mode) {
+                case BOMB -> ModSounds.PILOT_BOMB;
+                case CANNON -> ModSounds.PILOT_CANNON;
+                case GUIDED -> ModSounds.PILOT_AGM;
+                case AUTO -> CrewRadio.poolFor(voice, CrewRadio.Line.SUPPORT_ACK_AIR);
+            };
+            return pool == null ? null : pool.next();
+        }
+        if (triggered.contains(Kind.MORTAR) || triggered.contains(Kind.TOW)) {
+            SoundPool pool = CrewRadio.poolFor(voice, CrewRadio.Line.SUPPORT_ACK_MORTAR);
+            return pool == null ? null : pool.next();
+        }
+        return null;
     }
 
     /** How many crews took the mission, and which support kinds they were. */

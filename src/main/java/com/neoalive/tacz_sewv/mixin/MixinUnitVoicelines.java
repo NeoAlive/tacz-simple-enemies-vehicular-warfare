@@ -47,7 +47,7 @@ public abstract class MixinUnitVoicelines {
         // Already locked onto something: only re-announce when the previous lock was cleared.
         if (old != null && old.isAlive()) return;
 
-        CrewRadio.play(hull, tacz_sewv$targetLine(newTarget));
+        CrewRadio.onNewTarget(hull, newTarget, tacz_sewv$targetLine(newTarget));
     }
 
     @Redirect(method = "setTarget",

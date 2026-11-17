@@ -15,8 +15,19 @@ public final class IdleGroupSupportSelfCheck {
         singletonIsCenterOnly();
         polygonAngles();
         radiusFormulaClamped();
+        holdCentreStaysPut();
 
         System.out.println("idle-group geometry self-check: OK");
+    }
+
+    private static void holdCentreStaysPut() {
+        double[] prev = {70.0, 26.0};
+        double[] kept = IdleGroupSupport.keepCentre(prev, 68.0, 27.0, 21.0);
+        assert kept[0] == 70.0 && kept[1] == 26.0 : "member jitter keeps last pass's centre";
+        double[] moved = IdleGroupSupport.keepCentre(prev, 100.0, 26.0, 21.0);
+        assert moved[0] == 100.0 : "a group that really moved re-centres";
+        double[] fresh = IdleGroupSupport.keepCentre(null, 5.0, 6.0, 21.0);
+        assert fresh[0] == 5.0 && fresh[1] == 6.0 : "no previous centre takes the centroid";
     }
 
     private static void singletonIsCenterOnly() {

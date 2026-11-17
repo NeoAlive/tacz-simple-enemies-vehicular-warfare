@@ -7,6 +7,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.WeakHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -113,6 +114,15 @@ public final class VehicleFormation {
     }
 
     /**
+     * Slots for this selection under {@code mode}: a UNIT formation's leader stands on the anchor, not a slot,
+     * so it has one fewer than {@link #slotCountFor(List)}.
+     */
+    public static int slotCountFor(List<PmcUnitEntity> units, FormationAnchorMode mode) {
+        int slots = slotCountFor(units);
+        return mode == FormationAnchorMode.UNIT ? Math.max(0, slots - 1) : slots;
+    }
+
+    /**
      * How many slots {@link #assign} will allocate for this selection (one per hull + each loose
      * infantry). Riders do not add slots.
      */
@@ -161,6 +171,28 @@ public final class VehicleFormation {
     public static int assign(Player commander, List<PmcUnitEntity> units, FormationShape shape,
                              Direction axis, float yaw, int rowSize, float widthStretch, float lengthStretch,
                              FormationComposition.Kind kind, FormationAnchorMode anchorMode) {
+        Vec3 frozenAnchor = anchorMode == FormationAnchorMode.POSITION ? commander.position() : null;
+        Vec3 anchor = frozenAnchor != null ? frozenAnchor : commander.position();
+        return assign(units, shape, axis, yaw, rowSize, widthStretch, lengthStretch, kind, anchorMode,
+                frozenAnchor, anchor, null, nextGroup(commander));
+    }
+
+    /**
+     * {@link #assign} around a leader instead of the player: {@code units} are the followers only (the leader
+     * and its own riders are not in it), laid on slots behind {@code leaderAnchor}. Returns the units formed;
+     * {@link FormationSubjects#assignLed} owns the leader's side.
+     */
+    static int assignAroundLeader(List<PmcUnitEntity> units, FormationShape shape, Direction axis, float yaw,
+                                  int rowSize, float widthStretch, float lengthStretch,
+                                  FormationComposition.Kind kind, Vec3 leaderAnchor, UUID leader, long group) {
+        return assign(units, shape, axis, yaw, rowSize, widthStretch, lengthStretch, kind, FormationAnchorMode.UNIT,
+                null, leaderAnchor, leader, group);
+    }
+
+    private static int assign(List<PmcUnitEntity> units, FormationShape shape, Direction axis, float yaw,
+                              int rowSize, float widthStretch, float lengthStretch, FormationComposition.Kind kind,
+                              FormationAnchorMode anchorMode, @Nullable Vec3 frozenAnchor, Vec3 anchor,
+                              @Nullable UUID leader, long group) {
         OrderType order = shape.semOrder();
         float width = IFormationMember.clampStretch(widthStretch);
         float length = IFormationMember.clampStretch(lengthStretch);
@@ -179,12 +211,10 @@ public final class VehicleFormation {
         // Id order in, so the matcher's tie-breaks (and therefore the whole numbering) are deterministic.
         holders.sort(Comparator.comparingInt(PmcUnitEntity::getId));
 
-        Vec3 frozenAnchor = anchorMode == FormationAnchorMode.POSITION ? commander.position() : null;
-        Vec3 anchor = frozenAnchor != null ? frozenAnchor : commander.position();
         double spacing = FormationComposition.baselineSpacing(kind);
-        Layout layout = new Layout(axis, yaw, shape, rowSize, width, length, anchorMode, frozenAnchor, spacing, kind, 0L);
+        Layout layout = new Layout(axis, yaw, shape, rowSize, width, length, anchorMode, frozenAnchor, spacing, kind,
+                0L, leader);
         int[] slotOf = match(layout, anchor, holders, null);
-        long group = nextGroup(commander);
 
         Map<Entity, Integer> hullSlots = new HashMap<>();
         for (int i = 0; i < holders.size(); i++) {
@@ -221,7 +251,7 @@ public final class VehicleFormation {
         return SlotMatcher.match(mx, mz, sx, sz, prev, prev == null ? 0.0 : layout.spacing() * layout.spacing());
     }
 
-    private static long nextGroup(Player commander) {
+    static long nextGroup(Entity commander) {
         // Game time keeps ids from a previous session distinct; the sequence separates orders in one tick.
         return commander.level().getGameTime() * 64L + (GROUP_SEQ.incrementAndGet() & 63L) + 1L;
     }
@@ -244,8 +274,11 @@ public final class VehicleFormation {
         member.sewv$setFormationSpacing(layout.spacing());
         member.sewv$setFormationKind(layout.kind() == null ? 0 : layout.kind().ordinal() + 1);
         member.sewv$setFormationGroup(group);
+        member.sewv$setFormationLeader(layout.leader());
+        // A fresh formation fires freely until its leader is told otherwise.
+        member.sewv$setFormationHoldFire(false);
         LAYOUTS.remove(pmc);
-        FormationReform.track(group, pmc);
+        FormationReform.track(group, pmc, layout.anchorMode() == FormationAnchorMode.UNIT);
         pmc.resetCommanderGoalCooldown();
         pmc.setOrder(order);
     }
@@ -273,12 +306,95 @@ public final class VehicleFormation {
      * The anchor a formed-up unit's slot math should use: the live commander position for
      * PLAYER, or the frozen point for POSITION (falling back to {@code commanderPos} if nothing
      * has been frozen yet — should not normally happen, since {@link #assign} and
-     * {@link #freezeAnchor} both set it whenever POSITION mode is engaged).
+     * {@link #freezeAnchor} both set it whenever POSITION mode is engaged), or the leader's live
+     * position for UNIT — never the commander's. Null only for UNIT, when the leader is not loaded
+     * in this level (or this is the client): the follower then holds where it stands.
      */
+    @Nullable
     public static Vec3 resolveAnchor(PmcUnitEntity pmc, Vec3 commanderPos) {
         Layout l = layoutFor(pmc);
-        if (l == null || l.anchorMode() != FormationAnchorMode.POSITION) return commanderPos;
+        if (l == null) return commanderPos;
+        if (l.anchorMode() == FormationAnchorMode.UNIT) return FormationSubjects.leaderAnchor(pmc, l.leader());
+        if (l.anchorMode() != FormationAnchorMode.POSITION) return commanderPos;
         return l.frozenAnchor() != null ? l.frozenAnchor() : commanderPos;
+    }
+
+    /** Whether this unit stands on a slot of a UNIT-anchored formation. */
+    public static boolean isUnitFollower(PmcUnitEntity pmc) {
+        Layout l = layoutFor(pmc);
+        return l != null && l.anchorMode() == FormationAnchorMode.UNIT;
+    }
+
+    /** The anchor mode of the formation this unit stands in, or null when it stands in none. */
+    @Nullable
+    public static FormationAnchorMode anchorModeOf(PmcUnitEntity pmc) {
+        Layout l = layoutFor(pmc);
+        return l == null ? null : l.anchorMode();
+    }
+
+    /** Re-points a follower at another leader (succession). */
+    static void setLeader(PmcUnitEntity pmc, UUID leader) {
+        ((IFormationMember) pmc).sewv$setFormationLeader(leader);
+        LAYOUTS.remove(pmc);
+    }
+
+    /** Turns a follower's formation onto a new heading; the caller re-matches slots afterwards. */
+    static void setHeading(PmcUnitEntity pmc, float yaw) {
+        IFormationMember member = (IFormationMember) pmc;
+        member.sewv$setFormationYaw(yaw);
+        member.sewv$setFormationDirection(Direction.fromYRot(yaw));
+        LAYOUTS.remove(pmc);
+    }
+
+    /** The SEM order a formed-up unit stands under (its shape's FORM_*), or null when it is not formed up. */
+    @Nullable
+    public static OrderType formationOrderOf(PmcUnitEntity pmc) {
+        Layout l = layoutFor(pmc);
+        return l == null ? null : l.shape().semOrder();
+    }
+
+    /**
+     * Re-deals {@code members}' slots around {@code anchor} by least travel, each defending its current slot
+     * for one spacing — after a turn, so nobody crosses the formation to reach a slot a neighbour stands by.
+     * Riders follow their hull's slot.
+     */
+    static void rematch(List<PmcUnitEntity> members, Vec3 anchor) {
+        List<PmcUnitEntity> holders = new ArrayList<>();
+        List<PmcUnitEntity> riders = new ArrayList<>();
+        for (PmcUnitEntity pmc : members) {
+            Entity hull = pmc.getVehicle();
+            if (hull instanceof VehicleEntity && hull.getFirstPassenger() != pmc) riders.add(pmc);
+            else holders.add(pmc);
+        }
+        if (holders.isEmpty()) return;
+        holders.sort(Comparator.comparingInt(PmcUnitEntity::getId));
+        Layout layout = layoutFor(holders.get(0));
+        if (layout == null) return;
+        int k = holders.size();
+        int[] prev = new int[k];
+        for (int i = 0; i < k; i++) {
+            int slot = holders.get(i).getFormationIndex();
+            prev[i] = slot >= 0 && slot < k ? slot : -1;
+        }
+        int[] slotOf = match(layout, anchor, holders, prev);
+        Map<Entity, Integer> hullSlots = new HashMap<>();
+        for (int i = 0; i < k; i++) {
+            PmcUnitEntity pmc = holders.get(i);
+            if (pmc.getVehicle() instanceof VehicleEntity hull) hullSlots.put(hull, slotOf[i]);
+            reslot(pmc, slotOf[i]);
+        }
+        for (PmcUnitEntity rider : riders) {
+            Integer slot = hullSlots.get(rider.getVehicle());
+            if (slot != null) reslot(rider, slot);
+        }
+    }
+
+    /** Moves a member to another slot of the same formation without SEM's setter wiping it. */
+    static void reslot(PmcUnitEntity pmc, int slot) {
+        if (pmc.getFormationIndex() == slot) return;
+        ((IFormationMember) pmc).sewv$armFormationCarry();
+        pmc.setFormationIndex(slot);
+        pmc.resetCommanderGoalCooldown();
     }
 
     /** Re-freezes a POSITION-anchored unit's slot point — MOVE_TO_POSITION moves the anchor. */
@@ -305,7 +421,9 @@ public final class VehicleFormation {
             cached = Optional.ofNullable(decode(pmc));
             LAYOUTS.put(pmc, cached);
             cached.ifPresent(l -> {
-                if (l.group() != 0L && !pmc.level().isClientSide) FormationReform.track(l.group(), pmc);
+                if (l.group() != 0L && !pmc.level().isClientSide) {
+                    FormationReform.track(l.group(), pmc, l.anchorMode() == FormationAnchorMode.UNIT);
+                }
             });
         }
         return cached.orElse(null);
@@ -325,15 +443,19 @@ public final class VehicleFormation {
         if (spacing <= 0.0) {
             spacing = kind == null ? FormationComposition.SPACING_VEHICLE : FormationComposition.baselineSpacing(kind);
         }
+        FormationAnchorMode mode = FormationAnchorMode.byId(member.sewv$getFormationAnchorMode());
+        UUID leader = member.sewv$getFormationLeader();
+        // A UNIT follower that lost its leader tag has nothing to stand on: it is not in a formation at all.
+        if (mode == FormationAnchorMode.UNIT && leader == null) return null;
         return new Layout(axis, member.sewv$getFormationYaw(), FormationShape.byId(member.sewv$getFormationShape()),
                 rowSize, member.sewv$getFormationWidth(), member.sewv$getFormationLength(),
-                FormationAnchorMode.byId(member.sewv$getFormationAnchorMode()), member.sewv$getFormationAnchorPos(),
-                spacing, kind, member.sewv$getFormationGroup());
+                mode, member.sewv$getFormationAnchorPos(), spacing, kind, member.sewv$getFormationGroup(), leader);
     }
 
+    /** {@code leader} is set for a UNIT formation only. */
     record Layout(Direction axis, float yaw, FormationShape shape, int rowSize, float width, float length,
                   FormationAnchorMode anchorMode, @Nullable Vec3 frozenAnchor, double spacing,
-                  @Nullable FormationComposition.Kind kind, long group) {}
+                  @Nullable FormationComposition.Kind kind, long group, @Nullable UUID leader) {}
 
     /**
      * Slot {@code index}'s centre for {@code layout} around {@code anchor}. A cardinal formation goes through
@@ -361,7 +483,8 @@ public final class VehicleFormation {
     public static Vec3 formationSlotCenter(PmcUnitEntity pmc, Vec3 commanderPos) {
         Layout l = layoutFor(pmc);
         if (l == null) return null;
-        return slotCenter(l, resolveAnchor(pmc, commanderPos), pmc.getFormationIndex());
+        Vec3 anchor = resolveAnchor(pmc, commanderPos);
+        return anchor == null ? null : slotCenter(l, anchor, pmc.getFormationIndex());
     }
 
     /** Hull-scale equivalent of {@link #formationSlotCenter}, terrain/water-projected. */
@@ -370,6 +493,7 @@ public final class VehicleFormation {
         Layout l = layoutFor(pmc);
         if (l == null) return null;
         Vec3 anchor = resolveAnchor(pmc, commanderPos);
+        if (anchor == null) return null;
         Vec3 center = slotCenter(l, anchor, pmc.getFormationIndex());
         return GroundSnap.snap(level, center, anchor.y, l.kind() == FormationComposition.Kind.SHIP);
     }
@@ -393,6 +517,10 @@ public final class VehicleFormation {
         data.remove(IFormationMember.TAG_FORMATION_KIND);
         data.remove(IFormationMember.TAG_FORMATION_GROUP);
         data.remove(IFormationMember.TAG_FORMATION_YAW);
+        data.remove(IFormationMember.TAG_FORMATION_LEADER);
+        data.remove(IFormationMember.TAG_FORMATION_HOLD_FIRE);
+        // TAG_FORMATION_LEADS is deliberately kept: SEM's setFormationIndex wipe lands here for every order a
+        // leader takes, and leading survives every order. Only FormationSubjects.release/dissolve end it.
         LAYOUTS.remove(pmc);
     }
 }

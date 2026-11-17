@@ -74,10 +74,12 @@ import com.neoalive.tacz_sewv.notify.NotificationKind;
 import com.neoalive.tacz_sewv.platform.PacketDistributor;
 import com.neoalive.tacz_sewv.spawn.EmplacementSpawner;
 import com.neoalive.tacz_sewv.spawn.EmplacementSpawner.Emplacement;
+import com.neoalive.tacz_sewv.spawn.SpawnDeny;
 import com.neoalive.tacz_sewv.spawn.SupportSpawner;
 import com.neoalive.tacz_sewv.spawn.SupportSpawner.SupportRole;
 import com.neoalive.tacz_sewv.spawn.TankSpawner;
 import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
+import com.neoalive.tacz_sewv.util.LoadedTerrain;
 import com.neoalive.tacz_sewv.util.VehicleDrops;
 import com.neoalive.tacz_sewv.util.WorldVehiclePools;
 
@@ -140,10 +142,22 @@ public class SewvCommand {
                 .then(Commands.literal("targetingAllow")
                         .requires(source -> source.hasPermission(2))
                         .executes(ctx -> openTargetPriority(ctx.getSource())))
+                .then(ZoneCommand.zones("zones"))
+                .then(ZoneCommand.zones("Zones"))
                 .then(Commands.literal("debug")
                         .requires(source -> source.hasPermission(2))
+                        .then(ZoneCommand.debugRemove())
                         .then(Commands.literal("rappel")
                                 .executes(ctx -> debugRappel(ctx.getSource())))
+                        .then(Commands.literal("voiceTest")
+                                .executes(ctx -> debugVoiceTest(ctx.getSource(),
+                                        com.neoalive.tacz_sewv.compat.voicechat.RadioVoiceLoopback.DEFAULT_DELAY_SECONDS))
+                                .then(Commands.literal("off")
+                                        .executes(ctx -> debugVoiceTest(ctx.getSource(), 0)))
+                                .then(Commands.argument("seconds", IntegerArgumentType.integer(1,
+                                                com.neoalive.tacz_sewv.compat.voicechat.RadioVoiceLoopback.MAX_DELAY_SECONDS))
+                                        .executes(ctx -> debugVoiceTest(ctx.getSource(),
+                                                IntegerArgumentType.getInteger(ctx, "seconds")))))
                         .then(Commands.literal("notificationTest")
                                 .executes(ctx -> debugNotificationTest(ctx.getSource(),
                                         NotificationKind.GENERIC,
@@ -172,6 +186,8 @@ public class SewvCommand {
                                 .executes(ctx -> debugDump(ctx.getSource())))
                         .then(Commands.literal("perf")
                                 .executes(ctx -> debugPerf(ctx.getSource())))
+                        .then(Commands.literal("pressure")
+                                .executes(ctx -> debugPressure(ctx.getSource())))
                         .then(Commands.literal("artillery")
                                 .executes(ctx -> debugArtillery(ctx.getSource())))
                         .then(Commands.literal("StartConfigFix")
@@ -226,8 +242,10 @@ public class SewvCommand {
                                         .executes(ctx -> EntityCleanup.run(ctx.getSource(), false)))
                                 .then(Commands.literal("target")
                                         .executes(ctx -> EntityCleanup.target(ctx.getSource())))))
+                // World rules → diplomacyRequiresOp. Off: any player. On: permission level 2.
                 .then(Commands.literal("diplomacy")
-                        .requires(source -> source.hasPermission(2))
+                        .requires(source -> !SewvConfig.DIPLOMACY_REQUIRES_OP.get()
+                                || source.hasPermission(2))
                         .then(Commands.literal("add")
                                 .then(Commands.argument("relation", StringArgumentType.word())
                                         .suggests((ctx, b) -> SharedSuggestionProvider.suggest(
@@ -374,7 +392,7 @@ public class SewvCommand {
         int cz = origin.getZ() >> 4;
         for (int x = cx - 3; x <= cx + 3 && reported < 12; x++) {
             for (int z = cz - 3; z <= cz + 3 && reported < 12; z++) {
-                if (!level.hasChunk(x, z)) continue;
+                if (!LoadedTerrain.loaded(level, x, z)) continue;
                 for (var be : level.getChunk(x, z).getBlockEntities().values()) {
                     if (!(be instanceof CapturableBlockEntity capturable)) continue;
                     if (capturable.getBlockPos().distSqr(origin) > 64 * 64) continue;
@@ -520,6 +538,7 @@ public class SewvCommand {
         }
         source.sendSuccess(() -> Component.translatable("command.tacz_sewv.diplomacy.added",
                 relation.name().toLowerCase(), resolved), true);
+        syncDiplomacy(source);
         return 1;
     }
 
@@ -548,6 +567,7 @@ public class SewvCommand {
             return 0;
         }
         source.sendSuccess(() -> Component.translatable("command.tacz_sewv.diplomacy.removed", name), true);
+        syncDiplomacy(source);
         return 1;
     }
 
@@ -572,6 +592,7 @@ public class SewvCommand {
         }
         source.sendSuccess(() -> Component.translatable("command.tacz_sewv.diplomacy.added",
                 relation.name().toLowerCase(Locale.ROOT), other), true);
+        syncDiplomacy(source);
         return 1;
     }
 
@@ -589,6 +610,7 @@ public class SewvCommand {
             return 0;
         }
         source.sendSuccess(() -> Component.translatable("command.tacz_sewv.diplomacy.removed", other), true);
+        syncDiplomacy(source);
         return 1;
     }
 
@@ -611,6 +633,7 @@ public class SewvCommand {
             }
             source.sendSuccess(() -> Component.translatable("command.tacz_sewv.diplomacy.pair_cleared",
                     sa.toString(), sb.toString()), true);
+            syncDiplomacy(source);
             return 1;
         }
         if (!data.set(sa, sb, relation)) {
@@ -619,6 +642,7 @@ public class SewvCommand {
         }
         source.sendSuccess(() -> Component.translatable("command.tacz_sewv.diplomacy.pair_set",
                 sa.toString(), sb.toString(), relation.name().toLowerCase(Locale.ROOT)), true);
+        syncDiplomacy(source);
         return 1;
     }
 
@@ -635,7 +659,7 @@ public class SewvCommand {
         return entries.size();
     }
 
-    private static final String[] SUBJECT_KINDS = {"player", "faction"};
+    private static final String[] SUBJECT_KINDS = {"player", "faction", "side"};
 
     @Nullable
     private static DiplomacyData.Relation parseRelation(String word, boolean allowNeutral) {
@@ -645,11 +669,26 @@ public class SewvCommand {
         return null;
     }
 
-    /** A pair-command subject; a faction must be a known OpenPAC party, a player any name. */
+    /** Online players get their two side relations again after a pair changes. */
+    private static void syncDiplomacy(CommandSourceStack source) {
+        if (source.getServer() != null) {
+            com.neoalive.tacz_sewv.diplomacy.SideRelations.syncAll(source.getServer());
+        }
+    }
+
+    /** A pair-command subject. A faction must be a known OpenPAC party; a side is {@code ru} or {@code us}. */
     @Nullable
     private static DiplomacyData.Subject parseSubject(CommandSourceStack source, String kind, String name) {
         if ("player".equalsIgnoreCase(kind)) {
             return DiplomacyData.Subject.player(resolvePlayerName(source.getServer(), name));
+        }
+        if ("side".equalsIgnoreCase(kind)) {
+            String side = "ru".equalsIgnoreCase(name) ? "ru" : "us".equalsIgnoreCase(name) ? "us" : null;
+            if (side == null) {
+                source.sendFailure(Component.translatable("command.tacz_sewv.diplomacy.unknown_side", name));
+                return null;
+            }
+            return DiplomacyData.Subject.side(side);
         }
         if ("faction".equalsIgnoreCase(kind)) {
             if (!OpenPacCompat.isLoaded()) {
@@ -676,9 +715,24 @@ public class SewvCommand {
 
     private static CompletableFuture<Suggestions> suggestSubjectNames(
             com.mojang.brigadier.context.CommandContext<CommandSourceStack> ctx, SuggestionsBuilder builder) {
+        String kind = subjectKind(ctx, "kindB");
+        if (kind == null) kind = subjectKind(ctx, "kindA");
+        if ("side".equalsIgnoreCase(kind)) {
+            return SharedSuggestionProvider.suggest(new String[]{"ru", "us"}, builder);
+        }
         List<String> names = new java.util.ArrayList<>(ctx.getSource().getOnlinePlayerNames());
         names.addAll(OpenPacCompat.factionNames(ctx.getSource().getServer()));
         return SharedSuggestionProvider.suggest(names.stream().map(StringArgumentType::escapeIfRequired), builder);
+    }
+
+    @Nullable
+    private static String subjectKind(
+            com.mojang.brigadier.context.CommandContext<CommandSourceStack> ctx, String argument) {
+        try {
+            return StringArgumentType.getString(ctx, argument);
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
     }
 
     @Nullable
@@ -698,6 +752,29 @@ public class SewvCommand {
         }
         PacketHudNotification.sendTo(player, title, body, kind);
         source.sendSuccess(() -> Component.translatable("command.tacz_sewv.debug.notificationTest.ok"), false);
+        return 1;
+    }
+
+    /** Radio voice loopback: the player's own transmissions come back after a delay. 0 turns it off. */
+    private static int debugVoiceTest(CommandSourceStack source, int seconds) {
+        if (!(source.getEntity() instanceof ServerPlayer player)) {
+            source.sendFailure(Component.translatable("command.tacz_sewv.debug.notificationTest.player_only"));
+            return 0;
+        }
+        if (seconds <= 0) {
+            com.neoalive.tacz_sewv.compat.voicechat.RadioVoiceLoopback.disable(player.getUUID());
+            source.sendSuccess(() -> Component.translatable("command.tacz_sewv.debug.voiceTest.off"), false);
+            return 1;
+        }
+        if (!com.neoalive.tacz_sewv.compat.voicechat.VoicechatCompat.serverActive()) {
+            source.sendFailure(Component.translatable("command.tacz_sewv.debug.voiceTest.no_voicechat"));
+            return 0;
+        }
+        com.neoalive.tacz_sewv.compat.voicechat.RadioVoiceLoopback.enable(player.getUUID(), seconds);
+        source.sendSuccess(() -> Component.translatable("command.tacz_sewv.debug.voiceTest.on", seconds), false);
+        if (!com.neoalive.tacz_sewv.notify.RadioNet.voiceEnabled()) {
+            source.sendFailure(Component.translatable("command.tacz_sewv.debug.voiceTest.disabled"));
+        }
         return 1;
     }
 
@@ -884,6 +961,13 @@ public class SewvCommand {
         boolean on = com.neoalive.tacz_sewv.entity.ai.support.ArtillerySupport.toggleDebug();
         source.sendSuccess(() -> Component.literal("Artillery trace " + (on ? "ON" : "OFF")
                 + " ([sewv-artillery] lines in the server log)"), true);
+        return 1;
+    }
+
+    private static int debugPressure(CommandSourceStack source) {
+        for (String line : com.neoalive.tacz_sewv.debug.PressureProbe.report(source.getLevel(), source.getPosition())) {
+            source.sendSuccess(() -> Component.literal(line), false);
+        }
         return 1;
     }
 
@@ -1125,15 +1209,13 @@ public class SewvCommand {
 
     private static int spawnSupport(CommandSourceStack source, boolean ru, SupportRole role,
                                     @Nullable BlockPos explicitPos) {
+        SpawnDeny.clear();
         ServerLevel level = source.getLevel();
         BlockPos pos = explicitPos != null
                 ? explicitPos
                 : TankSpawner.adjustHeight(level, BlockPos.containing(source.getPosition()));
 
-        if (SupportSpawner.spawn(level, pos, ru, role) == null) {
-            source.sendFailure(Component.translatable("command.tacz_sewv.spawn.support_fail"));
-            return 0;
-        }
+        if (SupportSpawner.spawn(level, pos, ru, role) == null) return failSpawn(source);
 
         String label = (ru ? "RU " : "US ") + role.name().toLowerCase();
         source.sendSuccess(() -> Component.translatable(
@@ -1153,6 +1235,7 @@ public class SewvCommand {
     }
 
     private static int spawnCommander(CommandSourceStack source, @Nullable BlockPos explicitPos) {
+        SpawnDeny.clear();
         ServerLevel level = source.getLevel();
         BlockPos pos = explicitPos != null
                 ? explicitPos
@@ -1160,8 +1243,7 @@ public class SewvCommand {
         UUID ownerId = source.getEntity() instanceof ServerPlayer player ? player.getUUID() : null;
 
         if (com.neoalive.tacz_sewv.spawn.PmcCommanderSpawner.spawn(level, pos, ownerId) == null) {
-            source.sendFailure(Component.translatable("command.tacz_sewv.spawn.support_fail"));
-            return 0;
+            return failSpawn(source);
         }
 
         source.sendSuccess(() -> Component.translatable(
@@ -1203,6 +1285,7 @@ public class SewvCommand {
                                         Emplacement type,
                                         BiFunction<TankFaction, ServerLevel, List<? extends String>> pool,
                                         @Nullable String vehicleId, @Nullable BlockPos explicitPos) {
+        SpawnDeny.clear();
         ServerLevel level = source.getLevel();
 
         if (vehicleId != null && !pool.apply(faction, level).contains(vehicleId)) {
@@ -1220,10 +1303,7 @@ public class SewvCommand {
 
         VehicleEntity weapon = com.neoalive.tacz_sewv.spawn.SupportSpawner.withoutCompanions(
                 () -> EmplacementSpawner.spawn(level, pos, type, faction, ownerId, null, vehicleId));
-        if (weapon == null) {
-            source.sendFailure(Component.translatable("command.tacz_sewv.spawn.emplacement_fail"));
-            return 0;
-        }
+        if (weapon == null) return failSpawn(source);
         VehicleDrops.markCrewAndHull(weapon);
 
         source.sendSuccess(() -> Component.translatable(
@@ -1284,6 +1364,7 @@ public class SewvCommand {
                                     WorldVehiclePools.Category spawner, boolean snapToGround,
                                     boolean reportActualPos,
                                     @Nullable String vehicleId, @Nullable BlockPos explicitPos) {
+        SpawnDeny.clear();
         ServerLevel level = source.getLevel();
 
         // A specific id is only honored if the world pool actually contains it — catch
@@ -1311,16 +1392,19 @@ public class SewvCommand {
         net.minecraft.world.entity.Entity hull = com.neoalive.tacz_sewv.spawn.SupportSpawner.withoutCompanions(
                 () -> TankSpawner.spawnFromPool(level, pos, faction, spawner, ownerId, vehicleId));
 
-        if (hull == null) {
-            source.sendFailure(Component.translatable("command.tacz_sewv.spawn.fail"));
-            return 0;
-        }
+        if (hull == null) return failSpawn(source);
         if (hull instanceof VehicleEntity sbwHull) VehicleDrops.markCrewAndHull(sbwHull);
 
         BlockPos reported = reportActualPos ? hull.blockPosition() : pos;
         source.sendSuccess(() -> Component.translatable(
                 "command.tacz_sewv.spawn.success", faction.name(), reported.toShortString()), true);
         return 1;
+    }
+
+    private static int failSpawn(CommandSourceStack source) {
+        source.sendFailure(SpawnDeny.component());
+        SpawnDeny.clear();
+        return 0;
     }
 
     private static TankFaction parseTankFaction(String name) {

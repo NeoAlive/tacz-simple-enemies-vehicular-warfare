@@ -1677,6 +1677,8 @@
   "config.tacz_sewv.aiFireCooldownTicks.tooltip": "Minimum wait between AI vehicle shots, in game ticks (20 = 1 second).",
   "config.tacz_sewv.aiFireHesitationTicks": "AI Fire Hesitation Ticks",
   "config.tacz_sewv.aiFireHesitationTicks.tooltip": "Pause before a tank, boat or emplacement crew fires on a newly acquired target (20 = 1 second). Helicopters, planes and artillery are exempt. 0 disables.",
+  "config.tacz_sewv.heavyMobNamespaces": "Heavy Mob Mods",
+  "config.tacz_sewv.heavyMobNamespaces.tooltip": "Mods whose mobs a crew never leaves to its machine gun (mod ids, one per line). The main gun opens on them. Any other mob goes to the MG only when its health behind armour is low.",
   "config.tacz_sewv.aiFireHesitationJitter": "AI Fire Hesitation Spread",
   "config.tacz_sewv.aiFireHesitationJitter.tooltip": "Extra hesitation per crew, as a fraction of the base (0.5 = up to 50% longer). Fixed per crew so a group does not fire in unison.",
   "config.tacz_sewv.airportAlignmentDistance": "Airport Alignment Distance",

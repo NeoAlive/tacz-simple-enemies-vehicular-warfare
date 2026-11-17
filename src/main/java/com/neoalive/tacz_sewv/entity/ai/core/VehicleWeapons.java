@@ -146,7 +146,6 @@ public final class VehicleWeapons {
     // Ammo doctrine thresholds, read against MAX health (the hull/mob's baseline, not its
     // current damage state — doctrine picks a shell for what the thing IS, not how hurt it is).
     private static final float ARMORED_HEALTH = 400.0F; // hull at/above this is a hard target
-    private static final float SOFT_HEALTH = 100.0F;    // mob below this is an MG target
 
     // Cannon ammo preference lists, in order, matched as a SUFFIX of the AmmoConsumer's ammo
     // item id (superbwarfare:large_shell_ap / small_shell_he / large_shell_gs — the naming is
@@ -253,7 +252,7 @@ public final class VehicleWeapons {
     //
     // Everything else is decided by what the target IS, on its BASELINE (max) health:
     //   mounted crew    -> cannon, AP against a hull at/above ARMORED_HEALTH, HE below
-    //   mob under SOFT_HEALTH -> MG
+    //   mob soft by MobToughness (armour-aware, configured mods never) -> MG
     //   anything else   -> cannon with grapeshot
     // Range no longer enters into it — a cannon reaches as far as the crew can see.
     //
@@ -308,7 +307,7 @@ public final class VehicleWeapons {
             List<WeaponCandidate> candidates = target.getVehicle() instanceof VehicleEntity hull
                     ? (hull.getMaxHealth() >= ARMORED_HEALTH ? VS_ARMORED : VS_LIGHT_VEHICLE)
                     : com.neoalive.tacz_sewv.compat.TripodCompat.isTripod(target) ? VS_ARMORED
-                    : (target.getMaxHealth() < SOFT_HEALTH ? VS_SOFT_MOB : VS_INFANTRY);
+                    : (MobToughness.isSoft(target) ? VS_SOFT_MOB : VS_INFANTRY);
             // Against a hull the shell is picked by what each round does to that hull's own
             // damage rules; the max-health doctrine above is only the fallback.
             if (target.getVehicle() instanceof VehicleEntity hull && slot[WEAPON_CANNON] >= 0) {

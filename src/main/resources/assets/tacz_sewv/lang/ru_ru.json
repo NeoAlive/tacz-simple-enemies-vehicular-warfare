@@ -1677,6 +1677,8 @@
   "config.tacz_sewv.aiFireCooldownTicks.tooltip": "Минимальная пауза между выстрелами техники ИИ, в игровых тиках (20 = 1 секунда).",
   "config.tacz_sewv.aiFireHesitationTicks": "Тики заминки огня ИИ",
   "config.tacz_sewv.aiFireHesitationTicks.tooltip": "Пауза, прежде чем экипаж танка, лодки или огневой точки стреляет по только что найденной цели (20 = 1 секунда). Вертолёты, самолёты и артиллерия исключены. 0 отключает.",
+  "config.tacz_sewv.heavyMobNamespaces": "Моды с тяжёлыми мобами",
+  "config.tacz_sewv.heavyMobNamespaces.tooltip": "Моды, мобов которых экипаж никогда не оставляет пулемёту (id модов, по одному в строке). Основное орудие открывает по ним огонь. Остальные мобы уходят пулемёту, только если их здоровье за бронёй невелико.",
   "config.tacz_sewv.aiFireHesitationJitter": "Разброс заминки огня ИИ",
   "config.tacz_sewv.aiFireHesitationJitter.tooltip": "Дополнительная заминка на экипаж, доля от базы (0.5 = до 50% дольше). Фиксирована на экипаж, чтобы группа не стреляла разом.",
   "config.tacz_sewv.airportAlignmentDistance": "Дистанция выравнивания аэродрома",

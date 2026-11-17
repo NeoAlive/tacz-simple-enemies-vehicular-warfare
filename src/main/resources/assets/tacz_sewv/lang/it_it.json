@@ -1677,6 +1677,8 @@
   "config.tacz_sewv.aiFireCooldownTicks.tooltip": "Attesa minima tra i colpi dei veicoli IA, in tick di gioco (20 = 1 secondo).",
   "config.tacz_sewv.aiFireHesitationTicks": "Tick esitazione fuoco IA",
   "config.tacz_sewv.aiFireHesitationTicks.tooltip": "Pausa prima che l'equipaggio di un carro, una barca o una postazione spari su un bersaglio appena acquisito (20 = 1 secondo). Elicotteri, aerei e artiglieria sono esclusi. 0 disattiva.",
+  "config.tacz_sewv.heavyMobNamespaces": "Mod di mob pesanti",
+  "config.tacz_sewv.heavyMobNamespaces.tooltip": "Mod i cui mob un equipaggio non lascia mai alla mitragliatrice (id delle mod, uno per riga). Il cannone principale apre il fuoco su di loro. Gli altri mob vanno alla mitragliatrice solo se la loro salute dietro l'armatura è bassa.",
   "config.tacz_sewv.aiFireHesitationJitter": "Dispersione esitazione fuoco IA",
   "config.tacz_sewv.aiFireHesitationJitter.tooltip": "Esitazione extra per equipaggio, come frazione della base (0.5 = fino al 50% in più). Fissa per equipaggio, così un gruppo non spara insieme.",
   "config.tacz_sewv.airportAlignmentDistance": "Distanza allineamento aeroporto",

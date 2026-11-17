@@ -1677,6 +1677,8 @@
   "config.tacz_sewv.aiFireCooldownTicks.tooltip": "Minimalna przerwa między strzałami pojazdów AI, w tickach gry (20 = 1 sekunda).",
   "config.tacz_sewv.aiFireHesitationTicks": "Ticki wahania ognia AI",
   "config.tacz_sewv.aiFireHesitationTicks.tooltip": "Pauza, zanim załoga czołgu, łodzi albo stanowiska strzeli do świeżo złapanego celu (20 = 1 sekunda). Śmigłowce, samoloty i artyleria są wyjęte. 0 wyłącza.",
+  "config.tacz_sewv.heavyMobNamespaces": "Mody z ciężkimi mobami",
+  "config.tacz_sewv.heavyMobNamespaces.tooltip": "Mody, których mobów załoga nigdy nie zostawia karabinowi maszynowemu (id modów, po jednym w wierszu). Działo główne otwiera do nich ogień. Pozostałe moby trafiają do karabinu tylko wtedy, gdy ich zdrowie za pancerzem jest niskie.",
   "config.tacz_sewv.aiFireHesitationJitter": "Rozrzut wahania ognia AI",
   "config.tacz_sewv.aiFireHesitationJitter.tooltip": "Dodatkowe wahanie na załogę, jako ułamek bazy (0.5 = do 50% dłużej). Stałe dla załogi, więc grupa nie strzela razem.",
   "config.tacz_sewv.airportAlignmentDistance": "Dystans wyrównania lotniska",

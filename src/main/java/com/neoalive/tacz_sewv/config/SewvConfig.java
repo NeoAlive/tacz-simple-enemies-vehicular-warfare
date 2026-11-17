@@ -100,6 +100,7 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.BooleanValue WEB_LOGOS_ENABLED;
 
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> NVG_ELIGIBLE_ITEMS;
+    public static final ForgeConfigSpec.ConfigValue<List<? extends String>> HEAVY_MOB_NAMESPACES;
     public static final ForgeConfigSpec.DoubleValue NVG_SPAWN_CHANCE;
     public static final ForgeConfigSpec.DoubleValue DARK_ACCURACY_FRACTION;
     public static final ForgeConfigSpec.DoubleValue NVG_ACCURACY_FRACTION;
@@ -758,6 +759,11 @@ public final class SewvConfig {
                         "Pause before an AI ground/ship/emplacement crew fires on a newly acquired target, in game ticks.",
                         "Helicopters, planes and artillery are exempt. 0 disables.")
                 .defineInRange("aiFireHesitationTicks", 12, 0, 200);
+        HEAVY_MOB_NAMESPACES = builder.comment(
+                        "Mods whose mobs are never left to a crew's machine gun (mod ids). Crews open on them with",
+                        "the main gun. Other mobs go to the MG only when their health behind armour is low.")
+                .defineList("heavyMobNamespaces", List.of("phayriosisreborn", "spore"),
+                        o -> o instanceof String str && !str.isBlank());
         AI_FIRE_HESITATION_JITTER = builder.comment(
                         "Per-crew spread on top of aiFireHesitationTicks (0.5 = each crew waits up to 50% longer),",
                         "fixed per crew so a group does not fire in unison.")

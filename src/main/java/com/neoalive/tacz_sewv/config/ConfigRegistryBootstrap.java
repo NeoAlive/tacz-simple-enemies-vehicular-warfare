@@ -470,6 +470,9 @@ final class ConfigRegistryBootstrap {
                 SewvConfig.AI_FIRE_COOLDOWN_TICKS, SewvConfig.AI_FIRE_COOLDOWN_TICKS::set);
         b.intRange(ConfigScope.SERVER, "crew_ai", "aiFireHesitationTicks", 0, 200,
                 SewvConfig.AI_FIRE_HESITATION_TICKS, SewvConfig.AI_FIRE_HESITATION_TICKS::set);
+        b.multilineIds(ConfigScope.SERVER, "crew_ai", "heavyMobNamespaces",
+                () -> List.copyOf(SewvConfig.HEAVY_MOB_NAMESPACES.get()),
+                v -> SewvConfig.HEAVY_MOB_NAMESPACES.set(v));
         b.doubleRange(ConfigScope.SERVER, "crew_ai", "aiFireHesitationJitter", 0.0, 1.0,
                 SewvConfig.AI_FIRE_HESITATION_JITTER, SewvConfig.AI_FIRE_HESITATION_JITTER::set);
         b.intRange(ConfigScope.SERVER, "crew_ai", "aiLosCacheTicks", 1, 40,

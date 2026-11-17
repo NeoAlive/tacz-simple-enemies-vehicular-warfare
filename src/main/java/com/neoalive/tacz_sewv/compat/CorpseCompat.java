@@ -212,7 +212,7 @@ public final class CorpseCompat {
             if (fill.isVisiblyEmpty()) return false;
 
             de.maxhenkel.corpse.corelib.death.Death death = buildDeath(unit, corpseUuid, fill);
-            var host = net.minecraftforge.common.util.FakePlayerFactory.getMinecraft(level);
+            var host = net.neoforged.neoforge.common.util.FakePlayerFactory.getMinecraft(level);
             de.maxhenkel.corpse.entities.CorpseEntity corpse =
                     de.maxhenkel.corpse.entities.CorpseEntity.createFromDeath(host, death);
             corpse.setYRot(unit.getYRot());

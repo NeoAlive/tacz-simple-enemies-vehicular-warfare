@@ -12,6 +12,7 @@ import com.minecolonies.api.colony.colonyEvents.EventStatus;
 import com.minecolonies.api.colony.colonyEvents.IColonyRaidEvent;
 import com.minecolonies.api.util.BlockPosUtil;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.NbtUtils;
@@ -97,13 +98,13 @@ public class SewvArmoredRaidEvent implements IColonyRaidEvent {
     }
 
     /** Deserialisation constructor for the registry entry — see {@link #loadFromNBT}. */
-    private SewvArmoredRaidEvent(@NotNull IColony colony, @NotNull CompoundTag compound) {
+    private SewvArmoredRaidEvent(@NotNull IColony colony, @NotNull CompoundTag compound, HolderLookup.Provider provider) {
         this.colony = colony;
-        deserializeNBT(compound);
+        deserializeNBT(provider, compound);
     }
 
-    public static SewvArmoredRaidEvent loadFromNBT(@NotNull IColony colony, @NotNull CompoundTag compound) {
-        return new SewvArmoredRaidEvent(colony, compound);
+    public static SewvArmoredRaidEvent loadFromNBT(@NotNull IColony colony, @NotNull CompoundTag compound, HolderLookup.Provider provider) {
+        return new SewvArmoredRaidEvent(colony, compound, provider);
     }
 
     public void setFaction(TankSpawner.TankFaction faction) {
@@ -281,7 +282,7 @@ public class SewvArmoredRaidEvent implements IColonyRaidEvent {
     }
 
     @Override
-    public CompoundTag serializeNBT() {
+    public CompoundTag serializeNBT(HolderLookup.Provider provider) {
         CompoundTag compound = new CompoundTag();
         compound.putInt(TAG_ID, id);
         compound.putInt(TAG_STATUS, status.ordinal());
@@ -296,7 +297,7 @@ public class SewvArmoredRaidEvent implements IColonyRaidEvent {
     }
 
     @Override
-    public void deserializeNBT(CompoundTag compound) {
+    public void deserializeNBT(HolderLookup.Provider provider, CompoundTag compound) {
         id = compound.getInt(TAG_ID);
         status = EventStatus.values()[compound.getInt(TAG_STATUS)];
         daysToGo = compound.getInt(TAG_DAYS);

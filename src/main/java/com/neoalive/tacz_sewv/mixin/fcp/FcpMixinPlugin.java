@@ -3,7 +3,6 @@ package com.neoalive.tacz_sewv.mixin.fcp;
 import java.util.List;
 import java.util.Set;
 
-import net.minecraftforge.fml.loading.moddiscovery.ModFileInfo;
 import net.neoforged.fml.loading.LoadingModList;
 import org.apache.maven.artifact.versioning.DefaultArtifactVersion;
 import org.objectweb.asm.tree.ClassNode;
@@ -24,7 +23,7 @@ public final class FcpMixinPlugin implements IMixinConfigPlugin {
         if (this.apply == null) {
             boolean ok = false;
             try {
-                ModFileInfo file = LoadingModList.get().getModFileById("fcp");
+                var file = LoadingModList.get().getModFileById("fcp");
                 if (file != null) {
                     ok = file.getMods().stream()
                             .filter(m -> "fcp".equals(m.getModId()))

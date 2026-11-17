@@ -63,12 +63,12 @@ final class LvSupply {
         if (items.length == 0) return;
         ItemStack round = items[0].copy();
         round.setCount(Math.max(1, Math.min(weapon.getMaxCapacity(), round.getMaxStackSize())));
-        hull.getCapability(Caps.ITEM_HANDLER).ifPresent(inv -> {
-            ItemStack rest = round;
-            for (int i = 0; i < inv.getSlots() && !rest.isEmpty(); i++) {
-                rest = inv.insertItem(i, rest, false);
-            }
-        });
+        var inv = Caps.entityItems(hull);
+        if (inv == null) return;
+        ItemStack rest = round;
+        for (int i = 0; i < inv.getSlots() && !rest.isEmpty(); i++) {
+            rest = inv.insertItem(i, rest, false);
+        }
     }
 
     private static boolean isIssuedFaction(Entity e) {

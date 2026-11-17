@@ -27,10 +27,11 @@ println "Java: ${System.getProperty 'java.version'}, JVM: ${System.getProperty '
 // ---------------------------------------------------------------------------------------------
 // Dormant integrations.
 // Integrations that reach their mod only through ModList / Class.forName / registry ids (NeoArms,
-// Coltan+GemRender, FCP, MCSP, VVP, Ash, Spore, Phayriosis, DNV) compile without it and simply
-// stay inert; only the ones whose files name a foreign type are listed below. Optional-mod compat is not ported yet: these sources stay in the tree
-// (they still build on main) but are not compiled here, no mixin config of theirs is loaded, and
-// neoforge.mods.toml names none of them. Core code reaches each one through a facade that
+// Coltan+GemRender, MCSP, VVP, Ash, Spore, Phayriosis, DNV) compile without it and simply stay
+// inert; only the ones whose files name a foreign type are listed below. Those have no 1.21.1
+// build to port against yet: their sources stay in the tree (they still build on main) but are not
+// compiled here, no mixin config of theirs is loaded, and neoforge.mods.toml names none of them.
+// Ported from dormancy: Corpse, Simple Voice Chat, FCP 2.0, Limitless Vehicles, MineColonies. Core code reaches each one through a facade that
 // src/dormant-stubs/java replaces with a constant-false copy of the same public surface
 // (selfCheckDormantStubs keeps the two in step). Re-activating a mod = drop its lines here,
 // delete its stub, port its foreign-typed files against that mod's 1.21.1 build.
@@ -40,24 +41,8 @@ def dormantSources = [
         'com/neoalive/tacz_sewv/mixin/client/MixinKmodoDormancy.java',
         'com/neoalive/tacz_sewv/mixin/client/MixinKmodoLight.java',
         'com/neoalive/tacz_sewv/mixin/KomodoMixinPlugin.java',
-        // Corpse
-        'com/neoalive/tacz_sewv/compat/CorpseCompat.java',
-        'com/neoalive/tacz_sewv/mixin/MixinCorpseEntity.java',
-        'com/neoalive/tacz_sewv/mixin/client/MixinCorpseRenderer.java',
-        'com/neoalive/tacz_sewv/mixin/client/MixinAbstractClientPlayerCorpseSkin.java',
-        'com/neoalive/tacz_sewv/mixin/CorpseMixinPlugin.java',
-        // MineColonies
-        'com/neoalive/tacz_sewv/compat/MineColoniesCompat.java',
-        'com/neoalive/tacz_sewv/compat/minecolonies/**',
-        'com/neoalive/tacz_sewv/mixin/minecolonies/**',
-        'com/neoalive/tacz_sewv/mixin/MineColoniesMixinPlugin.java',
-        // Limitless Vehicles (LvCompat / LvGoals are stubbed)
-        'com/neoalive/tacz_sewv/compat/lv/**',
         // Berezka
         'com/neoalive/tacz_sewv/compat/BerezkaStructureCompat.java',
-        // Frontline Combat Pack 2.0 (FcpHulls is stubbed, FcpCompat stays real)
-        'com/neoalive/tacz_sewv/compat/fcp/FcpHulls.java',
-        'com/neoalive/tacz_sewv/mixin/fcp/**',
         // Tripod Invasion (TripodCompat is stubbed)
         'com/neoalive/tacz_sewv/compat/TripodCompat.java',
         'com/neoalive/tacz_sewv/mixin/tripod/**',
@@ -65,18 +50,9 @@ def dormantSources = [
         // GemRender
         'com/neoalive/tacz_sewv/mixin/gemrender/**',
         'com/neoalive/tacz_sewv/mixin/GemRenderMixinPlugin.java',
-        // Simple Voice Chat (the plugin side; VoicechatCompat answers inactive without it)
-        'com/neoalive/tacz_sewv/compat/voicechat/SewvVoicechatPlugin.java',
-        'com/neoalive/tacz_sewv/compat/voicechat/RadioVoiceClient.java',
-        'com/neoalive/tacz_sewv/compat/voicechat/RadioVoiceClientHooks.java',
-        'com/neoalive/tacz_sewv/compat/voicechat/RadioVoiceEcho.java',
-        'com/neoalive/tacz_sewv/compat/voicechat/RadioVoiceRelay.java',
 ]
 def dormantMixinConfigs = [
         'tacz_sewv.komodo.mixins.json',
-        'tacz_sewv.corpse.mixins.json',
-        'tacz_sewv.minecolonies.mixins.json',
-        'tacz_sewv.fcp.mixins.json',
         'tacz_sewv.tripod.mixins.json',
         'tacz_sewv.gemrender.mixins.json',
 ]
@@ -92,14 +68,6 @@ sourceSets {
         }
         resources {
             exclude dormantMixinConfigs
-        }
-    }
-    test {
-        java {
-            // LV's steering self-check reads compat/lv sources that are dormant on this branch.
-            exclude 'com/neoalive/tacz_sewv/compat/lv/**'
-            // FCP's self-check reads the dormant FcpMixinPlugin.
-            exclude 'com/neoalive/tacz_sewv/compat/fcp/FcpSelfCheck.java'
         }
     }
 }
@@ -370,6 +338,33 @@ dependencies {
     if (project.hasProperty('withMinimap')) {
         compatJars('xaerominimap-').each { localRuntime files(it) }
     }
+    // Corpse (1.1.22 NeoForge). Only CorpseCompat.Access and the corpse mixins name its types.
+    //   ./gradlew runClient -PwithCorpse
+    compatJars('corpse-').each { compileOnly files(it) }
+    if (project.hasProperty('withCorpse')) {
+        compatJars('corpse-').each { localRuntime files(it) }
+    }
+    // Simple Voice Chat (2.6.27 NeoForge). Only compat/voicechat names its types.
+    //   ./gradlew runClient -PwithVoicechat
+    compatJars('voicechat-').each { compileOnly files(it) }
+    if (project.hasProperty('withVoicechat')) {
+        compatJars('voicechat-').each { localRuntime files(it) }
+    }
+    // Frontline Combat Pack 2.0.0 NeoForge. Only compat/fcp/FcpHulls and mixin/fcp name frontline.*.
+    //   ./gradlew runClient -PwithFcp
+    compatJars('fcp-').each { compileOnly files(it) }
+    if (project.hasProperty('withFcp')) {
+        compatJars('fcp-').each { localRuntime files(it) }
+    }
+    // Limitless Vehicles 0.6.2.1 (ywzj_vehicle). Only compat/lv names org.ywzj.*; no mixins into LV.
+    //   ./gradlew runClient -PwithLv
+    compatJars('ywzj_vehicle-').each { compileOnly files(it) }
+    if (project.hasProperty('withLv')) {
+        compatJars('ywzj_vehicle-').each { localRuntime files(it) }
+    }
+    // MineColonies 1.1.1420. Compile only: at runtime it hard-requires Structurize, BlockUI and
+    // Domum Ornamentum, which are not in libs-neo.
+    compatJars('minecolonies-').each { compileOnly files(it) }
     compatJars('open-parties-and-claims-').each { compileOnly files(it) }
     def gameTestRun = gradle.startParameter.taskNames.any { it.toLowerCase().contains('gametest') }
     if (!project.hasProperty('noOpenPac') && !gameTestRun) {
@@ -1038,6 +1033,15 @@ tasks.register('selfCheckDormantStubs', JavaExec) {
     workingDir = projectDir
 }
 
+tasks.register('selfCheckLv', JavaExec) {
+    group = 'verification'
+    description = 'Runs the Limitless Vehicles isolation and steering self-check.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
+    mainClass = 'com.neoalive.tacz_sewv.compat.lv.LvSelfCheck'
+    jvmArgs '-ea'
+}
+
 tasks.register('selfCheckFcp', JavaExec) {
     group = 'verification'
     description = 'Runs the Frontline Combat Pack isolation and roster self-check.'
@@ -1113,8 +1117,7 @@ tasks.register('selfCheckLang', JavaExec) {
 tasks.register('selfCheck') {
     group = 'verification'
     description = 'Runs all headless AI self-checks.'
-    // selfCheckLv and selfCheckFcp are dormant on this branch (Limitless Vehicles and FCP 2.0 are not ported).
-    dependsOn 'selfCheckArmor', 'selfCheckArtillery', 'selfCheckReducedCharge', 'selfCheckShieldRay', 'selfCheckCamo', 'selfCheckLoadout', 'selfCheckVehiclePacks', 'selfCheckMiscPacks', 'selfCheckUtility', 'selfCheckEasyMode', 'selfCheckRadial', 'selfCheckSignal', 'selfCheckCoverHold', 'selfCheckWeapons', 'selfCheckShellRanking', 'selfCheckGrouping', 'selfCheckElection', 'selfCheckInfluence', 'selfCheckPlay', 'selfCheckFormation', 'selfCheckPlayerFormation', 'selfCheckInfantryFormation', 'selfCheckMarch', 'selfCheckSeam', 'selfCheckHeli', 'selfCheckHeliArmament', 'selfCheckPlane', 'selfCheckContactBoard', 'selfCheckWideScan', 'selfCheckPathBudget', 'selfCheckLofCache', 'selfCheckChunkTickets', 'selfCheckUnitLod', 'selfCheckTaskedDestination', 'selfCheckDismount', 'selfCheckMinefield', 'selfCheckTactics', 'selfCheckCues', 'selfCheckSuppression', 'selfCheckAcquisition', 'selfCheckEngineGates', 'selfCheckSounds', 'selfCheckRadioQueue', 'selfCheckCrewSkins', 'selfCheckAirport', 'selfCheckGround', 'selfCheckOrca', 'selfCheckCover', 'selfCheckBattlePosition', 'selfCheckBallistics', 'selfCheckIdle', 'selfCheckInvasion', 'selfCheckConfig', 'selfCheckPathway', 'selfCheckStructures', 'selfCheckTerritory', 'selfCheckDiplomacy', 'selfCheckVehicleAccess', 'selfCheckRadioDsp', 'selfCheckMinimap', 'selfCheckWaypointDrag', 'selfCheckRibbon', 'selfCheckVehicleClientLod', 'selfCheckTaczCube', 'selfCheckScavenge', 'selfCheckLang', 'selfCheckLoadedTerrain', 'selfCheckEventSpots', 'selfCheckEventMarks', 'selfCheckDormantStubs'
+    dependsOn 'selfCheckArmor', 'selfCheckArtillery', 'selfCheckReducedCharge', 'selfCheckShieldRay', 'selfCheckCamo', 'selfCheckLoadout', 'selfCheckVehiclePacks', 'selfCheckMiscPacks', 'selfCheckUtility', 'selfCheckEasyMode', 'selfCheckRadial', 'selfCheckSignal', 'selfCheckCoverHold', 'selfCheckWeapons', 'selfCheckShellRanking', 'selfCheckGrouping', 'selfCheckElection', 'selfCheckInfluence', 'selfCheckPlay', 'selfCheckFormation', 'selfCheckPlayerFormation', 'selfCheckInfantryFormation', 'selfCheckMarch', 'selfCheckSeam', 'selfCheckHeli', 'selfCheckHeliArmament', 'selfCheckPlane', 'selfCheckContactBoard', 'selfCheckWideScan', 'selfCheckPathBudget', 'selfCheckLofCache', 'selfCheckChunkTickets', 'selfCheckUnitLod', 'selfCheckTaskedDestination', 'selfCheckDismount', 'selfCheckMinefield', 'selfCheckTactics', 'selfCheckCues', 'selfCheckSuppression', 'selfCheckAcquisition', 'selfCheckEngineGates', 'selfCheckSounds', 'selfCheckRadioQueue', 'selfCheckCrewSkins', 'selfCheckAirport', 'selfCheckGround', 'selfCheckOrca', 'selfCheckCover', 'selfCheckBattlePosition', 'selfCheckBallistics', 'selfCheckIdle', 'selfCheckInvasion', 'selfCheckConfig', 'selfCheckPathway', 'selfCheckStructures', 'selfCheckTerritory', 'selfCheckDiplomacy', 'selfCheckVehicleAccess', 'selfCheckRadioDsp', 'selfCheckMinimap', 'selfCheckWaypointDrag', 'selfCheckRibbon', 'selfCheckVehicleClientLod', 'selfCheckTaczCube', 'selfCheckScavenge', 'selfCheckLang', 'selfCheckLoadedTerrain', 'selfCheckEventSpots', 'selfCheckEventMarks', 'selfCheckDormantStubs', 'selfCheckLv', 'selfCheckFcp'
 }
 
 // Average-modpack jars live in modpack/ (gitignored). syncModpack pulls from Prism.

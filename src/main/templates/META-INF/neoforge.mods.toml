@@ -39,9 +39,20 @@ config="tacz_sewv.playerrevive.mixins.json"
 [[mixins]]
 config="tacz_sewv.perf.mixins.json"
 
-# NeoForge port branch: Komodo, Corpse, MineColonies, Frontline Combat Pack, Tripod Invasion and
-# GemRender (mixin configs + soft dependencies), plus Limitless Vehicles, Berezka, Coltan and Simple
-# Voice Chat, are dormant here. See dormantSources in build.gradle.
+# Corpse compat. Own config ("required": false) + CorpseMixinPlugin gate on mod id corpse.
+[[mixins]]
+config="tacz_sewv.corpse.mixins.json"
+
+# MineColonies compat (armoured raids, guard targeting). Own config + MineColoniesMixinPlugin gate.
+[[mixins]]
+config="tacz_sewv.minecolonies.mixins.json"
+
+# Frontline Combat Pack 2.0 compat. Own config + FcpMixinPlugin gate (mod id fcp, 2.0.0 floor).
+[[mixins]]
+config="tacz_sewv.fcp.mixins.json"
+
+# NeoForge port branch: Komodo, Tripod Invasion, GemRender, Berezka and Coltan are dormant here.
+# See dormantSources in build.gradle.
 
 [[dependencies.${mod_id}]]
     modId="neoforge"
@@ -125,3 +136,36 @@ config="tacz_sewv.perf.mixins.json"
     versionRange="[26.6.0,)"
     ordering="AFTER"
     side="CLIENT"
+
+# Soft compat: Simple Voice Chat, handheld radio voice nets.
+[[dependencies.${mod_id}]]
+    modId="voicechat"
+    type="optional"
+    versionRange="[1.21.1-2.6.27,)"
+    ordering="NONE"
+    side="BOTH"
+
+# Soft compat: Limitless Vehicles. Crews drive and gun its wheeled, tracked, boat and rotor hulls
+# (compat/lv). Everything LV-typed sits behind LvCompat; no mixins into LV.
+[[dependencies.${mod_id}]]
+    modId="ywzj_vehicle"
+    type="optional"
+    versionRange="[0.6.2,)"
+    ordering="AFTER"
+    side="BOTH"
+
+# Soft compat: Frontline Combat Pack, 2.0 and later only (2.0 hulls are Java classes).
+[[dependencies.${mod_id}]]
+    modId="fcp"
+    type="optional"
+    versionRange="[2.0.0,)"
+    ordering="NONE"
+    side="BOTH"
+
+# Soft compat: Corpse. RU/US/PMC unit deaths spawn lootable corpses when present.
+[[dependencies.${mod_id}]]
+    modId="corpse"
+    type="optional"
+    versionRange="[1.21.1-1.1.22,)"
+    ordering="NONE"
+    side="BOTH"

@@ -96,7 +96,7 @@ final class LvSpawner {
         for (int i = 0; i < seats; i++) {
             AbstractUnit crew = TankSpawner.createCrewUnit(level, faction, ownerId);
             crew.setPos(hull.getX(), hull.getY(), hull.getZ());
-            crew.finalizeSpawn(level, level.getCurrentDifficultyAt(hull.blockPosition()), MobSpawnType.EVENT, null, null);
+            crew.finalizeSpawn(level, level.getCurrentDifficultyAt(hull.blockPosition()), MobSpawnType.EVENT, null);
             level.addFreshEntity(crew);
             if (!crew.startRiding(hull)) {
                 crew.discard();

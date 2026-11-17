@@ -10,6 +10,7 @@ scripts/
 tools/
 .mcp.json
 .pt_work/
+referencecompat/
 
 # IDE
 .idea/

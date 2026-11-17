@@ -11,6 +11,7 @@
     "MixinBlu43FriendlyFilter",
     "MixinEddFriendlyFilter",
     "MixinClaymoreFriendlyFilter",
+    "MixinTowerFriendlyUnits",
     "MixinForgeConfigSpec",
     "MixinUnitFactionTags",
     "MixinUnitVoicelines",

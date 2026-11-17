@@ -677,6 +677,14 @@ public final class VehicleTargeting {
      */
     public static boolean isFriendlyPlayer(AbstractUnit unit, Player player) {
         if (player.isCreative() || player.isSpectator()) return true;
+        return isOnPlayersSide(unit, player);
+    }
+
+    /**
+     * {@link #isFriendlyPlayer} on relations alone, without the creative/spectator shield. For
+     * judging a unit from the player's side, where the player's game mode says nothing about it.
+     */
+    public static boolean isOnPlayersSide(AbstractUnit unit, Player player) {
         if (unit instanceof PmcUnitEntity pmc) {
             UUID owner = pmc.getOwnerUUID();
             if (owner == null) return true;
@@ -684,7 +692,7 @@ public final class VehicleTargeting {
             DiplomacyEval dipl = diplomacyEval(pmc, player);
             return dipl.consulted && dipl.relation != DiplomacyData.Relation.ENEMY;
         }
-        return isNonHostile(unit, player);
+        return isNonHostileIgnoringGameMode(unit, player);
     }
 
     /**

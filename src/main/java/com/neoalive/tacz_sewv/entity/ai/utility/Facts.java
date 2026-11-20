@@ -485,7 +485,7 @@ public final class Facts {
 
         this.screened = this.target != null && SmokeVision.lineBlockedBySmoke(
                 unit.level(), hull, hull.position(), this.target.position(),
-                EasyMode.smokeBlockRadius());
+                EasyMode.smokeBlockRadius(hull));
 
         countForces(unit, hull);
     }

@@ -793,7 +793,7 @@ public final class SewvConfig {
                         "How many degrees off-target an AI crew may still pull the trigger.",
                         "Wider = more missed shots but less sitting silent. Existing configs keep their old value until you edit them.")
                 .defineInRange("aiFireAssistConeDeg", 35.0, 4.0, 90.0);
-        SMOKE_BLOCK_RADIUS = builder.comment("AI will not shoot if smoke is this close (blocks).")
+        SMOKE_BLOCK_RADIUS = builder.comment("Settled reach of a smoke cloud for AI line of fire (blocks). A fresh cloud grows to it over a few seconds.")
                 .defineInRange("smokeBlockRadius", 6.0, 1.0, 16.0);
         FRIENDLY_FIRE_VEHICLE_RADIUS = builder.comment(
                         "AI vehicle weapons (including TOWs) hold fire when the target is this close (blocks)",
@@ -1943,7 +1943,7 @@ public final class SewvConfig {
                 .define("easySoftSupportCalls", true);
         EASY_TIGHTER_ENGAGE_RINGS = builder.comment("Easy Mode: tacticalScale 1.0 (closer engage rings / command distances).")
                 .define("easyTighterEngageRings", true);
-        EASY_KEEP_LOS_GATES = builder.comment("Easy Mode: force vehicle LoS locks and a larger smoke block radius.")
+        EASY_KEEP_LOS_GATES = builder.comment("Easy Mode: force vehicle LoS locks and a larger smoke block radius for hostile shooters.")
                 .define("easyKeepLosGates", true);
         EASY_PLAYER_DAMAGE_SCALE_ENABLED = builder.comment(
                         "Easy Mode: scale hostile vehicle/unit/mortar damage dealt to the player.")

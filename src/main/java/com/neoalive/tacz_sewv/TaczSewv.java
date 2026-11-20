@@ -94,6 +94,7 @@ public class TaczSewv {
         MinecraftForge.EVENT_BUS.register(ChunkTicketSweep.class);
         MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.util.ChunkTicketCoverage.class);
         MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.entity.ai.core.ObbHitIndex.class);
+        MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.util.SmokeVision.class);
         MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.entity.ai.support.UnitLod.class);
         if (com.neoalive.tacz_sewv.compat.TripodCompat.present()) {
             MinecraftForge.EVENT_BUS.register(com.neoalive.tacz_sewv.compat.TripodCompat.Events.class);

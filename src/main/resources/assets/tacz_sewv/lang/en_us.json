@@ -2306,7 +2306,7 @@
   "config.tacz_sewv.minefieldTimeoutTicks": "Minefield Timeout Ticks",
   "config.tacz_sewv.minefieldTimeoutTicks.tooltip": "Time budget (ticks) for a whole Deploy Minefield order. Mines not laid by then stay in the engineers' pockets.",
   "config.tacz_sewv.smokeBlockRadius": "Smoke Block Radius",
-  "config.tacz_sewv.smokeBlockRadius.tooltip": "AI will not shoot if smoke is this close (blocks).",
+  "config.tacz_sewv.smokeBlockRadius.tooltip": "How far a settled smoke cloud blocks AI line of fire (blocks). A fresh cloud grows to it over a few seconds.",
   "config.tacz_sewv.stalemateBreakerEnabled": "Stalemate Breaker Enabled",
   "config.tacz_sewv.stalemateBreakerEnabled.tooltip": "If a crew cannot hit its target for a while, move to a better angle.",
   "config.tacz_sewv.stalemateSilenceTicks": "Stalemate Silence Ticks",

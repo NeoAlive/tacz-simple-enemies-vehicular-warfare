@@ -475,6 +475,10 @@ final class ConfigRegistryBootstrap {
                 v -> SewvConfig.HEAVY_MOB_NAMESPACES.set(v));
         b.bool(ConfigScope.SERVER, "crew_ai", "scoredWeaponSelection",
                 SewvConfig.SCORED_WEAPON_SELECTION, SewvConfig.SCORED_WEAPON_SELECTION::set);
+        b.doubleRange(ConfigScope.SERVER, "crew_ai", "targetStackMaxFactor", 1.0, 16.0,
+                SewvConfig.TARGET_STACK_MAX_FACTOR, SewvConfig.TARGET_STACK_MAX_FACTOR::set);
+        b.intRange(ConfigScope.SERVER, "crew_ai", "stackRecheckTicks", 5, 200,
+                SewvConfig.STACK_RECHECK_TICKS, SewvConfig.STACK_RECHECK_TICKS::set);
         b.doubleRange(ConfigScope.SERVER, "crew_ai", "aiFireHesitationJitter", 0.0, 1.0,
                 SewvConfig.AI_FIRE_HESITATION_JITTER, SewvConfig.AI_FIRE_HESITATION_JITTER::set);
         b.intRange(ConfigScope.SERVER, "crew_ai", "aiLosCacheTicks", 1, 40,

@@ -168,7 +168,9 @@ public class NetworkHandler {
     // 117: PacketSetVoice (C->S) + crew voice in PacketSyncPmcIdentity.
     // 118: PacketApplyPmcIdentity carries the whole terminal (PacketSetVoice and PacketSetNameCategory
     //      removed), PacketSyncPmcIdentity the logo link, PacketFetchWebLogo (C->S) + PacketWebLogo (S->C).
-    private static final String PROTOCOL_VERSION = "120";
+    // 121: PacketOpenTargetStack / PacketUpdateTargetStack replace the target priority allow list
+    //      packets in the same slots: per faction an ordered priority list and an excluded list.
+    private static final String PROTOCOL_VERSION = "121";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),
@@ -440,17 +442,17 @@ public class NetworkHandler {
         );
         CHANNEL.registerMessage(
                 nextId(),
-                PacketOpenTargetPriority.class,
-                PacketOpenTargetPriority::encode,
-                PacketOpenTargetPriority::new,
-                PacketOpenTargetPriority::handle
+                PacketOpenTargetStack.class,
+                PacketOpenTargetStack::encode,
+                PacketOpenTargetStack::new,
+                PacketOpenTargetStack::handle
         );
         CHANNEL.registerMessage(
                 nextId(),
-                PacketUpdateTargetPriority.class,
-                PacketUpdateTargetPriority::encode,
-                PacketUpdateTargetPriority::new,
-                PacketUpdateTargetPriority::handle
+                PacketUpdateTargetStack.class,
+                PacketUpdateTargetStack::encode,
+                PacketUpdateTargetStack::new,
+                PacketUpdateTargetStack::handle
         );
         CHANNEL.registerMessage(
                 nextId(),

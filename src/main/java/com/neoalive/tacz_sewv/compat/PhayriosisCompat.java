@@ -18,7 +18,7 @@ import net.minecraftforge.registries.ForgeRegistries;
  * {@code phayriosis_two} namespace.
  *
  * <p>Resolving that namespace is a {@code ForgeRegistries.ENTITY_TYPES.getKey(type)} registry
- * lookup, and {@link com.neoalive.tacz_sewv.entity.ai.goal.SoftEnemyTargetPriorityGoal} calls
+ * lookup, and {@link com.neoalive.tacz_sewv.entity.ai.goal.StackTargetGoal} calls
  * this once per candidate on every scan — so the per-{@code EntityType} answer is cached after
  * the first resolve instead of being re-looked-up per entity per scan. There are only ever as
  * many distinct entity types in a world as are registered, so the cache is small and never

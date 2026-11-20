@@ -857,6 +857,7 @@ public class DriveHelicopterGoal extends Goal {
         if (inPass && c != null && c != current && c.isAlive() && !c.isRemoved()
                 && c.distanceToSqr(this.vehicle) < COMMIT_RANGE * COMMIT_RANGE) {
             this.unit.setTarget(c);
+            com.neoalive.tacz_sewv.entity.ai.targeting.AssignedTargets.stamp(this.unit);
             if (this.unit.getTarget() == c) return c;
         }
         this.committed = current;

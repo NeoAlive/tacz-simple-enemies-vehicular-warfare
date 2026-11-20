@@ -2,7 +2,6 @@ package com.neoalive.tacz_sewv.entity.ai.goal;
 
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
-import com.neoalive.tacz_sewv.compat.SoftEnemyTargeting;
 import com.neoalive.tacz_sewv.compat.TripodCompat;
 import com.neoalive.tacz_sewv.compat.lv.LvCompat;
 import com.neoalive.tacz_sewv.compat.lv.LvGoals;
@@ -95,15 +94,12 @@ public final class VehicleAiGoals {
         // priority steal a held flag — so nothing at 2 can take a crew off a zombie. See
         // the class doc. Still loses to a priority-0 radio fire mission.
         unit.targetSelector.addGoal(1, new CrewTargetPriorityGoal(unit));
-        // Same priority-1 override, for the same reason, softcompat scope: nudges a unit onto
-        // a Spore / Phayriosis Two mob over a same-priority vanilla Monster catch-all. No-ops
-        // (never even scans) with neither mod installed — see SoftEnemyTargeting.anyPresent().
-        unit.targetSelector.addGoal(1, new SoftEnemyTargetPriorityGoal(unit));
-        // Tripod Invasion: a tripod is the top target for everyone (priority 0, above retaliation),
-        // and RU/US on foot keep the standoff ring (priority 0 MOVE, above every priority-1 walk).
-        // Not added at all without the mod — see TripodCompat.
+        // The faction's priority stack for a unit on foot, at priority 1 over SEM's nearest-first
+        // scans. Crews are ranked inside VehicleTargetScanGoal instead. See StackTargetGoal.
+        unit.targetSelector.addGoal(1, new StackTargetGoal(unit));
+        // Tripod Invasion: RU/US on foot keep the standoff ring (priority 0 MOVE, above every
+        // priority-1 walk). The tripod's place in the target order is the stack's top row.
         if (TripodCompat.present()) {
-            unit.targetSelector.addGoal(0, new SoftEnemyTargetPriorityGoal(unit, SoftEnemyTargeting.Tier.APEX));
             unit.goalSelector.addGoal(0, new TripodStandoffGoal(unit));
         }
         // Limitless Vehicles hulls: their own drive / gunner / board goals, each gated on the

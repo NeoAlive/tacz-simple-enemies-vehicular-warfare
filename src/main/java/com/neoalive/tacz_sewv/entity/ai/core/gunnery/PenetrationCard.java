@@ -41,8 +41,27 @@ public final class PenetrationCard {
 
     private PenetrationCard() {}
 
+    private static final Map<EntityType<?>, Double> REFERENCE = new ConcurrentHashMap<>();
+
     public static void clear() {
         CACHE.clear();
+        REFERENCE.clear();
+    }
+
+    /**
+     * What a rifle round keeps against {@code target}'s damage rules, as a fraction of raw: the
+     * on-foot observer's view of a hull. Cached per hull type; NaN when unreadable.
+     */
+    public static double referenceFraction(VehicleEntity target) {
+        return REFERENCE.computeIfAbsent(target.getType(), t -> {
+            try {
+                DamageModifier modifier = target.getDamageModifier();
+                DamageSource gunfire = ModDamageTypes.causeGunFireDamage(target.level().registryAccess(), null, null);
+                return Math.max(0, modifier.compute(target, gunfire, (float) REFERENCE_ROUND)) / REFERENCE_ROUND;
+            } catch (Throwable e) {
+                return Double.NaN;
+            }
+        });
     }
 
     @Nullable

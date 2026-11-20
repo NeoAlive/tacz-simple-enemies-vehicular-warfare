@@ -22,6 +22,8 @@ import com.neoalive.tacz_sewv.entity.ai.sensor.ContactBoard;
 import com.neoalive.tacz_sewv.entity.ai.support.MortarSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.TowSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.VehicleMortarSupport;
+import com.neoalive.tacz_sewv.entity.ai.targeting.TargetRanker;
+import com.neoalive.tacz_sewv.entity.ai.targeting.TargetStack;
 import com.neoalive.tacz_sewv.item.PlaneRole;
 
 /**
@@ -65,6 +67,8 @@ public class CrewTargetPriorityGoal extends Goal {
 
     private final AbstractUnit unit;
     private LivingEntity pendingTarget;
+    /** The target this goal set; stop() clears only that one. */
+    private LivingEntity chosen;
     private int scanCooldown;
 
     public CrewTargetPriorityGoal(AbstractUnit unit) {
@@ -81,13 +85,12 @@ public class CrewTargetPriorityGoal extends Goal {
         if (this.unit.getVehicle() instanceof VehicleEntity v && HullFacts.isAntiAirHull(v)) {
             return Doctrine.AIR;
         }
-        // Any other mounted SBW crew (tank, IFV, heli, ship, …): armor outranks soft mid-fight.
-        if (this.unit.getVehicle() instanceof VehicleEntity) return Doctrine.ARMOR;
+        // Any other crew is ranked by its faction's priority stack, in VehicleTargetScanGoal.
         return null;
     }
 
     private enum Doctrine {
-        /** TOW / general vehicle crew: prefer hull riders over soft contacts. */
+        /** TOW: only hull riders, a launcher round on an infantryman is wasted. */
         ARMOR,
         /** Mortar: an area weapon, and troops are what it is for. */
         TROOPS,
@@ -121,6 +124,7 @@ public class CrewTargetPriorityGoal extends Goal {
     @Override
     public void start() {
         this.unit.setTarget(this.pendingTarget);
+        this.chosen = this.unit.getTarget();
         this.pendingTarget = null;
     }
 
@@ -134,7 +138,7 @@ public class CrewTargetPriorityGoal extends Goal {
         if (target == null || !target.isAlive()) return false;
         // The crew moved on to something else (retaliation, an order) — let it go rather
         // than drag it back; this goal's job is the pick, not custody.
-        if (!wants(doctrine, target)) return false;
+        if (!wants(doctrine, target) || target != this.chosen) return false;
 
         // A board-held target of a mounted crew is not dropped for distance (it was admitted out to
         // wideScanRadius); it leaves with its contact.
@@ -147,9 +151,10 @@ public class CrewTargetPriorityGoal extends Goal {
 
     @Override
     public void stop() {
-        // Vanilla TargetGoal contract: releasing TARGET clears the target, so whichever
-        // goal picks it up next (retaliation, the ladder's own scans) starts clean.
-        this.unit.setTarget(null);
+        // Releasing TARGET clears the target this goal set, so whichever goal picks up next starts
+        // clean. A target someone else set since (an order, a fire mission) is left alone.
+        if (this.chosen != null && this.unit.getTarget() == this.chosen) this.unit.setTarget(null);
+        this.chosen = null;
         this.pendingTarget = null;
     }
 
@@ -185,23 +190,19 @@ public class CrewTargetPriorityGoal extends Goal {
         candidates.removeIf(e -> e instanceof Player p && EasyModePlayerEvents.refusesPlayer(this.unit, p));
         EasyModePlayerEvents.preferNonPlayers(this.unit, candidates);
 
-        LivingEntity best = null;
-        double bestDistSq = Double.MAX_VALUE;
-        for (LivingEntity candidate : candidates) {
-            double distSq = this.unit.distanceToSqr(candidate);
-            if (distSq >= bestDistSq) continue;
-            // LOS last and only on the running best: the raycast is the expensive part and
-            // most candidates never become the best.
+        // The role filter decides what this weapon is for; the faction's priority stack orders it.
+        // LOS runs in rank order only until one passes.
+        for (TargetRanker.Candidate<LivingEntity> c : TargetStack.rank(this.unit, candidates, this.unit::distanceTo)) {
+            LivingEntity candidate = c.ref;
             if (EasyMode.vehicleTargetRequireLos()
                     && !(EasyMode.wideScanAllowed(this.unit)
                             && ContactBoard.waivesLos(this.unit, candidate, minSource(doctrine)))
                     && !this.unit.getSensing().hasLineOfSight(candidate)) {
                 continue;
             }
-            best = candidate;
-            bestDistSq = distSq;
+            return candidate;
         }
-        return best;
+        return null;
     }
 
     /** How far board contacts are admitted: the wide radius when wide scan is on, else the scan radius. */

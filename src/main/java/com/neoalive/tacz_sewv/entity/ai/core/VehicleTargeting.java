@@ -57,7 +57,6 @@ import com.neoalive.tacz_sewv.invasion.CaptureOrderSupport;
 import com.neoalive.tacz_sewv.invasion.InvasionHostility;
 import com.neoalive.tacz_sewv.invasion.InvasionTags;
 import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
-import com.neoalive.tacz_sewv.util.WorldTargetPriority;
 
 /**
  * Shared "where should this crew go?" resolution for any mounted-vehicle drive
@@ -722,13 +721,13 @@ public final class VehicleTargeting {
         if (faction == null) return false;
         if (e instanceof IronGolem && faction != TankFaction.PMC) return true;
         if (e instanceof AbstractUnit) return true;
-        return !WorldTargetPriority.get(unit.level()).isExcluded(faction, e.getType().getCategory().getName());
+        return !com.neoalive.tacz_sewv.entity.ai.targeting.TargetStack.of(unit.level(), faction).excludes(e);
     }
 
     /**
      * Whether {@code unit} may proactively acquire {@code e} as a target — the shared gate for
      * every priority-1 auto-target goal ({@link CrewTargetPriorityGoal},
-     * {@link com.neoalive.tacz_sewv.entity.ai.goal.SoftEnemyTargetPriorityGoal}). Mirrors
+     * {@link com.neoalive.tacz_sewv.entity.ai.goal.StackTargetGoal}). Mirrors
      * {@link VehicleTargetScanGoal}'s faction doctrine, which is SEM's own: PMC crews fight
      * RU/US and hostile mobs but never players or other PMC; RU/US fight players, the opposing
      * faction and hostile mobs. Extracted here (was inline in {@code CrewTargetPriorityGoal})
@@ -766,7 +765,7 @@ public final class VehicleTargeting {
     }
 
     @Nullable
-    private static TankFaction factionOf(AbstractUnit unit) {
+    public static TankFaction factionOf(AbstractUnit unit) {
         if (unit instanceof RUunitEntity) return TankFaction.RU;
         if (unit instanceof USunitEntity) return TankFaction.US;
         if (unit instanceof PmcUnitEntity) return TankFaction.PMC;

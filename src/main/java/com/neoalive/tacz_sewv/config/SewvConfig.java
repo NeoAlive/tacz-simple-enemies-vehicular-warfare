@@ -102,6 +102,8 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> NVG_ELIGIBLE_ITEMS;
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> HEAVY_MOB_NAMESPACES;
     public static final ForgeConfigSpec.BooleanValue SCORED_WEAPON_SELECTION;
+    public static final ForgeConfigSpec.DoubleValue TARGET_STACK_MAX_FACTOR;
+    public static final ForgeConfigSpec.IntValue STACK_RECHECK_TICKS;
     public static final ForgeConfigSpec.DoubleValue NVG_SPAWN_CHANCE;
     public static final ForgeConfigSpec.DoubleValue DARK_ACCURACY_FRACTION;
     public static final ForgeConfigSpec.DoubleValue NVG_ACCURACY_FRACTION;
@@ -770,6 +772,14 @@ public final class SewvConfig {
                         "penetrates for armour, and the loaded round stays while it suits the target.",
                         "Off = the old fixed tables.")
                 .define("scoredWeaponSelection", true);
+        TARGET_STACK_MAX_FACTOR = builder.comment(
+                        "How much the target priority stack outweighs distance. A target in the top row counts at",
+                        "its real distance, an unlisted one at this many times it, rows between in steps.",
+                        "1 = nearest always wins; higher = closer to strict order.")
+                .defineInRange("targetStackMaxFactor", 4.0, 1.0, 16.0);
+        STACK_RECHECK_TICKS = builder.comment(
+                        "How often (game ticks) a unit on foot re-checks its target against the priority stack.")
+                .defineInRange("stackRecheckTicks", 20, 5, 200);
         AI_FIRE_HESITATION_JITTER = builder.comment(
                         "Per-crew spread on top of aiFireHesitationTicks (0.5 = each crew waits up to 50% longer),",
                         "fixed per crew so a group does not fire in unison.")

@@ -218,6 +218,13 @@ public class TaczSewv {
         // equally unsafe to touch from an AI tick before it has been baked.
         Doctrine.refreshPresets();
         WorldTargetPriority.refreshCatalog();
+        com.neoalive.tacz_sewv.entity.ai.targeting.TargetStack.invalidate();
+    }
+
+    /** Tags are rebuilt on a datapack reload; the stack's per-type rank cache reads them. */
+    @SubscribeEvent
+    public void onTagsUpdated(net.minecraftforge.event.TagsUpdatedEvent event) {
+        com.neoalive.tacz_sewv.entity.ai.targeting.TargetStack.invalidate();
     }
 
     /**

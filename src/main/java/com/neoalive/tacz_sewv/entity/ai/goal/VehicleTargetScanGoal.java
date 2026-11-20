@@ -1,6 +1,5 @@
 package com.neoalive.tacz_sewv.entity.ai.goal;
 
-import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.List;
 
@@ -21,7 +20,6 @@ import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.EasyModePlayerEvents;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
-import com.neoalive.tacz_sewv.entity.ai.command.CrewAssignment;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleWeapons;
@@ -34,6 +32,9 @@ import com.neoalive.tacz_sewv.entity.ai.sensor.VehicleScanBand;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.TowSupport;
 import com.neoalive.tacz_sewv.entity.ai.suppression.HullPressure;
+import com.neoalive.tacz_sewv.entity.ai.targeting.AssignedTargets;
+import com.neoalive.tacz_sewv.entity.ai.targeting.TargetRanker;
+import com.neoalive.tacz_sewv.entity.ai.targeting.TargetStack;
 
 /**
  * Target acquisition for mounted crews: a flat cylinder scan around the VEHICLE
@@ -53,12 +54,6 @@ public class VehicleTargetScanGoal extends Goal {
     // Acquired targets are only dropped past 1.5x the scan bounds, so a target
     // maneuvering along the cylinder's edge doesn't flicker in and out of lock.
     private static final double DROP_MULT = 1.5;
-
-    /**
-     * Soft focus-fire: treat the commander's priority target as this fraction of its real
-     * distance so it sorts earlier — never a hard setTarget. A much closer other contact still wins.
-     */
-    private static final double FOCUS_DIST_SCALE = 0.35;
 
     // A lock whose target breaks line of sight is held through a short grace period
     // (aim stays on the corner it vanished behind) and then dropped, so the crew
@@ -87,6 +82,8 @@ public class VehicleTargetScanGoal extends Goal {
     private int blindTicks;
     /** Game time before this crew next re-reports a target it is watching to the contact board. */
     private long nextPublishTime;
+    /** Game time of the next priority-stack re-rank while holding a lock. */
+    private long nextRerank = Long.MIN_VALUE;
 
     public VehicleTargetScanGoal(AbstractUnit unit) {
         this.unit = unit;
@@ -243,6 +240,7 @@ if (EasyMode.vehicleTargetRequireLos()
         LivingEntity shooter = retaliationTarget(this.vehicle);
         if (shooter == null) {
             switchOffBlindLock(this.vehicle);
+            rerank(this.vehicle);
             return;
         }
         SewvDiag.scan("VehicleTargetScanGoal.retaliate unit={}#{} from={}#{} to={}#{}",
@@ -252,6 +250,68 @@ if (EasyMode.vehicleTargetRequireLos()
                 shooter.getClass().getSimpleName(), shooter.getId());
         this.unit.setTarget(shooter);
         this.ticksWithoutLos = 0;
+    }
+
+    /**
+     * The priority stack, applied while a lock is held. The driver re-ranks its cylinder; a gunner
+     * re-copies the driver's lock when it can see it. Never moves off an assigned target or a
+     * recent attacker, and only switches by {@link TargetRanker#shouldSwitch}, to a candidate in
+     * plain view.
+     */
+    private void rerank(VehicleEntity v) {
+        long now = this.unit.level().getGameTime();
+        if (now < this.nextRerank) return;
+        this.nextRerank = now + EasyMode.scanIntervalTicks(this.unit, SewvConfig.VEHICLE_TARGET_SCAN_INTERVAL_TICKS.get());
+        LivingEntity current = this.unit.getTarget();
+        if (current == null || !current.isAlive() || AssignedTargets.held(this.unit)) return;
+        if (DriveHelicopterGoal.inFiringRun(v)) return;
+        boolean needLos = EasyMode.vehicleTargetRequireLos();
+        if (v.getFirstPassenger() != this.unit) {
+            if (v.getFirstPassenger() instanceof AbstractUnit driver) {
+                LivingEntity lock = driver.getTarget();
+                if (lock != null && lock != current && lock.isAlive() && isValidTarget(v, lock)
+                        && (!needLos || this.unit.getSensing().hasLineOfSight(lock))) {
+                    switchTo(current, lock, "recopy");
+                }
+            }
+            return;
+        }
+        List<LivingEntity> candidates = collectCylinderCandidates(v, false);
+        EasyModePlayerEvents.preferNonPlayers(this.unit, candidates);
+        if (!candidates.contains(current)) candidates.add(current);
+        List<TargetRanker.Candidate<LivingEntity>> ranked = rank(v, candidates);
+        TargetRanker.Candidate<LivingEntity> cur = null;
+        for (TargetRanker.Candidate<LivingEntity> c : ranked) {
+            if (c.ref == current) cur = c;
+        }
+        if (cur == null) return;
+        for (TargetRanker.Candidate<LivingEntity> c : ranked) {
+            if (c.ref == current || !TargetRanker.shouldSwitch(c, cur)) return;
+            if (!needLos || this.unit.getSensing().hasLineOfSight(c.ref)) {
+                switchTo(current, c.ref, "rerank");
+                return;
+            }
+        }
+    }
+
+    private void switchTo(LivingEntity from, LivingEntity to, String why) {
+        SewvDiag.scan("VehicleTargetScanGoal.{} unit={}#{} from={}#{} to={}#{}", why,
+                this.unit.getClass().getSimpleName(), this.unit.getId(),
+                from.getClass().getSimpleName(), from.getId(), to.getClass().getSimpleName(), to.getId());
+        this.unit.setTarget(to);
+        this.ticksWithoutLos = 0;
+        this.blindTicks = 0;
+    }
+
+    /** Candidates in priority-stack order for this crew, by horizontal distance. */
+    private List<TargetRanker.Candidate<LivingEntity>> rank(VehicleEntity v, List<LivingEntity> candidates) {
+        return TargetStack.rank(this.unit, candidates, e -> Math.sqrt(horizontalDistSq(v, e)));
+    }
+
+    private List<LivingEntity> ordered(VehicleEntity v, List<LivingEntity> candidates) {
+        List<LivingEntity> out = new java.util.ArrayList<>(candidates.size());
+        for (TargetRanker.Candidate<LivingEntity> c : rank(v, candidates)) out.add(c.ref);
+        return out;
     }
 
     /** A unit, a player, or anything riding a hull: what a crew may hold a lock on without seeing it. */
@@ -321,10 +381,9 @@ if (EasyMode.vehicleTargetRequireLos()
                 this.unit.getClass().getSimpleName(), this.unit.getId(),
                 candidates.size(),
                 candidates.stream().map(e -> e.getClass().getSimpleName() + "#" + e.getId()).toList());
-        // Nearest-first (with a soft bias toward the commander's focus id), then the first
-        // candidate the crew can actually see (every candidate, when LOS is off). Raycasts only
-        // run down the list until one passes.
-        candidates.sort(Comparator.comparingDouble(e -> focusAdjustedDistSq(v, e)));
+        // Priority-stack order (hurtable first, rank-weighted distance, focus fire inside its row),
+        // then the first candidate the crew can actually see. Raycasts only run until one passes.
+        candidates = ordered(v, candidates);
         // Easy Mode soft priority: if any non-player combatant is in range, prefer them over
         // the player unless this crew was just hurt by that player (retaliation).
         EasyModePlayerEvents.preferNonPlayers(this.unit, candidates);
@@ -418,7 +477,7 @@ boolean needLos = EasyMode.vehicleTargetRequireLos()
 boolean inRun = DriveHelicopterGoal.inFiringRun(v);
             List<LivingEntity> candidates = probe.collectCylinderCandidates(v, true);
             if (candidates.isEmpty()) return null;
-            candidates.sort(Comparator.comparingDouble(e -> probe.focusAdjustedDistSq(v, e)));
+            candidates = probe.ordered(v, candidates);
             boolean needLos = EasyMode.vehicleTargetRequireLos() && !inRun;
             for (LivingEntity candidate : candidates) {
                 if (!needLos || unit.getSensing().hasLineOfSight(candidate)) {
@@ -488,16 +547,6 @@ boolean inRun = DriveHelicopterGoal.inFiringRun(v);
         } catch (Throwable unbaked) {
             return scanRadius;
         }
-    }
-
-    /** Distance used for ranking — shrinks the commander's priority target without locking it. */
-    private double focusAdjustedDistSq(VehicleEntity v, LivingEntity e) {
-        double d = horizontalDistSq(v, e);
-        Integer focus = CrewAssignment.priorityTargetId(this.unit.getId());
-        if (focus != null && e.getId() == focus) {
-            return d * FOCUS_DIST_SCALE;
-        }
-        return d;
     }
 
     // Mirrors SEM's faction doctrine (from its vanilla target goals): RU/US fight

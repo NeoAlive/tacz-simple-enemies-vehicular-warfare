@@ -349,6 +349,7 @@ public final class DroneSupport {
                         && VehicleTargeting.mayAssignTarget(u, target)
                         && u.position().distanceToSqr(from) <= radiusSq)) {
             candidate.setTarget(target);
+            com.neoalive.tacz_sewv.entity.ai.targeting.AssignedTargets.stamp(candidate);
         }
     }
 }

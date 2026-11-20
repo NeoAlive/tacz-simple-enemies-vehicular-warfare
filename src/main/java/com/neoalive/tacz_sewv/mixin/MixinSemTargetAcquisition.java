@@ -31,6 +31,18 @@ public abstract class MixinSemTargetAcquisition<T extends LivingEntity> extends 
         super(mob, targetType, mustSee);
     }
 
+    /**
+     * A unit crewing an SBW hull is ranked by VehicleTargetScanGoal (the cylinder scan and the
+     * priority stack). SEM's nearest-first scan would otherwise lock it first and hold the flag at
+     * the same priority, so the stack could never re-rank it.
+     */
+    @Inject(method = "canUse", at = @At("HEAD"), cancellable = true, require = 0)
+    private void tacz_sewv$crewsUseTheStack(CallbackInfoReturnable<Boolean> cir) {
+        if (this.mob.getVehicle() instanceof com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity) {
+            cir.setReturnValue(false);
+        }
+    }
+
     @Inject(method = "canUse", at = @At("RETURN"), cancellable = true, require = 0)
     private void tacz_sewv$noticeOverTime(CallbackInfoReturnable<Boolean> cir) {
         if (!cir.getReturnValueZ() || !(this.mob instanceof AbstractUnit unit) || this.target == null) return;

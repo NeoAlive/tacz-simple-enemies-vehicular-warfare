@@ -146,6 +146,13 @@ public abstract class TerrainSensor {
         return this.obstacleCache;
     }
 
+    /** Own ground plan for peer clearance: the collision box, or a round one for a profiled hull. */
+    protected final com.neoalive.tacz_sewv.entity.ai.navigation.VehicleOrca.Footprint selfFootprint() {
+        return this.profile != null
+                ? com.neoalive.tacz_sewv.entity.ai.navigation.VehicleOrca.Footprint.round(halfWidth())
+                : com.neoalive.tacz_sewv.entity.ai.navigation.VehiclePeerSpacing.footprintOf(this.vehicle);
+    }
+
     protected final double halfWidth() {
         return (this.profile != null ? this.profile.width() : this.vehicle.getBbWidth()) / 2.0;
     }

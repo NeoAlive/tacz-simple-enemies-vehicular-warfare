@@ -1679,6 +1679,8 @@
   "config.tacz_sewv.aiFireHesitationTicks.tooltip": "Pause avant qu'un équipage de char, de bateau ou d'emplacement ne tire sur une cible nouvellement acquise (20 = 1 seconde). Les hélicoptères, les avions et l'artillerie en sont exemptés. 0 désactive.",
   "config.tacz_sewv.heavyMobNamespaces": "Mods de mobs lourds",
   "config.tacz_sewv.heavyMobNamespaces.tooltip": "Mods dont l'équipage ne laisse jamais les mobs à sa mitrailleuse (identifiants de mod, un par ligne). Le canon principal ouvre le feu sur eux. Les autres mobs ne vont à la mitrailleuse que si leur santé derrière l'armure est faible.",
+  "config.tacz_sewv.scoredWeaponSelection": "Ordre de tir",
+  "config.tacz_sewv.scoredWeaponSelection.tooltip": "Les équipages utilisent l'arme prévue pour la cible : la coaxiale contre l'infanterie, un obus perforant contre les blindés, l'explosif contre les blindés légers et les créatures robustes. L'obus chargé reste tant qu'il convient à la cible. Désactivé rétablit les anciennes tables fixes.",
   "config.tacz_sewv.aiFireHesitationJitter": "Dispersion de l'hésitation de tir de l'IA",
   "config.tacz_sewv.aiFireHesitationJitter.tooltip": "Hésitation supplémentaire par équipage, en fraction de la base (0.5 = jusqu'à 50 % de plus). Fixe par équipage pour qu'un groupe ne tire pas à l'unisson.",
   "config.tacz_sewv.airportAlignmentDistance": "Distance d'alignement de l'aérodrome",

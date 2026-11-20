@@ -237,34 +237,16 @@ public final class VehicleWeapons {
         return TargetCategory.MONSTER; // vanilla hostiles + fallback default
     }
 
-    // Ground-crew doctrine. The seat's physical slots are first mapped to roles
-    // (resolveRoleSlots), then the pick is made by role so weapon ORDER on the hull
-    // doesn't matter, and finally the cannon's ammo revolver is turned to the right
-    // shell for the target (selectCannonAmmo).
+    // Ground-crew weapon choice. The fire command (gunnery/SeatWeaponPicker) decides when it can:
+    // the weapon meant for the target class, with the loaded round kept while it suits. The VS_*
+    // tables below are its fallback (armoured LV riders, hulls nothing scores) and the whole answer
+    // when scoredWeaponSelection is off.
     //
-    // The special slot (TOW / heavy AT ordnance) outranks everything and is selected
-    // exactly while it is READY TO FIRE — loaded, off reload, not overheated —
-    // whatever the target is; the cannon covers its 6-13 s reload gaps. That is the
-    // cannon/special alternation that actually works: a fixed-timer round-robin
-    // flipped the turret between the two firing solutions every few ticks (visible
-    // pitch twitch) while the missile was rarely both selected and loaded at a fire
-    // instant. Hulls without a special slot just stay on the cannon.
+    // Every pick is bounded by the weapons the seat actually has (setWeaponIndex() doesn't
+    // bounds-check) and to slots that are real guns (see isRealWeapon).
     //
-    // Everything else is decided by what the target IS, on its BASELINE (max) health:
-    //   mounted crew    -> cannon, AP against a hull at/above ARMORED_HEALTH, HE below
-    //   mob soft by MobToughness (armour-aware, configured mods never) -> MG
-    //   anything else   -> cannon with grapeshot
-    // Range no longer enters into it — a cannon reaches as far as the crew can see.
-    //
-    // Every pick is bounded by the weapons the seat actually has — setWeaponIndex()
-    // doesn't bounds-check, and an invalid index silently disarms the seat — and to
-    // slots that are real guns (see isRealWeapon).
-    //
-    // Returns the ROLE the selected slot fills (WEAPON_CANNON / WEAPON_MG /
-    // WEAPON_SPECIAL), or UNCLASSIFIED when nothing was selected. Callers need the role
-    // and CANNOT re-derive it from getWeaponIndex(): that returns a PHYSICAL slot, and
-    // the whole point of this class is that physical order carries no meaning. Handing
-    // it back here is free — the role→slot map is already in hand.
+    // Returns the ROLE the selected slot fills, or UNCLASSIFIED when nothing was selected. Callers
+    // cannot re-derive it from getWeaponIndex(), which is a PHYSICAL slot.
     public static final class WeaponSelection {
         public final int role;
         @javax.annotation.Nullable
@@ -297,26 +279,26 @@ public final class VehicleWeapons {
 
         int chosen;
         String[] ammo = null; // null = this pick doesn't load a shell (special/MG)
-        // SPECIAL only when a shot would leave the rail now. A lofted ATGM stays
-        // canShoot-true forever while silent, and used to monopolise the seat so the
-        // cannon never got a turn (bmp deadlock).
-        if (special >= 0 && specialReady(vehicle, seatIndex, special)
+        int ammoIndex = -1; // fire command: the consumer to switch to, -1 = leave it
+        com.neoalive.tacz_sewv.entity.ai.core.gunnery.FireCommand.Pick pick = null;
+        if (com.neoalive.tacz_sewv.config.SewvConfig.SCORED_WEAPON_SELECTION.get()) {
+            pick = com.neoalive.tacz_sewv.entity.ai.core.gunnery.SeatWeaponPicker
+                    .decide(vehicle, seatIndex, target, shooter).pick();
+        }
+        if (pick != null) {
+            chosen = pick.option().round().slot();
+            if (pick.ammoChange()) ammoIndex = pick.option().round().consumerIndex();
+        } else if (special >= 0 && specialReady(vehicle, seatIndex, special)
                 && specialLinedUp(vehicle, shooter, target)) {
+            // SPECIAL only when a shot would leave the rail now. A lofted ATGM stays
+            // canShoot-true forever while silent, and used to monopolise the seat.
             chosen = special;
         } else {
             List<WeaponCandidate> candidates = target.getVehicle() instanceof VehicleEntity hull
                     ? (hull.getMaxHealth() >= ARMORED_HEALTH ? VS_ARMORED : VS_LIGHT_VEHICLE)
                     : com.neoalive.tacz_sewv.compat.TripodCompat.isTripod(target) ? VS_ARMORED
+                    : com.neoalive.tacz_sewv.compat.lv.LvCompat.isArmouredHull(target.getVehicle()) ? VS_ARMORED
                     : (MobToughness.isSoft(target) ? VS_SOFT_MOB : VS_INFANTRY);
-            // Against a hull the shell is picked by what each round does to that hull's own
-            // damage rules; the max-health doctrine above is only the fallback.
-            if (target.getVehicle() instanceof VehicleEntity hull && slot[WEAPON_CANNON] >= 0) {
-                String[] ranked = ShellRanking.rank(vehicle, seatIndex, slot[WEAPON_CANNON], hull);
-                if (ranked != null) {
-                    candidates = List.of(new WeaponCandidate(WEAPON_CANNON, ranked),
-                            new WeaponCandidate(WEAPON_MG, null));
-                }
-            }
 
             chosen = -1;
             String[] chosenAmmo = null;
@@ -330,9 +312,7 @@ public final class VehicleWeapons {
                 }
             }
             if (chosen < 0) {
-                // Every candidate on the table is dry — commit to doctrine's first choice anyway,
-                // same as before this feature existed: an empty chamber the AI can't refill is not
-                // worse than firing nothing at all.
+                // Every candidate on the table is dry: commit to doctrine's first choice anyway.
                 WeaponCandidate first = candidates.get(0);
                 chosen = slot[first.role()] >= 0 ? slot[first.role()] : fallback;
                 chosenAmmo = first.ammoPreferences();
@@ -344,10 +324,12 @@ public final class VehicleWeapons {
         // index alone rather than parking the crew on a turret-breaking slot.
         if (chosen < 0) return new WeaponSelection(UNCLASSIFIED, null);
         int previous = vehicle.getWeaponIndex(seatIndex);
-        vehicle.setWeaponIndex(seatIndex, chosen);
+        if (previous != chosen) vehicle.setWeaponIndex(seatIndex, chosen);
         String switchedAmmo = null;
-        if (ammo != null) switchedAmmo = selectCannonAmmo(vehicle, seatIndex, chosen, ammo);
+        if (ammoIndex >= 0) switchedAmmo = switchAmmo(vehicle, seatIndex, chosen, ammoIndex);
+        else if (ammo != null) switchedAmmo = selectCannonAmmo(vehicle, seatIndex, chosen, ammo);
         int role = roleOf(slot, chosen);
+        if (role == UNCLASSIFIED) role = classifySlot(vehicle, seatIndex, chosen);
         if (shooter != null) {
             if (switchedAmmo != null) CrewRadio.onAmmoSwitch(vehicle, switchedAmmo);
             else if (previous != chosen && role == WEAPON_SPECIAL) CrewRadio.onMissileSelected(vehicle);
@@ -718,11 +700,49 @@ public final class VehicleWeapons {
         return null;
     }
 
+    /** Turn {@code weaponIndex} to consumer {@code index}. Costs the reload. Returns the new ammo id. */
+    @javax.annotation.Nullable
+    private static String switchAmmo(VehicleEntity vehicle, int seatIndex, int weaponIndex, int index) {
+        try {
+            GunData gun = gunData(vehicle, seatIndex, weaponIndex);
+            if (gun == null || gun.selectedAmmoType.get() == index) return null;
+            List<AmmoConsumer> consumers = gun.get(GunProp.AMMO_CONSUMER);
+            if (consumers == null || index >= consumers.size() || consumers.get(index) == null) return null;
+            Entity supplier = vehicle.getAmmoSupplier();
+            Entity source = supplier != null ? supplier : vehicle;
+            vehicle.modifyGunData(seatIndex, weaponIndex, d -> d.changeAmmoConsumer(index, source));
+            GUN_MAP.get().invalidate();
+            return consumers.get(index).getAmmo();
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
+     * Index the doctrine's idle round on this seat's cannon while it has no target. The slot is
+     * left alone. Returns whether the ammo changed.
+     */
+    public static boolean indexIdleRound(VehicleEntity vehicle, int seatIndex, AbstractUnit unit) {
+        if (seatIndex < 0 || !com.neoalive.tacz_sewv.config.SewvConfig.SCORED_WEAPON_SELECTION.get()) return false;
+        try {
+            com.neoalive.tacz_sewv.entity.ai.core.gunnery.Round r =
+                    com.neoalive.tacz_sewv.entity.ai.core.gunnery.SeatWeaponPicker.idleRound(vehicle, seatIndex, unit);
+            return r != null && switchAmmo(vehicle, seatIndex, r.slot(), r.consumerIndex()) != null;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /** Role of one physical slot, classified the same way the role map is built. */
+    public static int slotRole(VehicleEntity vehicle, int seatIndex, int weaponIndex) {
+        return classifySlot(vehicle, seatIndex, weaponIndex);
+    }
+
     // True while the given slot could fire right now: loaded, not reloading/charging,
     // not overheated (GunData.canShoot mirrors exactly what SBW's own fire path
     // checks). The ammo probe uses the vehicle's ammo supplier like SBW does, falling
     // back to the hull itself.
-    private static boolean specialReady(VehicleEntity vehicle, int seatIndex, int weaponIndex) {
+    public static boolean specialReady(VehicleEntity vehicle, int seatIndex, int weaponIndex) {
         try {
             GunData special = gunData(vehicle, seatIndex, weaponIndex);
             if (special == null) return false;
@@ -738,7 +758,7 @@ public final class VehicleWeapons {
      * ATGM solution keeps {@link #specialReady} true forever while nothing leaves the
      * rail, and the seat never falls back to cannon.
      */
-    private static boolean specialLinedUp(VehicleEntity vehicle,
+    public static boolean specialLinedUp(VehicleEntity vehicle,
                                           @javax.annotation.Nullable AbstractUnit shooter,
                                           LivingEntity target) {
         if (shooter == null) return false;

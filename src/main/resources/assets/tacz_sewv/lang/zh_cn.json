@@ -1679,6 +1679,8 @@
   "config.tacz_sewv.aiFireHesitationTicks.tooltip": "坦克、船或阵地乘员对新获得目标开火前的停顿（20 = 1 秒）。直升机、飞机和火炮除外。0 关闭。",
   "config.tacz_sewv.heavyMobNamespaces": "重型生物模组",
   "config.tacz_sewv.heavyMobNamespaces.tooltip": "乘员从不交给机枪处理的生物所属模组（模组 ID，每行一个）。主炮会对其开火。其他生物只有在护甲后的生命值较低时才交给机枪。",
+  "config.tacz_sewv.scoredWeaponSelection": "射击口令",
+  "config.tacz_sewv.scoredWeaponSelection.tooltip": "乘员使用适合目标的武器：对步兵用同轴机枪，对装甲用穿甲弹，对轻装甲和坚韧生物用高爆弹。已装填的炮弹只要适合目标就保留。关闭则恢复旧的固定表。",
   "config.tacz_sewv.aiFireHesitationJitter": "AI 开火犹豫散布",
   "config.tacz_sewv.aiFireHesitationJitter.tooltip": "每个乘员组的额外犹豫，按基础值的比例（0.5 = 最多长 50%）。按乘员组固定，编队就不会一起开火。",
   "config.tacz_sewv.airportAlignmentDistance": "机场对准距离",

@@ -256,6 +256,9 @@ public final class TranslationTable {
             // TaCZ's own gun index is rebuilt on the same reload - drop any cached BulletFacts so
             // they don't keep answering with pre-reload numbers.
             BulletFacts.clearCache();
+            // Vehicle and gun data rebuild on the same reload.
+            com.neoalive.tacz_sewv.entity.ai.core.gunnery.SeatLoadout.clear();
+            com.neoalive.tacz_sewv.entity.ai.core.gunnery.PenetrationCard.clear();
         }
     }
 }

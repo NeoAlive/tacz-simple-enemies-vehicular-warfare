@@ -71,6 +71,9 @@ public class IdleCrewGoal extends Goal {
     public void start() {
         long now = this.unit.level().getGameTime();
         CrewRadio.onCrewTakesHull(this.vehicle);
+        // Once per idle period: index the round doctrine expects for the next fight.
+        com.neoalive.tacz_sewv.entity.ai.core.VehicleWeapons.indexIdleRound(
+                this.vehicle, this.vehicle.getSeatIndex(this.unit), this.unit);
         this.areaClearAt = CrewRadio.recentKill(this.vehicle) ? now + AREA_CLEAR_DELAY : Long.MIN_VALUE;
         this.nextSweep = now;
         int delay = SewvConfig.IDLE_VOICELINE_DELAY_TICKS.get();

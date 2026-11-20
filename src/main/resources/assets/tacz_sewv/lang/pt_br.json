@@ -1679,6 +1679,8 @@
   "config.tacz_sewv.aiFireHesitationTicks.tooltip": "Pausa antes de uma tripulação de tanque, barco ou posição atirar em um alvo novo (20 = 1 segundo). Helicópteros, aviões e artilharia ficam de fora. 0 desativa.",
   "config.tacz_sewv.heavyMobNamespaces": "Mods de mobs pesados",
   "config.tacz_sewv.heavyMobNamespaces.tooltip": "Mods cujos mobs uma tripulação nunca deixa para a metralhadora (ids de mod, um por linha). O canhão principal abre fogo contra eles. Os outros mobs só vão para a metralhadora quando a vida deles por trás da armadura é baixa.",
+  "config.tacz_sewv.scoredWeaponSelection": "Comando de tiro",
+  "config.tacz_sewv.scoredWeaponSelection.tooltip": "As tripulações usam a arma feita para o alvo: a coaxial contra infantaria, um projétil perfurante contra blindados, HE contra blindados leves e criaturas resistentes. O projétil carregado fica enquanto servir ao alvo. Desligado restaura as antigas tabelas fixas.",
   "config.tacz_sewv.aiFireHesitationJitter": "Dispersão da Hesitação de Tiro da IA",
   "config.tacz_sewv.aiFireHesitationJitter.tooltip": "Hesitação extra por tripulação, como fração da base (0.5 = até 50% mais). Fixa por tripulação para um grupo não atirar em uníssono.",
   "config.tacz_sewv.airportAlignmentDistance": "Distância de Alinhamento do Aeroporto",

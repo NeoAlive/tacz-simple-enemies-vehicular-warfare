@@ -460,7 +460,7 @@ public final class TacticalBrain {
         }
 
         CrewAssignment.Snapshot task = CrewAssignment.of(unit.getId());
-        SewvDiag.crew("{}#{} plan={} task={} temper={}({}) conf={} hp={} fire={} ammo={} allies={} enemies={} range={}"
+        SewvDiag.crew("{}#{} plan={} task={} temper={}({}) conf={} hp={} fire={} ammo={} gun={} allies={} enemies={} range={}"
                         + " | best: {} | blocked: {} | {}",
                 unit.getType().toShortString(), unit.getId(), this.plan.key,
                 task == null ? "-" : task.role() + (task.flankSide() == null ? "" : "/" + task.flankSide()),
@@ -469,6 +469,8 @@ public final class TacticalBrain {
                 String.format("%.2f", this.facts.health),
                 String.format("%.2f", this.facts.pressure),
                 this.facts.ammo + "(" + this.facts.ammoCount + ")",
+                unit.getVehicle() instanceof com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity gunHull
+                        ? com.neoalive.tacz_sewv.debug.GunneryProbe.tag(gunHull, gunHull.getSeatIndex(unit)) : "-",
                 this.facts.allies, this.facts.enemies,
                 String.format("%.1f", this.facts.targetDist == Double.MAX_VALUE ? -1.0 : this.facts.targetDist),
                 top, String.join(",", blocked), doctrine);

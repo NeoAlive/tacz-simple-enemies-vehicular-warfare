@@ -1679,6 +1679,8 @@
   "config.tacz_sewv.aiFireHesitationTicks.tooltip": "Pause, bevor die Besatzung eines Panzers, Boots oder einer Stellung auf ein neu erfasstes Ziel feuert (20 = 1 Sekunde). Hubschrauber, Flugzeuge und Artillerie sind ausgenommen. 0 schaltet aus.",
   "config.tacz_sewv.heavyMobNamespaces": "Mods mit schweren Mobs",
   "config.tacz_sewv.heavyMobNamespaces.tooltip": "Mods, deren Mobs eine Besatzung nie dem Maschinengewehr überlässt (Mod-IDs, eine pro Zeile). Die Hauptwaffe eröffnet das Feuer auf sie. Andere Mobs gehen nur ans MG, wenn ihre Gesundheit hinter der Rüstung gering ist.",
+  "config.tacz_sewv.scoredWeaponSelection": "Feuerbefehl-Richtschütze",
+  "config.tacz_sewv.scoredWeaponSelection.tooltip": "Besatzungen nutzen die Waffe, die zum Ziel passt: das Koax-MG gegen Infanterie, ein durchschlagendes Geschoss gegen Panzer, HE gegen leichte Fahrzeuge und zähe Kreaturen. Die geladene Granate bleibt, solange sie zum Ziel passt. Aus stellt die alten festen Tabellen wieder her.",
   "config.tacz_sewv.aiFireHesitationJitter": "Streuung der KI-Feuerzögerung",
   "config.tacz_sewv.aiFireHesitationJitter.tooltip": "Extra-Zögern je Besatzung, als Anteil der Basis (0.5 = bis zu 50% länger). Fest je Besatzung, damit eine Gruppe nicht zugleich feuert.",
   "config.tacz_sewv.airportAlignmentDistance": "Flugplatz-Ausrichtstrecke",

@@ -101,6 +101,7 @@ public final class SewvConfig {
 
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> NVG_ELIGIBLE_ITEMS;
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> HEAVY_MOB_NAMESPACES;
+    public static final ForgeConfigSpec.BooleanValue SCORED_WEAPON_SELECTION;
     public static final ForgeConfigSpec.DoubleValue NVG_SPAWN_CHANCE;
     public static final ForgeConfigSpec.DoubleValue DARK_ACCURACY_FRACTION;
     public static final ForgeConfigSpec.DoubleValue NVG_ACCURACY_FRACTION;
@@ -764,6 +765,11 @@ public final class SewvConfig {
                         "the main gun. Other mobs go to the MG only when their health behind armour is low.")
                 .defineList("heavyMobNamespaces", List.of("phayriosisreborn", "spore"),
                         o -> o instanceof String str && !str.isBlank());
+        SCORED_WEAPON_SELECTION = builder.comment(
+                        "Crews pick weapon and shell by the fire command: the coax for troops, a round that",
+                        "penetrates for armour, and the loaded round stays while it suits the target.",
+                        "Off = the old fixed tables.")
+                .define("scoredWeaponSelection", true);
         AI_FIRE_HESITATION_JITTER = builder.comment(
                         "Per-crew spread on top of aiFireHesitationTicks (0.5 = each crew waits up to 50% longer),",
                         "fixed per crew so a group does not fire in unison.")

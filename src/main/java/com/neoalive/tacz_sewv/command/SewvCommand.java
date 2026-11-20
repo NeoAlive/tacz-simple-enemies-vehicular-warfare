@@ -188,6 +188,8 @@ public class SewvCommand {
                                 .executes(ctx -> debugPerf(ctx.getSource())))
                         .then(Commands.literal("pressure")
                                 .executes(ctx -> debugPressure(ctx.getSource())))
+                        .then(Commands.literal("gunnery")
+                                .executes(ctx -> debugGunnery(ctx.getSource())))
                         .then(Commands.literal("artillery")
                                 .executes(ctx -> debugArtillery(ctx.getSource())))
                         .then(Commands.literal("StartConfigFix")
@@ -966,6 +968,13 @@ public class SewvCommand {
 
     private static int debugPressure(CommandSourceStack source) {
         for (String line : com.neoalive.tacz_sewv.debug.PressureProbe.report(source.getLevel(), source.getPosition())) {
+            source.sendSuccess(() -> Component.literal(line), false);
+        }
+        return 1;
+    }
+
+    private static int debugGunnery(CommandSourceStack source) {
+        for (String line : com.neoalive.tacz_sewv.debug.GunneryProbe.report(source.getLevel(), source.getPosition())) {
             source.sendSuccess(() -> Component.literal(line), false);
         }
         return 1;

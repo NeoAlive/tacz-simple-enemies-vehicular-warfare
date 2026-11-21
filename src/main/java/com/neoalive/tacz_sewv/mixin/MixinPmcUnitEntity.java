@@ -370,6 +370,8 @@ public abstract class MixinPmcUnitEntity
         ((Mob) self).goalSelector.addGoal(2, new com.neoalive.tacz_sewv.entity.ai.goal.SuppressAreaGoal(self));
         // Cover and Hold on foot. Priority 1 so the walk outranks SEM's cover and chase goals.
         ((Mob) self).goalSelector.addGoal(1, new com.neoalive.tacz_sewv.entity.ai.goal.CoverHoldGoal(self));
+        // Lifts a timed Cease Fire. Flagless and never runs: one tag lookup per evaluation.
+        ((Mob) self).goalSelector.addGoal(1, new com.neoalive.tacz_sewv.entity.ai.support.TimedCeaseFire.WatchGoal(self));
         // Deploy Minefield: a combat engineer's run between mine slots. Idle without an order: one map lookup.
         ((Mob) self).goalSelector.addGoal(1, new com.neoalive.tacz_sewv.entity.ai.goal.LayMineGoal(self));
         // Soft-compat: PlayerReviveMod. Any friendly PMC — no medical kit required, unlike

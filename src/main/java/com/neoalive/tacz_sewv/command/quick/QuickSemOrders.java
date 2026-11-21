@@ -2,6 +2,8 @@ package com.neoalive.tacz_sewv.command.quick;
 
 import java.util.List;
 
+import javax.annotation.Nullable;
+
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -12,6 +14,8 @@ import com.neoalive.tacz_sewv.bridge.IPmcDowned;
 import com.neoalive.tacz_sewv.crew.CrewRadio;
 import com.neoalive.tacz_sewv.entity.ai.support.FormationSubjects;
 import com.neoalive.tacz_sewv.entity.ai.support.OrderStandDown;
+import com.neoalive.tacz_sewv.entity.ai.support.TimedCeaseFire;
+import com.neoalive.tacz_sewv.entity.ai.support.VehicleFormation;
 import com.neoalive.tacz_sewv.order.OrderFailure;
 import com.neoalive.tacz_sewv.order.OrderReport;
 
@@ -40,8 +44,20 @@ public final class QuickSemOrders {
         };
     }
 
+    /** Told which unit an order lands on (a UNIT follower's leader, else the unit) and its order before it. */
+    @FunctionalInterface
+    public interface Landing {
+        void landed(PmcUnitEntity target, OrderType before);
+    }
+
     /** @return how many units accepted the order */
     public static int apply(ServerPlayer issuer, List<Integer> unitIds, double radius, OrderType order) {
+        return apply(issuer, unitIds, radius, order, null);
+    }
+
+    /** @return how many units accepted the order */
+    public static int apply(ServerPlayer issuer, List<Integer> unitIds, double radius, OrderType order,
+                            @Nullable Landing landing) {
         if (!(issuer.level() instanceof ServerLevel level)) return 0;
         int ok = 0;
         for (PmcUnitEntity pmc : QuickCommandUnits.owned(issuer, level, unitIds, radius)) {
@@ -50,10 +66,14 @@ public final class QuickSemOrders {
                 OrderReport.fail(issuer, OrderFailure.UNIT_DOWNED, pmc);
                 continue;
             }
+            PmcUnitEntity target = VehicleFormation.isUnitFollower(pmc) ? FormationSubjects.leaderOf(pmc) : pmc;
+            OrderType before = target != null ? TimedCeaseFire.priorOrder(target) : null;
+            OrderType ownBefore = TimedCeaseFire.priorOrder(pmc);
             OrderStandDown.clearForNewOrder(pmc, "QuickSemOrder");
             // The same formation policy SEM's own order packet goes through: a player formation survives
             // FOLLOW and is dropped by the rest, a UNIT formation's orders go to its leader.
             if (FormationSubjects.routeOrder(issuer, pmc, order, null, -1, false)) {
+                if (landing != null && target != null) landing.landed(target, before);
                 ok++;
                 continue;
             }
@@ -61,6 +81,7 @@ public final class QuickSemOrders {
             if (pmc.getVehicle() instanceof VehicleEntity hull && hull.getFirstPassenger() == pmc) {
                 CrewRadio.play(hull, CrewRadio.Line.ORDER_DISPATCH);
             }
+            if (landing != null) landing.landed(pmc, ownBefore);
             ok++;
         }
         return ok;

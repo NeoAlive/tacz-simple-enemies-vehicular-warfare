@@ -649,7 +649,9 @@ public final class QuickCommandWheelScreen extends Screen {
                 || QuickCommandRegistry.ID_QUICK_SUPPRESS.equals(pipelineId) || coverHold
                 || QuickCommandRegistry.isMinefield(pipelineId) ? this.aim.block() : null;
         String sendId = coverHold
-                ? QuickCommandRegistry.coverHoldId(OrderScales.get(OrderScales.Scale.HOLD)) : pipelineId;
+                ? QuickCommandRegistry.coverHoldId(OrderScales.get(OrderScales.Scale.HOLD))
+                : QuickCommandRegistry.ID_QUICK_CEASE_FIRE.equals(pipelineId)
+                ? QuickCommandRegistry.ceaseFireId(OrderScales.get(OrderScales.Scale.CEASE_FIRE)) : pipelineId;
         NetworkHandler.CHANNEL.sendToServer(
                 new PacketQuickCommand(sendId, units, WheelScope.explicit(), aimBlock));
         return true;
@@ -1010,16 +1012,19 @@ public final class QuickCommandWheelScreen extends Screen {
         }
         OrderScales.Scale scale = OrderScales.forPipeline(pipelineId);
         if (scale == null) throw new IllegalArgumentException(pipelineId);
-        if (scale == OrderScales.Scale.HOLD) {
+        if (scale == OrderScales.Scale.HOLD || scale == OrderScales.Scale.CEASE_FIRE) {
+            boolean hold = scale == OrderScales.Scale.HOLD;
             int seconds = OrderScales.get(scale);
             String value = seconds <= 0
                     ? I18n.get("gui.tacz_sewv.wheel.scale.forever")
                     : I18n.get("gui.tacz_sewv.wheel.scale.seconds", seconds);
             String forever = I18n.get("gui.tacz_sewv.wheel.scale.forever");
             String longest = I18n.get("gui.tacz_sewv.wheel.scale.seconds", scale.max);
-            return new ScaleCardDraw.Card(I18n.get("gui.tacz_sewv.wheel.scale.hold"), value,
+            return new ScaleCardDraw.Card(I18n.get(hold ? "gui.tacz_sewv.wheel.scale.hold"
+                    : "gui.tacz_sewv.wheel.scale.cease_fire"), value,
                     forever.length() > longest.length() ? forever : longest,
-                    I18n.get("gui.tacz_sewv.wheel.scale.tag.hold"), scale.fraction(seconds), true);
+                    I18n.get(hold ? "gui.tacz_sewv.wheel.scale.tag.hold" : "gui.tacz_sewv.wheel.scale.tag.cease_fire"),
+                    scale.fraction(seconds), true);
         }
         boolean altitude = scale == OrderScales.Scale.ALTITUDE;
         String title = altitude

@@ -15,6 +15,7 @@ import com.neoalive.tacz_sewv.compat.PlayerReviveCompat;
 import com.neoalive.tacz_sewv.entity.ai.support.CoverHoldOrders;
 import com.neoalive.tacz_sewv.entity.ai.support.FormationShape;
 import com.neoalive.tacz_sewv.entity.ai.support.RoleKit;
+import com.neoalive.tacz_sewv.entity.ai.support.TimedCeaseFire;
 import com.neoalive.tacz_sewv.fpas.RadarContact;
 import com.neoalive.tacz_sewv.item.PlaneAttackMode;
 import com.neoalive.tacz_sewv.item.PlaneRole;
@@ -138,6 +139,9 @@ public final class QuickCommandRegistry {
         register(ID_QUICK_FOLLOW, new QuickSemOrderPipeline(OrderType.FOLLOW_COMMANDER));
         register(ID_QUICK_HOLD, new QuickSemOrderPipeline(OrderType.HOLD_POSITION));
         register(ID_QUICK_CEASE_FIRE, new QuickSemOrderPipeline(OrderType.CEASE_FIRE));
+        for (int s = TimedCeaseFire.MIN_SECONDS; s <= TimedCeaseFire.MAX_SECONDS; s += TimedCeaseFire.STEP_SECONDS) {
+            register(ceaseFireId(s), new QuickTimedCeaseFirePipeline(s));
+        }
         register(ID_QUICK_FREE_FIRE, new QuickSemOrderPipeline(OrderType.FREE_FIRE));
         register(ID_QUICK_DISMOUNT, new QuickDismountPipeline());
         register(ID_QUICK_ATTACK, (issuer, ctx) -> {}); // client-armed; server no-op
@@ -304,6 +308,11 @@ public final class QuickCommandRegistry {
     /** The registered id for a Cover and Hold of {@code seconds} (0 = until the next order). */
     public static String coverHoldId(int seconds) {
         return ID_QUICK_COVER_HOLD + "_" + seconds;
+    }
+
+    /** The id Cease Fire sends: the plain order for 0, otherwise the timed one of {@code seconds}. */
+    public static String ceaseFireId(int seconds) {
+        return seconds <= 0 ? ID_QUICK_CEASE_FIRE : ID_QUICK_CEASE_FIRE + "_" + seconds;
     }
 
     /** The registered id for Deploy Equipment, crewed by the placing unit or just set down. */

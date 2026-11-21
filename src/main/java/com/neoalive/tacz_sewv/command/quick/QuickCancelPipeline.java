@@ -81,6 +81,7 @@ public final class QuickCancelPipeline implements QuickCommandPipeline {
         }
         FobSupport.clearRoutePending(pmc);
         com.neoalive.tacz_sewv.entity.ai.support.CoverHoldOrders.clear(pmc);
+        com.neoalive.tacz_sewv.entity.ai.support.TimedCeaseFire.clear(pmc);
         com.neoalive.tacz_sewv.fpas.SignalTasks.clear(pmc);
 
         IVehicleBoarder boarder = (IVehicleBoarder) pmc;

@@ -57,8 +57,7 @@ public final class MapOrderCatalog {
                         selectedCount, attackTargetId) : null,
                 action(QuickCommandRegistry.ID_QUICK_SUPPRESS, UnitOrderOption.Action.SUPPRESS_HERE, selectedCount,
                         attackTargetId),
-                action(QuickCommandRegistry.ID_QUICK_CEASE_FIRE, UnitOrderOption.Action.CEASE_FIRE, selectedCount,
-                        attackTargetId),
+                ceaseFire(selectedCount, attackTargetId),
                 action(QuickCommandRegistry.ID_QUICK_FREE_FIRE, UnitOrderOption.Action.FREE_FIRE, selectedCount,
                         attackTargetId),
                 action(QuickCommandRegistry.ID_SET_GUARD, UnitOrderOption.Action.SET_GUARD, selectedCount, attackTargetId),
@@ -145,6 +144,22 @@ public final class MapOrderCatalog {
         String label = I18n.get(UnitOrderOption.labelKey(action), selectedCount);
         return new Entry(wheelId, label, accent, UnitOrderOption.active(action, selectedCount, attackTargetId), null,
                 c -> UnitOrderOption.perform(action, c));
+    }
+
+    /** Cease Fire with its time scale: 0 keeps SEM's own order packet, a time goes as the timed quick order. */
+    private static Entry ceaseFire(int selectedCount, int attackTargetId) {
+        Entry plain = action(QuickCommandRegistry.ID_QUICK_CEASE_FIRE, UnitOrderOption.Action.CEASE_FIRE, selectedCount,
+                attackTargetId);
+        return new Entry(plain.wheelId(), plain.label(), plain.accent(), plain.enabled(), OrderScales.Scale.CEASE_FIRE,
+                c -> {
+                    int seconds = OrderScales.get(OrderScales.Scale.CEASE_FIRE);
+                    if (seconds <= 0) {
+                        plain.run().run(c);
+                        return;
+                    }
+                    NetworkHandler.CHANNEL.sendToServer(new PacketQuickCommand(QuickCommandRegistry.ceaseFireId(seconds),
+                            new ArrayList<>(MapMarkers.selected()), true, null));
+                });
     }
 
     private static Entry mapAction(UnitOrderOption.Action action, int selectedCount, int attackTargetId) {

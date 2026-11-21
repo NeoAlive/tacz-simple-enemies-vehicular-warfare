@@ -922,6 +922,8 @@ mixin {
     config "tacz_sewv.tripod.mixins.json"
     // Client perf hooks on SBW, defaultRequire 0 so a signature change only disables a hook.
     config "tacz_sewv.perf.mixins.json"
+    // Temporary. TaCZ 1.2.0 render descriptors. Delete with mixin/temp.
+    config "tacz_sewv.temp.mixins.json"
     // Separate config + GemRenderMixinPlugin gate: GemRender is optional and compileOnly.
     config "tacz_sewv.gemrender.mixins.json"
     // Separate config + FcpMixinPlugin gate: Frontline Combat Pack 2.0+ is optional and compileOnly.

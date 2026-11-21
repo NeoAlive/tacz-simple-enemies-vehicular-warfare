@@ -71,6 +71,10 @@ config="tacz_sewv.tripod.mixins.json"
 [[mixins]]
 config="tacz_sewv.perf.mixins.json"
 
+# Temporary TaCZ 1.2.0 render hooks. Delete with mixin/temp once the perf mixins target these descriptors.
+[[mixins]]
+config="tacz_sewv.temp.mixins.json"
+
 # GemRender compat: lifts the 256 bone cap for rigid-parts imports only. Separate config
 # ("required": false) + GemRenderMixinPlugin (LoadingModList gate on mod id gemrender).
 [[mixins]]
@@ -103,7 +107,7 @@ config="tacz_sewv.gemrender.mixins.json"
 [[dependencies.tacz_sewv]]
     modId="tacz"
     mandatory=true
-    versionRange="[1.1.4,)"
+    versionRange="[1.2.0,)"
     ordering="BEFORE"
     side="BOTH"
 

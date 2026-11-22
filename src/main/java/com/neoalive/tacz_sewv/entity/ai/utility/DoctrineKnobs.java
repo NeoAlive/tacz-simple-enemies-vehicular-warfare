@@ -88,6 +88,23 @@ public final class DoctrineKnobs {
         return p(d) > 0.2;
     }
 
+    // ---- infantry (SEM's CombatDecisionContext: pressure and confidence are 0..1) --------------------------------
+
+    /** Confidence shift for an on-foot unit: aggression and risk embolden, preservation steadies. */
+    public static float infantryConfidence(Doctrine d, float confidence) {
+        return (float) clamp(confidence + 0.15 * (a(d) + r(d) - p(d)), 0.0, 1.0);
+    }
+
+    /** Threat pressure scale for an on-foot unit: a preserving doctrine feels fire more, a risk-taking one less. */
+    public static float infantryPressure(Doctrine d, float pressure) {
+        return (float) clamp(pressure * (1.0 + 0.25 * (p(d) - r(d))), 0.0, 1.0);
+    }
+
+    /** A passive doctrine (low aggression and initiative together) never lets SEM push its riflemen forward. */
+    public static boolean infantryMayAdvance(Doctrine d) {
+        return a(d) + i(d) >= -0.4;
+    }
+
     /** On an ordered course with a target inside its ring, a risk-averse crew creeps at march pace instead of racing. */
     public static boolean creepsOnCourse(Doctrine d) {
         return r(d) < -0.2;

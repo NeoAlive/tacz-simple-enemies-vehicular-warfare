@@ -19,6 +19,7 @@ public final class DoctrineSelfCheck {
         knobsMoveWithTheirAxis();
         bailStaysUnderBreakOffEverywhere();
         doctrineOwnsTemperament();
+        infantryKnobs();
 
         System.out.println("DoctrineSelfCheck OK");
     }
@@ -102,6 +103,28 @@ public final class DoctrineSelfCheck {
                     : "a full-bold hull read " + Doctrine.caution(bold, s);
             double c = Doctrine.caution(Doctrine.NEUTRAL, s);
             assert Math.abs(c - 0.5) <= Doctrine.CAUTION_SPREAD + 1e-9 : "spread escaped its band: " + c;
+        }
+    }
+
+    /** Neutral leaves SEM's numbers alone; the axes move them the right way and never out of 0..1. */
+    private static void infantryKnobs() {
+        Doctrine n = Doctrine.NEUTRAL;
+        close(0.4f, DoctrineKnobs.infantryConfidence(n, 0.4f), "neutral confidence");
+        close(0.4f, DoctrineKnobs.infantryPressure(n, 0.4f), "neutral pressure");
+        assert DoctrineKnobs.infantryMayAdvance(n) : "neutral may advance";
+        Doctrine bold = Doctrine.ofAxes(new int[] {5, -5, 0, 5, 0, 0, 0, 5});
+        Doctrine careful = Doctrine.ofAxes(new int[] {-5, 5, 0, -5, 0, 0, 0, -5});
+        assert DoctrineKnobs.infantryConfidence(bold, 0.4f) > 0.4f : "bold riflemen are not emboldened";
+        assert DoctrineKnobs.infantryConfidence(careful, 0.4f) < 0.4f : "careful riflemen are not steadier";
+        assert DoctrineKnobs.infantryPressure(careful, 0.4f) > 0.4f : "careful riflemen shrug off fire";
+        assert DoctrineKnobs.infantryPressure(bold, 0.4f) < 0.4f : "bold riflemen feel fire more";
+        assert !DoctrineKnobs.infantryMayAdvance(careful) : "a passive doctrine still advances";
+        for (float v = 0f; v <= 1f; v += 0.05f) {
+            for (Doctrine d : new Doctrine[] {bold, careful}) {
+                float c = DoctrineKnobs.infantryConfidence(d, v);
+                float p = DoctrineKnobs.infantryPressure(d, v);
+                assert c >= 0f && c <= 1f && p >= 0f && p <= 1f : "infantry knob left 0..1 at " + v;
+            }
         }
     }
 

@@ -75,6 +75,14 @@ public final class Doctrine {
         return this.axes[axis.ordinal()] / (double) AXIS_LIMIT;
     }
 
+    /** Every axis at zero: behaves exactly like {@link #NEUTRAL} (an all-zero config preset is a different instance). */
+    public boolean isNeutral() {
+        for (int v : this.axes) {
+            if (v != 0) return false;
+        }
+        return true;
+    }
+
     /** The configured value, for debug output only. */
     public int raw(Axis axis) {
         return this.axes[axis.ordinal()];

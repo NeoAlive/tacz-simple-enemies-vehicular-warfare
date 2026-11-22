@@ -627,8 +627,15 @@ public class DriveVehicleGoal extends Goal {
      * {@link #PLAN_DISPATCH_HOLD_TICKS} before speaking so ATTACK↔FLANK thrash does not spam.
      */
     private void maybePlanDispatch(Action plan) {
-        if (!(this.unit instanceof RUunitEntity) && !(this.unit instanceof USunitEntity)) return;
+        if (!(this.unit instanceof RUunitEntity) && !(this.unit instanceof USunitEntity)
+                && !(this.unit instanceof PmcUnitEntity)) return;
         if (this.vehicle == null || plan == null) return;
+        com.neoalive.tacz_sewv.entity.ai.utility.Doctrine doctrine =
+                com.neoalive.tacz_sewv.entity.ai.utility.Doctrine.forCrew(this.unit);
+        // Doctrine colours the chatter: a bold crew does not announce falling back unless it really is broken.
+        if (plan == Action.RETREAT
+                && doctrine.get(com.neoalive.tacz_sewv.entity.ai.utility.Doctrine.Axis.PRESERVATION) < 0.0
+                && !isLowHealth()) return;
         long now = this.unit.level().getGameTime();
         if (plan == this.lastSpokenPlan) {
             this.pendingDispatchPlan = null;
@@ -640,7 +647,11 @@ public class DriveVehicleGoal extends Goal {
             this.pendingDispatchSince = now;
             return;
         }
-        if (now - this.pendingDispatchSince < PLAN_DISPATCH_HOLD_TICKS) return;
+        // An aggressive crew calls its push sooner.
+        boolean eager = (plan == Action.ADVANCE || plan == Action.FLANK_LEFT || plan == Action.FLANK_RIGHT)
+                && doctrine.get(com.neoalive.tacz_sewv.entity.ai.utility.Doctrine.Axis.AGGRESSION) > 0.4;
+        long hold = eager ? Math.round(PLAN_DISPATCH_HOLD_TICKS * 0.7) : PLAN_DISPATCH_HOLD_TICKS;
+        if (now - this.pendingDispatchSince < hold) return;
         CrewRadio.onPlan(this.vehicle, plan);
         this.lastSpokenPlan = plan;
         this.pendingDispatchPlan = null;
@@ -1406,6 +1417,11 @@ public class DriveVehicleGoal extends Goal {
     private BlockPos marchSlotPos() {
         MarchRegistry.Slot slot = MarchRegistry.slotFor(this.unit.getId(), this.unit.level().getGameTime());
         return slot != null && slot.hull() ? BlockPos.containing(slot.x(), this.vehicle.getY(), slot.z()) : null;
+    }
+
+    /** The crew's current plan, for the map's posture glyph. Read-only. */
+    public Action currentPlan() {
+        return this.brain.plan();
     }
 
     /** Debug-forced idle modes steer from hull NBT before the scorer adopts IDLE_* . */

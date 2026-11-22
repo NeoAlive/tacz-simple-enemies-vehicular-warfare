@@ -149,7 +149,25 @@ public final class OwnedVehicleTracker {
         long formation = member.sewv$getFormationGroup();
         if (formation == 0L) formation = member.sewv$getFormationLeads();
         Platoon p = PlatoonRegistry.platoonOf(level, pmc.getId());
-        return new MarkerTags(formation, p != null ? p.groupId() : 0, stanceOf(pmc), OrderBatch.of(pmc));
+        return new MarkerTags(formation, p != null ? p.groupId() : 0, stanceOf(pmc), OrderBatch.of(pmc), planOf(pmc));
+    }
+
+    /** The driver's combat plan while it holds a target; NONE otherwise, so the map never shows a stale fight. */
+    private static MarkerTags.Plan planOf(PmcUnitEntity pmc) {
+        if (pmc.getTarget() == null) return MarkerTags.Plan.NONE;
+        for (net.minecraft.world.entity.ai.goal.WrappedGoal w : pmc.goalSelector.getAvailableGoals()) {
+            if (!(w.getGoal() instanceof com.neoalive.tacz_sewv.entity.ai.goal.DriveVehicleGoal drive)) continue;
+            return switch (drive.currentPlan()) {
+                case ADVANCE -> MarkerTags.Plan.ADVANCE;
+                case ATTACK, CALL_MORTARS, CALL_TOW, CALL_CAS, DELEGATE_TARGET -> MarkerTags.Plan.ATTACK;
+                case HOLD -> MarkerTags.Plan.HOLD;
+                case FLANK_LEFT, FLANK_RIGHT -> MarkerTags.Plan.FLANK;
+                case RETREAT, REGROUP -> MarkerTags.Plan.RETREAT;
+                case DEPLOY_SMOKE -> MarkerTags.Plan.SMOKE;
+                default -> MarkerTags.Plan.NONE;
+            };
+        }
+        return MarkerTags.Plan.NONE;
     }
 
     private static MarkerTags.Stance stanceOf(PmcUnitEntity pmc) {

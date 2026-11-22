@@ -194,8 +194,9 @@ public final class TacticalBrain {
             case OK -> 0.0;
         };
 
-        s[Signal.OUTNUMBERED.ordinal()] =
-                Mth.clamp(1.0 / Math.max(f.forceRatio, 1.0E-3) - 1.0, 0.0, 1.0);
+        // Saturates at 1:3, not 1:2: one hull with its three escort riflemen weighs 2, and reading that as fully
+        // outnumbered had every healthy crew breaking off from even fights.
+        s[Signal.OUTNUMBERED.ordinal()] = DoctrineScenarios.outnumbered(f.forceRatio);
         // Beyond the first, each enemy is more pressure — but the difference between four and ten
         // is not something a tank commander meaningfully distinguishes.
         // Weighted like forceRatio: three riflemen press like one hull.

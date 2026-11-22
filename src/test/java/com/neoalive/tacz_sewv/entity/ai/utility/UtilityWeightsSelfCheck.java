@@ -39,8 +39,45 @@ public final class UtilityWeightsSelfCheck {
         idleCrewsDoNotJustSit();
         investigateBeatsIdleFormation();
         emptyCrewsDisengage();
+        outnumberedRampsToOneInThree();
+        doctrinesMakeDistinctCrews();
 
         System.out.println("utility scorer self-check: OK");
+    }
+
+    /** One hull with three escort riflemen is half outnumbered, not fully; saturation is at 1:3. */
+    private static void outnumberedRampsToOneInThree() {
+        assertClose(0.0, DoctrineScenarios.outnumbered(1.0), "even fight");
+        assertClose(0.0, DoctrineScenarios.outnumbered(2.0), "we outnumber them");
+        assertClose(0.5, DoctrineScenarios.outnumbered(0.5), "one hull plus three riflemen");
+        assertClose(1.0, DoctrineScenarios.outnumbered(1.0 / 3.0), "1:3 saturates");
+        assertClose(1.0, DoctrineScenarios.outnumbered(0.1), "worse still saturates");
+    }
+
+    /**
+     * The audit's finding, pinned: at the shipped weights a neutral crew FIGHTS an escorted hull when healthy and
+     * breaks off when hurt, and the ledger makes recognisably different crews out of the same sample.
+     */
+    private static void doctrinesMakeDistinctCrews() {
+        UtilityWeights w = UtilityWeights.parse(
+                Map.of(new ResourceLocation("tacz_sewv", "weights"), shippedWeights()));
+        Doctrine neutral = Doctrine.NEUTRAL;
+        Doctrine blitz = Doctrine.ofAxes(new int[] {5, 0, 0, 5, 0, 0, 5, 5});
+        Doctrine fortress = Doctrine.ofAxes(new int[] {-5, 5, 5, -5, 0, 0, 0, 0});
+        Doctrine timid = Doctrine.ofAxes(new int[] {-5, 5, 5, 0, 0, 0, 0, -5});
+        DoctrineScenarios.Scenario esc = DoctrineScenarios.Scenario.ESCORTED_DUEL;
+
+        Action n = DoctrineScenarios.decide(w, neutral, esc).action();
+        assert n != Action.RETREAT && n != Action.DEPLOY_SMOKE : "healthy neutral crew breaks off an even-ish fight: " + n;
+        Action nh = DoctrineScenarios.decide(w, neutral, DoctrineScenarios.Scenario.HURT).action();
+        assert nh == Action.RETREAT || nh == Action.DEPLOY_SMOKE : "hurt neutral crew keeps fighting: " + nh;
+        assert DoctrineScenarios.decide(w, blitz, esc).action() == Action.ADVANCE : "blitz does not advance";
+        assert DoctrineScenarios.decide(w, blitz, DoctrineScenarios.Scenario.HURT).action().needsTarget()
+                && DoctrineScenarios.decide(w, blitz, DoctrineScenarios.Scenario.HURT).action() != Action.RETREAT
+                : "blitz retreats at 30%";
+        assert DoctrineScenarios.decide(w, fortress, DoctrineScenarios.Scenario.EVEN_DUEL).action() == Action.HOLD
+                : "fortress does not hold an even fight";
+        assert DoctrineScenarios.decide(w, timid, esc).action() == Action.RETREAT : "risk-averse crew stays in";
     }
 
     /**

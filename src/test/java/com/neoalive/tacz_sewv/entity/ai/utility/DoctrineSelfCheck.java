@@ -18,6 +18,7 @@ public final class DoctrineSelfCheck {
         neutralIsTodaysConstants();
         knobsMoveWithTheirAxis();
         bailStaysUnderBreakOffEverywhere();
+        doctrineOwnsTemperament();
 
         System.out.println("DoctrineSelfCheck OK");
     }
@@ -82,6 +83,25 @@ public final class DoctrineSelfCheck {
             assert bail > 0.0 : "bail must stay positive for " + d;
             double ring = DoctrineKnobs.ringScale(d);
             assert ring >= 0.65 && ring <= 1.35 : "ring out of range for " + d;
+        }
+    }
+
+    /**
+     * The hull seed varies crews of one doctrine but cannot override it: a full-lean doctrine puts every hull in its
+     * own temperament band, whatever the seed. (Neutral variety is pinned by BattlePositionSelfCheck.)
+     */
+    private static void doctrineOwnsTemperament() {
+        assert Doctrine.CAUTION_LEAN > Doctrine.CAUTION_SPREAD : "spread outweighs doctrine";
+        Doctrine careful = Doctrine.ofAxes(new int[] {-5, 5, 0, 0, 0, 0, 0, -5});
+        Doctrine bold = Doctrine.ofAxes(new int[] {5, -5, 0, 0, 0, 0, 0, 5});
+        for (long seed = 0; seed < 4000; seed++) {
+            long s = seed * 0x9E3779B97F4A7C15L;
+            assert Doctrine.Temperament.of(Doctrine.caution(careful, s)) == Doctrine.Temperament.CAUTIOUS
+                    : "a full-caution hull read " + Doctrine.caution(careful, s);
+            assert Doctrine.Temperament.of(Doctrine.caution(bold, s)) == Doctrine.Temperament.BOLD
+                    : "a full-bold hull read " + Doctrine.caution(bold, s);
+            double c = Doctrine.caution(Doctrine.NEUTRAL, s);
+            assert Math.abs(c - 0.5) <= Doctrine.CAUTION_SPREAD + 1e-9 : "spread escaped its band: " + c;
         }
     }
 

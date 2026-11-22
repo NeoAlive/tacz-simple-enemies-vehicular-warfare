@@ -141,10 +141,14 @@ public final class Doctrine {
         }
     }
 
-    /** Half-width of the per-crew spread around the doctrine's lean. */
-    public static final double CAUTION_SPREAD = 0.35;
+    /**
+     * Half-width of the per-crew spread around the doctrine's lean. Wide enough that a neutral side still shows every
+     * temperament (BattlePositionSelfCheck), and under {@link #CAUTION_LEAN} so a full-lean doctrine puts every hull in
+     * its own band. At 0.35 against a lean of 0.30 a neutral hull read more cautious than a full-preservation one.
+     */
+    public static final double CAUTION_SPREAD = 0.28;
     /** How far the doctrine's lean moves the centre off 0.5. */
-    public static final double CAUTION_LEAN = 0.3;
+    public static final double CAUTION_LEAN = 0.5;
 
     /**
      * 0 (bold) to 1 (cautious). The doctrine sets the centre (preservation pulls up, aggression and risk tolerance
@@ -152,10 +156,15 @@ public final class Doctrine {
      * stable across sessions (UUIDs persist), like the flank parity, so a reported behaviour is reproducible.
      */
     public static double caution(Doctrine doctrine, long hullSeed) {
+        double c = cautionCentre(doctrine) + CAUTION_SPREAD * spread(hullSeed);
+        return Math.max(0.0, Math.min(1.0, c));
+    }
+
+    /** The doctrine's own caution with no per-crew spread: what the editor preview and the scenarios use. */
+    public static double cautionCentre(Doctrine doctrine) {
         double lean = (doctrine.get(Axis.PRESERVATION) - doctrine.get(Axis.AGGRESSION)
                 - doctrine.get(Axis.RISK_TOLERANCE)) / 3.0;
-        double c = 0.5 + CAUTION_LEAN * lean + CAUTION_SPREAD * spread(hullSeed);
-        return Math.max(0.0, Math.min(1.0, c));
+        return Math.max(0.0, Math.min(1.0, 0.5 + CAUTION_LEAN * lean));
     }
 
     /** SplitMix64 of the seed, mapped to -1..+1. */

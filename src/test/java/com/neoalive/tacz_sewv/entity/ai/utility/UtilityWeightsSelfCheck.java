@@ -25,6 +25,7 @@ public final class UtilityWeightsSelfCheck {
         if (!assertionsOn) throw new IllegalStateException("run with -ea, or this checks nothing");
 
         signalWeightsAreSummed();
+        modsScaleTheirSignal();
         doctrineAxesAreNormalised();
         unknownKeysAreIgnoredNotFatal();
         laterFilesReplaceAnActionWholesale();
@@ -40,6 +41,30 @@ public final class UtilityWeightsSelfCheck {
         emptyCrewsDisengage();
 
         System.out.println("utility scorer self-check: OK");
+    }
+
+    /**
+     * A {@code mod} scales its signal's weight by {@code clamp(1 + k * axis)}: neutral is untouched, the axis moves it
+     * both ways, the clamp holds, and a signal with no mod is never scaled.
+     */
+    private static void modsScaleTheirSignal() {
+        JsonElement json = JsonParser.parseString("{\"attack\": {\"enemyVisible\": 10, \"lowHealth\": -20,"
+                + " \"mod\": {\"enemyVisible\": {\"aggression\": 0.5}, \"lowHealth\": {\"riskTolerance\": 2.0}}}}");
+        UtilityWeights weights = UtilityWeights.parse(Map.of(new ResourceLocation("tacz_sewv", "mods"), json));
+        double[] seen = zeroSignals();
+        seen[Signal.ENEMY_VISIBLE.ordinal()] = 1.0;
+        assertClose(10.0, weights.score(Action.ATTACK, seen, Doctrine.NEUTRAL), "neutral leaves the weight alone");
+        assertClose(15.0, weights.score(Action.ATTACK, seen, doctrineWith(Doctrine.Axis.AGGRESSION, 5)), "+axis scales up");
+        assertClose(5.0, weights.score(Action.ATTACK, seen, doctrineWith(Doctrine.Axis.AGGRESSION, -5)), "-axis scales down");
+        assertClose(10.0, weights.score(Action.ATTACK, seen, doctrineWith(Doctrine.Axis.RISK_TOLERANCE, 5)),
+                "an axis with no mod on this signal does nothing");
+
+        double[] hurt = zeroSignals();
+        hurt[Signal.LOW_HEALTH.ordinal()] = 1.0;
+        assertClose(-20.0 * UtilityWeights.MOD_MAX, weights.score(Action.ATTACK, hurt, doctrineWith(Doctrine.Axis.RISK_TOLERANCE, 5)),
+                "factor clamps at MOD_MAX");
+        assertClose(-20.0 * UtilityWeights.MOD_MIN, weights.score(Action.ATTACK, hurt, doctrineWith(Doctrine.Axis.RISK_TOLERANCE, -5)),
+                "factor clamps at MOD_MIN");
     }
 
     /** A score is the plain sum of weight x signal over every named modifier. */
@@ -144,6 +169,7 @@ public final class UtilityWeightsSelfCheck {
                 Map.of(new ResourceLocation("tacz_sewv", "weights"), shippedWeights()));
 
         for (Action[] pair : MIRRORED_ACTIONS) {
+            assert weights.sameMods(pair[0], pair[1]) : pair[0].key + "/" + pair[1].key + " have different mod blocks";
             // Walk one signal at a time rather than testing an all-ones sample: a difference in two
             // modifiers that happens to cancel out would slip past a single combined total.
             for (Signal signal : Signal.VALUES) {

@@ -30,8 +30,6 @@ import com.neoalive.tacz_sewv.entity.ai.support.IdleGroupSupport;
  */
 public final class TacticalBrain {
 
-    private static final int MIN_PLAN_TICKS = 40;
-    private static final double SWITCH_MARGIN = 10.0;
     /** {@code individualAiDebug}: an unchanged plan is re-logged at most this often per crew. */
     private static final long DEBUG_HEARTBEAT_TICKS = 200;
 
@@ -312,8 +310,9 @@ public final class TacticalBrain {
         boolean planStillValid = this.feasible[this.plan.ordinal()];
         double current = planStillValid ? this.scores[this.plan.ordinal()] : bestScore;
 
-        boolean committed = Facts.ticksSince(this.planStarted, now) < MIN_PLAN_TICKS;
-        boolean beaten = bestScore > current + SWITCH_MARGIN;
+        // Initiative shortens both: a crew that seizes opportunities re-plans sooner and on a smaller lead.
+        boolean committed = Facts.ticksSince(this.planStarted, now) < DoctrineKnobs.commitTicks(doctrine);
+        boolean beaten = bestScore > current + DoctrineKnobs.switchMargin(doctrine);
 
         // A plan that has become impossible is dropped at once — neither the switch margin nor the
         // minimum duration may keep a crew committed to something it can no longer carry out.
@@ -422,7 +421,7 @@ public final class TacticalBrain {
 
     private boolean canRequest(FireMissionSupport.Kind kind) {
         return this.facts.support.contains(kind)
-                && !this.facts.memory.recentlyCalledSupport(this.lastSampledTick);
+                && !this.facts.memory.recentlyCalledSupport(this.lastSampledTick, this.facts.supportScale);
     }
 
     /**

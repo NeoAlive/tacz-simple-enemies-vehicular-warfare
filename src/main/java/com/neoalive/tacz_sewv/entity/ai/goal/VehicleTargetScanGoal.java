@@ -305,7 +305,13 @@ if (EasyMode.vehicleTargetRequireLos()
 
     /** Candidates in priority-stack order for this crew, by horizontal distance. */
     private List<TargetRanker.Candidate<LivingEntity>> rank(VehicleEntity v, List<LivingEntity> candidates) {
-        return TargetStack.rank(this.unit, candidates, e -> Math.sqrt(horizontalDistSq(v, e)));
+        // Target-priority doctrine: the favoured kind reads up to 30% nearer, the same currency the stack ranks in,
+        // so a listed stack row still outranks it exactly as it would a nearer target.
+        com.neoalive.tacz_sewv.entity.ai.utility.Doctrine doctrine =
+                com.neoalive.tacz_sewv.entity.ai.utility.Doctrine.forCrew(this.unit);
+        return TargetStack.rank(this.unit, candidates, e -> Math.sqrt(horizontalDistSq(v, e))
+                * com.neoalive.tacz_sewv.entity.ai.utility.DoctrineKnobs.rankBias(doctrine,
+                        VehicleWeapons.classifyTarget(e) == VehicleWeapons.TargetCategory.VEHICLE));
     }
 
     private List<LivingEntity> ordered(VehicleEntity v, List<LivingEntity> candidates) {

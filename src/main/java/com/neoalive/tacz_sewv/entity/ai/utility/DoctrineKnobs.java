@@ -17,7 +17,6 @@ public final class DoctrineKnobs {
     public static final double BASE_BAIL = 0.15;
     public static final int BASE_COMMIT_TICKS = 40;
     public static final double BASE_SWITCH_MARGIN = 10.0;
-    public static final int BASE_STALEMATE_TICKS = 120;
 
     private DoctrineKnobs() {}
 
@@ -63,9 +62,9 @@ public final class DoctrineKnobs {
         return clamp(1.0 - 0.25 * i(d) - 0.10 * a(d), 0.6, 1.4);
     }
 
-    /** Ticks a stalemate is tolerated before the crew repositions. Maneuver loses patience sooner. */
-    public static int stalemateTicks(Doctrine d) {
-        return (int) Math.round(BASE_STALEMATE_TICKS * (1.0 - 0.4 * m(d)));
+    /** Multiplier on how long a crew tolerates a silent stalemate before repositioning. Maneuver moves sooner. */
+    public static double stalemateScale(Doctrine d) {
+        return 1.0 - 0.4 * m(d);
     }
 
     /** Multiplier on the fire-support request cooldown. Reliant crews call again sooner. */
@@ -89,9 +88,8 @@ public final class DoctrineKnobs {
         return p(d) > 0.2;
     }
 
-    /** Throttle cap while inside a target's ring on an ordered course: cautious crews creep, others drive. */
-    public static double courseSpeedCap(Doctrine d) {
-        double risk = r(d);
-        return risk >= 0.0 ? 1.0 : 0.75 + 0.25 * (1.0 + risk);
+    /** On an ordered course with a target inside its ring, a risk-averse crew creeps at march pace instead of racing. */
+    public static boolean creepsOnCourse(Doctrine d) {
+        return r(d) < -0.2;
     }
 }

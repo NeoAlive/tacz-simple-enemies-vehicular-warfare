@@ -37,12 +37,12 @@ public final class DoctrineSelfCheck {
         assert DoctrineKnobs.commitTicks(n) == 40 : "neutral commit";
         close(10.0, DoctrineKnobs.switchMargin(n), "neutral margin");
         close(1.0, DoctrineKnobs.acquisitionScale(n), "neutral acquisition");
-        assert DoctrineKnobs.stalemateTicks(n) == 120 : "neutral stalemate";
+        close(1.0, DoctrineKnobs.stalemateScale(n), "neutral stalemate");
         close(1.0, DoctrineKnobs.supportCooldownScale(n), "neutral support cooldown");
         close(1.0, DoctrineKnobs.rankBias(n, true), "neutral armour bias");
         close(1.0, DoctrineKnobs.rankBias(n, false), "neutral infantry bias");
         assert !DoctrineKnobs.smokeOnHit(n) : "neutral smoke on hit";
-        close(1.0, DoctrineKnobs.courseSpeedCap(n), "neutral course speed");
+        assert !DoctrineKnobs.creepsOnCourse(n) : "neutral creeps";
     }
 
     private static void knobsMoveWithTheirAxis() {
@@ -54,13 +54,13 @@ public final class DoctrineSelfCheck {
         assert DoctrineKnobs.commitTicks(only(Axis.INITIATIVE, lim)) < 40 : "initiative re-plans sooner";
         assert DoctrineKnobs.switchMargin(only(Axis.INITIATIVE, lim)) < 10.0 : "initiative switches easier";
         assert DoctrineKnobs.acquisitionScale(only(Axis.INITIATIVE, lim)) < 1.0 : "initiative notices faster";
-        assert DoctrineKnobs.stalemateTicks(only(Axis.MANEUVER, lim)) < 120 : "maneuver repositions sooner";
+        assert DoctrineKnobs.stalemateScale(only(Axis.MANEUVER, lim)) < 1.0 : "maneuver repositions sooner";
         assert DoctrineKnobs.supportCooldownScale(only(Axis.SUPPORT_RELIANCE, lim)) < 1.0 : "support calls sooner";
         assert DoctrineKnobs.rankBias(only(Axis.TARGET_PRIORITY, lim), true) < 1.0 : "armour first reads armour nearer";
         assert DoctrineKnobs.rankBias(only(Axis.TARGET_PRIORITY, -lim), false) < 1.0 : "infantry first reads infantry nearer";
         assert DoctrineKnobs.smokeOnHit(only(Axis.PRESERVATION, lim)) : "preservation screens when hit";
-        assert DoctrineKnobs.courseSpeedCap(only(Axis.RISK_TOLERANCE, -lim)) < 1.0 : "risk-averse crews creep";
-        assert DoctrineKnobs.courseSpeedCap(only(Axis.RISK_TOLERANCE, lim)) == 1.0 : "bold crews never slow";
+        assert DoctrineKnobs.creepsOnCourse(only(Axis.RISK_TOLERANCE, -lim)) : "risk-averse crews creep";
+        assert !DoctrineKnobs.creepsOnCourse(only(Axis.RISK_TOLERANCE, lim)) : "bold crews never slow";
     }
 
     /** Every corner of the axis cube at +-limit and zero: bail strictly under break-off, both inside their clamps. */

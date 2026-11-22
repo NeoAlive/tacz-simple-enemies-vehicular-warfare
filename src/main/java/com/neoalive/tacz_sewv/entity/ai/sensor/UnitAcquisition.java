@@ -53,8 +53,9 @@ public final class UnitAcquisition {
             return now < a.sewv$getAcqReadyAt();
         }
 
-        int delay = Acquisition.delayTicks(baseTicks(unit), unit.getEyePosition(), target, stress(unit),
-                unit.getId(), now);
+        int base = (int) Math.round(baseTicks(unit) * com.neoalive.tacz_sewv.entity.ai.utility.DoctrineKnobs
+                .acquisitionScale(com.neoalive.tacz_sewv.entity.ai.utility.Doctrine.forCrew(unit)));
+        int delay = Acquisition.delayTicks(base, unit.getEyePosition(), target, stress(unit), unit.getId(), now);
         a.sewv$setAcqTargetId(id);
         a.sewv$setAcqLastSeen(now);
         a.sewv$setAcqReadyAt(now + delay);

@@ -61,6 +61,9 @@ public final class FireHesitation {
             if (HullFacts.isArtilleryHull(hull) || FcpMortarCompat.isMortarHull(hull)) return 0;
         }
         int fixed = base + (int) Math.round(base * jitter * spread(shooter.getId()));
+        // Initiative and aggression react sooner, a passive doctrine later (DoctrineKnobs.acquisitionScale).
+        fixed = (int) Math.round(fixed * com.neoalive.tacz_sewv.entity.ai.utility.DoctrineKnobs.acquisitionScale(
+                com.neoalive.tacz_sewv.entity.ai.utility.Doctrine.forCrew(shooter)));
         if (!UnitAcquisition.enabled()) return fixed;
         // The configured pause is the plain-view case; range, light, how the target moves and the
         // fire this hull is taking stretch or shrink it (see Acquisition).

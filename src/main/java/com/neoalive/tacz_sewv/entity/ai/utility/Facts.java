@@ -103,6 +103,8 @@ public final class Facts {
 
     private long nextRefresh = Long.MIN_VALUE;
     private long nextCommsScan = Long.MIN_VALUE;
+    /** The crew's support cooldown multiplier, refreshed with each comms scan. */
+    public double supportScale = 1.0;
     /** True after at least one successful {@link #refresh} on the current hull. */
     private boolean populated;
 
@@ -343,7 +345,9 @@ public final class Facts {
             return;
         }
         if (now < this.nextCommsScan) return;
-        this.nextCommsScan = now + EasyMode.supportCallIntervalTicks();
+        // Support-reliant doctrine calls again sooner, so it scans for support sooner too (never under half).
+        this.supportScale = DoctrineKnobs.supportCooldownScale(Doctrine.forCrew(unit));
+        this.nextCommsScan = now + Math.round(EasyMode.supportCallIntervalTicks() * this.supportScale);
 
         this.support = FireMissionSupport.availableSupport(
                 unit.level(), this.faction, this.owner, unit.position(),
@@ -464,7 +468,9 @@ public final class Facts {
      */
     public static double preferredRange(Entity unit, @Nullable LivingEntity target,
                                         @Nullable TargetCategory category) {
-        return TripodCompat.standoffRing(unit, target, preferredRange(category));
+        // Doctrine sets how close a crew fights; the tripod standoff still floors it.
+        double ring = preferredRange(category) * DoctrineKnobs.ringScale(Doctrine.forCrew(unit));
+        return TripodCompat.standoffRing(unit, target, ring);
     }
 
     /** Half-width of the band around {@link #preferredRange} that counts as "on the ring". */
@@ -800,8 +806,8 @@ public final class Facts {
         }
 
         /** The request cooldown, so one contact cannot re-task every tube in the field each second. */
-        public boolean recentlyCalledSupport(long now) {
-            return ticksSince(this.lastSupportTick, now) < EasyMode.supportCallIntervalTicks();
+        public boolean recentlyCalledSupport(long now, double scale) {
+            return ticksSince(this.lastSupportTick, now) < EasyMode.supportCallIntervalTicks() * scale;
         }
 
         void clear() {

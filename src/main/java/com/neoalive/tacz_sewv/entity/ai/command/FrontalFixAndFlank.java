@@ -26,7 +26,7 @@ public final class FrontalFixAndFlank implements Play {
 
     @Override
     public double score(BattleField bf, GroupSnapshot group, UtilityWeights weights) {
-        return PlayGeometry.scoreOf(id(), bf, weights);
+        return PlayGeometry.scoreOf(id(), bf, weights, group.doctrine);
     }
 
     @Override

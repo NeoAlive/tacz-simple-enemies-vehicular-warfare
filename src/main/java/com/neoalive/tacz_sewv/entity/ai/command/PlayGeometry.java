@@ -3,6 +3,7 @@ package com.neoalive.tacz_sewv.entity.ai.command;
 import java.util.Arrays;
 
 import com.neoalive.tacz_sewv.entity.ai.formation.FormationFrame;
+import com.neoalive.tacz_sewv.entity.ai.utility.Doctrine;
 import com.neoalive.tacz_sewv.entity.ai.utility.TacticalScale;
 import com.neoalive.tacz_sewv.entity.ai.utility.UtilityWeights;
 
@@ -70,7 +71,7 @@ public final class PlayGeometry {
         };
     }
 
-    static double scoreOf(PlayId id, BattleField bf, UtilityWeights weights) {
-        return PlaySignals.score(id, bf, weights);
+    static double scoreOf(PlayId id, BattleField bf, UtilityWeights weights, Doctrine doctrine) {
+        return PlaySignals.score(id, bf, weights, doctrine);
     }
 }

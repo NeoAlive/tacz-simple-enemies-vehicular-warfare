@@ -369,33 +369,43 @@
   "play.frontal_fix_and_flank": {
     "base": 40,
     "enemyVisible": 15,
-    "tooFar": 10
+    "tooFar": 10,
+    "maneuver": 25
   },
   "play.double_envelopment": {
     "base": 55,
     "enemyVisible": 10,
-    "confidence": 20
+    "confidence": 20,
+    "maneuver": 25
   },
   "play.bounding_overwatch_advance": {
     "base": 30,
     "enemyVisible": 10,
-    "tooFar": 20
+    "tooFar": 20,
+    "cohesion": 15,
+    "initiative": 10
   },
   "play.fighting_withdrawal": {
     "base": 20,
     "outnumbered": 45,
-    "confidence": -15
+    "confidence": -15,
+    "preservation": 25,
+    "riskTolerance": -15
   },
   "play.hold_defend": {
-    "base": 15
+    "base": 15,
+    "preservation": 15,
+    "cohesion": 10
   },
   "play.pursuit": {
     "base": 70,
-    "confidence": 20
+    "confidence": 20,
+    "aggression": 25
   },
   "play.cohesive_line": {
     "base": 50,
     "confidence": 30,
-    "allyInfantryNear": 30
+    "allyInfantryNear": 30,
+    "cohesion": 25
   }
 }

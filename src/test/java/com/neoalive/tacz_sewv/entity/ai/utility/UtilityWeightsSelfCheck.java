@@ -41,8 +41,26 @@ public final class UtilityWeightsSelfCheck {
         emptyCrewsDisengage();
         outnumberedRampsToOneInThree();
         doctrinesMakeDistinctCrews();
+        groupDoctrineSteersPlays();
 
         System.out.println("utility scorer self-check: OK");
+    }
+
+    /** The commander's doctrine reaches the play scorer: aggression favours pursuit, preservation the withdrawal. */
+    private static void groupDoctrineSteersPlays() {
+        UtilityWeights w = UtilityWeights.parse(
+                Map.of(new ResourceLocation("tacz_sewv", "weights"), shippedWeights()));
+        double[] s = zeroSignals();
+        s[Signal.BASE.ordinal()] = 1.0;
+        s[Signal.ENEMY_VISIBLE.ordinal()] = 1.0;
+        com.neoalive.tacz_sewv.entity.ai.command.PlayId pursuit = com.neoalive.tacz_sewv.entity.ai.command.PlayId.PURSUIT;
+        com.neoalive.tacz_sewv.entity.ai.command.PlayId withdraw =
+                com.neoalive.tacz_sewv.entity.ai.command.PlayId.FIGHTING_WITHDRAWAL;
+        Doctrine bold = doctrineWith(Doctrine.Axis.AGGRESSION, 5);
+        Doctrine careful = doctrineWith(Doctrine.Axis.PRESERVATION, 5);
+        assert w.scorePlay(pursuit, s, bold) > w.scorePlay(pursuit, s, Doctrine.NEUTRAL) : "aggression does not favour pursuit";
+        assert w.scorePlay(withdraw, s, careful) > w.scorePlay(withdraw, s, Doctrine.NEUTRAL)
+                : "preservation does not favour the withdrawal";
     }
 
     /** One hull with three escort riflemen is half outnumbered, not fully; saturation is at 1:3. */

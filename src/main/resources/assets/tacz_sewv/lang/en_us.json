@@ -2749,5 +2749,13 @@
   "gui.tacz_sewv.doctrine.preset.combined_arms": "Combined Arms",
   "gui.tacz_sewv.doctrine.preset.combined_arms.tip": "Lean on support, stay together, hunt armour, preserve the hull.",
   "gui.tacz_sewv.doctrine.preset.hunter_killer": "Hunter-Killer",
-  "gui.tacz_sewv.doctrine.preset.hunter_killer.tip": "Hunt armour first, close in, take risks."
+  "gui.tacz_sewv.doctrine.preset.hunter_killer.tip": "Hunt armour first, close in, take risks.",
+  "message.tacz_sewv.veterancy.promoted": "%s is now %s.",
+  "message.tacz_sewv.veterancy.budget": "Your command rating earned a ledger point: budget %s.",
+  "gui.tacz_sewv.map.ribbon.veterancy": "Rank: %s",
+  "gui.tacz_sewv.doctrine.effect.budget": "Ledger budget %s points",
+  "gui.tacz_sewv.veterancy.0": "Green",
+  "gui.tacz_sewv.veterancy.1": "Regular",
+  "gui.tacz_sewv.veterancy.2": "Veteran",
+  "gui.tacz_sewv.veterancy.3": "Elite"
 }

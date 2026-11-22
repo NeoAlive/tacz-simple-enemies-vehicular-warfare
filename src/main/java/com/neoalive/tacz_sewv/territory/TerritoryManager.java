@@ -456,7 +456,8 @@ public final class TerritoryManager {
             rows.add(new Row(u.getId(), u.getDisplayName().getString(),
                     (byte) (u.isPassenger() ? 1 : 0), u.getHealth() / max, statusByte(status(u)),
                     posted, posted && p.sewv$isTerritoryLost(),
-                    posted ? p.sewv$getTerritoryChunkX() : 0, posted ? p.sewv$getTerritoryChunkZ() : 0));
+                    posted ? p.sewv$getTerritoryChunkX() : 0, posted ? p.sewv$getTerritoryChunkZ() : 0,
+                    (byte) com.neoalive.tacz_sewv.crew.Veterancy.level(u)));
         }
         return rows;
     }

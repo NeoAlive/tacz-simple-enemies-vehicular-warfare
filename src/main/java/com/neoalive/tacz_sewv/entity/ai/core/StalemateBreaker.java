@@ -168,7 +168,9 @@ public final class StalemateBreaker {
         // Maneuver doctrine loses patience sooner (DoctrineKnobs.stalemateScale).
         long patience = Math.round(SewvConfig.STALEMATE_SILENCE_TICKS.get()
                 * com.neoalive.tacz_sewv.entity.ai.utility.DoctrineKnobs.stalemateScale(
-                        com.neoalive.tacz_sewv.entity.ai.utility.Doctrine.forCrew(this.unit)));
+                        com.neoalive.tacz_sewv.entity.ai.utility.Doctrine.forCrew(this.unit))
+                * com.neoalive.tacz_sewv.entity.ai.utility.DoctrineKnobs.veterancyStalemate(this.unit.getVehicle() != null
+                        ? com.neoalive.tacz_sewv.crew.Veterancy.crewLevel(this.unit.getVehicle()) : com.neoalive.tacz_sewv.crew.Veterancy.level(this.unit)));
         boolean silent = now - anchor > patience;
 
         if (!this.arcViolation && !silent) return null;

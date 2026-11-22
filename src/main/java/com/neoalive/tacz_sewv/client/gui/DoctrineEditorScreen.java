@@ -318,6 +318,7 @@ public class DoctrineEditorScreen extends Screen {
         out.add(Component.translatable(DoctrineClient.has()
                 ? "gui.tacz_sewv.doctrine.effects" : "gui.tacz_sewv.doctrine.effects_none")
                 .withStyle(net.minecraft.ChatFormatting.GOLD));
+        out.add(Component.translatable("gui.tacz_sewv.doctrine.effect.budget", this.budget));
         out.add(Component.translatable("gui.tacz_sewv.doctrine.effect.temper",
                 Component.translatable("gui.tacz_sewv.doctrine.temper."
                         + Doctrine.Temperament.of(Doctrine.cautionCentre(d)).name().toLowerCase(java.util.Locale.ROOT))));

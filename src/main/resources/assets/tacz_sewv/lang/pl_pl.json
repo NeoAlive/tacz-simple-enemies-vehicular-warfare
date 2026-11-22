@@ -2749,5 +2749,13 @@
   "gui.tacz_sewv.doctrine.preset.combined_arms": "Połączone siły",
   "gui.tacz_sewv.doctrine.preset.combined_arms.tip": "Polega na wsparciu, trzyma się razem, poluje na pancerz, chroni kadłub.",
   "gui.tacz_sewv.doctrine.preset.hunter_killer": "Łowca",
-  "gui.tacz_sewv.doctrine.preset.hunter_killer.tip": "Najpierw poluje na pancerz, zbliża się, ryzykuje."
+  "gui.tacz_sewv.doctrine.preset.hunter_killer.tip": "Najpierw poluje na pancerz, zbliża się, ryzykuje.",
+  "message.tacz_sewv.veterancy.promoted": "%s jest teraz: %s.",
+  "message.tacz_sewv.veterancy.budget": "Twoja ocena dowodzenia daje punkt doktryny: budżet %s.",
+  "gui.tacz_sewv.map.ribbon.veterancy": "Stopień: %s",
+  "gui.tacz_sewv.doctrine.effect.budget": "Budżet rejestru %s pkt",
+  "gui.tacz_sewv.veterancy.0": "Rekrut",
+  "gui.tacz_sewv.veterancy.1": "Regularny",
+  "gui.tacz_sewv.veterancy.2": "Weteran",
+  "gui.tacz_sewv.veterancy.3": "Elita"
 }

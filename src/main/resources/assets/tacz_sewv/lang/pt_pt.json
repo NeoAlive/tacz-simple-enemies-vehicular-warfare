@@ -2749,5 +2749,13 @@
   "gui.tacz_sewv.doctrine.preset.combined_arms": "Armas combinadas",
   "gui.tacz_sewv.doctrine.preset.combined_arms.tip": "Conta com o apoio, fica unido, caça blindados, preserva o casco.",
   "gui.tacz_sewv.doctrine.preset.hunter_killer": "Caçador",
-  "gui.tacz_sewv.doctrine.preset.hunter_killer.tip": "Caça primeiro blindados, aproxima-se, arrisca."
+  "gui.tacz_sewv.doctrine.preset.hunter_killer.tip": "Caça primeiro blindados, aproxima-se, arrisca.",
+  "message.tacz_sewv.veterancy.promoted": "%s agora é %s.",
+  "message.tacz_sewv.veterancy.budget": "A tua avaliação de comando ganhou um ponto de doutrina: orçamento %s.",
+  "gui.tacz_sewv.map.ribbon.veterancy": "Patente: %s",
+  "gui.tacz_sewv.doctrine.effect.budget": "Orçamento do registo %s pontos",
+  "gui.tacz_sewv.veterancy.0": "Recruta",
+  "gui.tacz_sewv.veterancy.1": "Regular",
+  "gui.tacz_sewv.veterancy.2": "Veterano",
+  "gui.tacz_sewv.veterancy.3": "Elite"
 }

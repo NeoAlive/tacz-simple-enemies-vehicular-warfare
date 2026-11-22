@@ -79,7 +79,9 @@ public final class TacticalBrain {
         // Order matters: the facts are projected onto signals, confidence is judged from those,
         // and only then are the actions scored — because confidence is itself an input to them.
         sample(unit, this.facts, now);
-        this.facts.confidence = Confidence.evaluate(this.signals, doctrine, weights, EasyMode.confidenceMalus(unit));
+        // Veteran crews start from higher ground: the bonus rides Easy Mode's malus slot as a negative malus.
+        this.facts.confidence = Confidence.evaluate(this.signals, doctrine, weights, EasyMode.confidenceMalus(unit)
+                - DoctrineKnobs.veterancyConfidence(com.neoalive.tacz_sewv.crew.Veterancy.crewLevel(hull)));
         this.signals[Signal.CONFIDENCE.ordinal()] = Confidence.asSignal(this.facts.confidence);
 
         decide(unit, doctrine, weights, now);
@@ -100,7 +102,9 @@ public final class TacticalBrain {
         UtilityWeights weights = UtilityWeights.active();
 
         sample(unit, this.facts, now);
-        this.facts.confidence = Confidence.evaluate(this.signals, doctrine, weights, EasyMode.confidenceMalus(unit));
+        // Veteran crews start from higher ground: the bonus rides Easy Mode's malus slot as a negative malus.
+        this.facts.confidence = Confidence.evaluate(this.signals, doctrine, weights, EasyMode.confidenceMalus(unit)
+                - DoctrineKnobs.veterancyConfidence(com.neoalive.tacz_sewv.crew.Veterancy.crewLevel(hull)));
         this.signals[Signal.CONFIDENCE.ordinal()] = Confidence.asSignal(this.facts.confidence);
 
         posture.evaluate(unit, hull, this.facts, doctrine);

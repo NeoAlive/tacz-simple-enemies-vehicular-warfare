@@ -2749,5 +2749,13 @@
   "gui.tacz_sewv.doctrine.preset.combined_arms": "Armi combinate",
   "gui.tacz_sewv.doctrine.preset.combined_arms.tip": "Conta sul supporto, resta unito, caccia i corazzati, preserva lo scafo.",
   "gui.tacz_sewv.doctrine.preset.hunter_killer": "Cacciatore",
-  "gui.tacz_sewv.doctrine.preset.hunter_killer.tip": "Caccia prima i corazzati, si avvicina, corre rischi."
+  "gui.tacz_sewv.doctrine.preset.hunter_killer.tip": "Caccia prima i corazzati, si avvicina, corre rischi.",
+  "message.tacz_sewv.veterancy.promoted": "%s ora è %s.",
+  "message.tacz_sewv.veterancy.budget": "Il tuo grado di comando ti dà un punto dottrina: budget %s.",
+  "gui.tacz_sewv.map.ribbon.veterancy": "Grado: %s",
+  "gui.tacz_sewv.doctrine.effect.budget": "Budget del registro %s punti",
+  "gui.tacz_sewv.veterancy.0": "Recluta",
+  "gui.tacz_sewv.veterancy.1": "Regolare",
+  "gui.tacz_sewv.veterancy.2": "Veterano",
+  "gui.tacz_sewv.veterancy.3": "Élite"
 }

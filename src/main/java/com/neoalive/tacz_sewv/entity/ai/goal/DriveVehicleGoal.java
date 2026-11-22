@@ -119,6 +119,8 @@ public class DriveVehicleGoal extends Goal {
     private boolean taskDriving;
     /** Game time the run-start smoke volley's decoy hold ends; {@link Long#MIN_VALUE} = none open. */
     private long smokeUntil = Long.MIN_VALUE;
+    /** Held a live target since the last award: coming out of contact intact earns the crew veterancy. */
+    private boolean engaged;
     /** Game ticks a Cover and Hold drive may go without closing on its spot before it holds where it is. */
     private static final long COVER_STALL_TICKS = 1200;
     private double coverBestDistSq = Double.MAX_VALUE;
@@ -235,6 +237,7 @@ public class DriveVehicleGoal extends Goal {
         this.lastSpokenPlan = Action.HOLD;
         this.pendingDispatchPlan = null;
         this.pendingDispatchSince = Long.MIN_VALUE;
+        this.engaged = false; // a crew that leaves the seat mid-fight earns nothing for it
         this.dismount.abort(this.unit.level().getGameTime());
         this.driver.stop();
         this.vehicle.setDecoyInputDown(false);
@@ -284,6 +287,13 @@ public class DriveVehicleGoal extends Goal {
         this.driver.tickTimers();
         // The speed cap is re-asserted by whichever branch wants it, every tick; nothing inherits last tick's.
         this.driver.setSpeedCap(Double.NaN);
+        LivingEntity held = this.unit.getTarget();
+        if (held != null && held.isAlive()) {
+            this.engaged = true;
+        } else if (this.engaged) {
+            this.engaged = false;
+            com.neoalive.tacz_sewv.crew.Veterancy.onEngagementSurvived(this.vehicle);
+        }
         boolean farIdle = farIdle();
         this.driver.setFarIdle(farIdle);
         TreeFellingSupport.tick(this.unit, this.vehicle, this.hull, farIdle);

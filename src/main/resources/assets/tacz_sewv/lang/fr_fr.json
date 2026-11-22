@@ -2749,5 +2749,13 @@
   "gui.tacz_sewv.doctrine.preset.combined_arms": "Interarmes",
   "gui.tacz_sewv.doctrine.preset.combined_arms.tip": "S'appuie sur le soutien, reste groupé, chasse les blindés, ménage la coque.",
   "gui.tacz_sewv.doctrine.preset.hunter_killer": "Chasseur",
-  "gui.tacz_sewv.doctrine.preset.hunter_killer.tip": "Chasse d'abord les blindés, approche, prend des risques."
+  "gui.tacz_sewv.doctrine.preset.hunter_killer.tip": "Chasse d'abord les blindés, approche, prend des risques.",
+  "message.tacz_sewv.veterancy.promoted": "%s est maintenant %s.",
+  "message.tacz_sewv.veterancy.budget": "Votre cote de commandement rapporte un point de doctrine : budget %s.",
+  "gui.tacz_sewv.map.ribbon.veterancy": "Rang : %s",
+  "gui.tacz_sewv.doctrine.effect.budget": "Budget du registre %s points",
+  "gui.tacz_sewv.veterancy.0": "Bleu",
+  "gui.tacz_sewv.veterancy.1": "Régulier",
+  "gui.tacz_sewv.veterancy.2": "Vétéran",
+  "gui.tacz_sewv.veterancy.3": "Élite"
 }

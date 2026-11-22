@@ -25,7 +25,7 @@ public class PacketTerritoryState {
 
     /** {@code kind}: 0 on foot, 1 driving a hull. */
     public record Row(int id, String name, byte kind, float health, byte status,
-                      boolean posted, boolean lost, int chunkX, int chunkZ) {}
+                      boolean posted, boolean lost, int chunkX, int chunkZ, byte veterancy) {}
 
     /**
      * The baked plan as the client draws it. {@code hold}: why a RUNNING plan is waiting (see
@@ -68,7 +68,7 @@ public class PacketTerritoryState {
         this.roster = new ArrayList<>(rows);
         for (int i = 0; i < rows; i++) {
             roster.add(new Row(buf.readVarInt(), buf.readUtf(64), buf.readByte(), buf.readFloat(), buf.readByte(),
-                    buf.readBoolean(), buf.readBoolean(), buf.readInt(), buf.readInt()));
+                    buf.readBoolean(), buf.readBoolean(), buf.readInt(), buf.readInt(), buf.readByte()));
         }
         int n = buf.readVarInt();
         this.front = new long[n];
@@ -115,6 +115,7 @@ public class PacketTerritoryState {
             buf.writeBoolean(r.lost());
             buf.writeInt(r.chunkX());
             buf.writeInt(r.chunkZ());
+            buf.writeByte(r.veterancy());
         }
         buf.writeVarInt(front.length);
         for (int i = 0; i < front.length; i++) {

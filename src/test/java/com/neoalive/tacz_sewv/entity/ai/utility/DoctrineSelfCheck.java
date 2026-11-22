@@ -21,6 +21,7 @@ public final class DoctrineSelfCheck {
         doctrineOwnsTemperament();
         infantryKnobs();
         presetsSpendTheBudgetAndDiffer();
+        veterancyAndBudget();
 
         System.out.println("DoctrineSelfCheck OK");
     }
@@ -157,6 +158,23 @@ public final class DoctrineSelfCheck {
             behaviours.add(pattern.toString());
         }
         assert behaviours.size() >= 3 : "presets collapse to " + behaviours.size() + " behaviours: " + behaviours;
+    }
+
+    /** Levels step at the thresholds and cap; effects are identity at Green; the budget grows and caps at 30. */
+    private static void veterancyAndBudget() {
+        assert DoctrineKnobs.veterancyLevel(0) == 0 && DoctrineKnobs.veterancyLevel(9) == 0 : "green";
+        assert DoctrineKnobs.veterancyLevel(10) == 1 && DoctrineKnobs.veterancyLevel(30) == 2 : "regular, veteran";
+        assert DoctrineKnobs.veterancyLevel(60) == 3 && DoctrineKnobs.veterancyLevel(100000) == 3 : "elite caps";
+        close(0.0, DoctrineKnobs.veterancyConfidence(0), "green confidence");
+        close(1.0, DoctrineKnobs.veterancyAcquisition(0), "green acquisition");
+        close(1.0, DoctrineKnobs.veterancyStalemate(0), "green stalemate");
+        assert DoctrineKnobs.veterancyConfidence(3) > 0 && DoctrineKnobs.veterancyAcquisition(3) < 1.0 : "elite gains nothing";
+        int base = PlayerDoctrineData.BASE_BUDGET;
+        assert DoctrineKnobs.budget(base, 0) == base : "no rating, base budget";
+        assert DoctrineKnobs.budget(base, DoctrineKnobs.RATING_PER_POINT - 1) == base : "one point too early";
+        assert DoctrineKnobs.budget(base, DoctrineKnobs.RATING_PER_POINT) == base + 1 : "first earned point";
+        assert DoctrineKnobs.budget(base, 1_000_000) == DoctrineKnobs.MAX_BUDGET : "budget caps";
+        assert DoctrineKnobs.MAX_BUDGET <= Doctrine.AXIS_LIMIT * Doctrine.Axis.VALUES.length : "unspendable budget";
     }
 
     private static com.google.gson.JsonElement shippedWeights() {

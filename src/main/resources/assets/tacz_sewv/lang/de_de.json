@@ -2749,5 +2749,13 @@
   "gui.tacz_sewv.doctrine.preset.combined_arms": "Verbundene Waffen",
   "gui.tacz_sewv.doctrine.preset.combined_arms.tip": "Auf Unterstützung setzen, zusammenbleiben, Panzer jagen, Rumpf schonen.",
   "gui.tacz_sewv.doctrine.preset.hunter_killer": "Jäger",
-  "gui.tacz_sewv.doctrine.preset.hunter_killer.tip": "Zuerst Panzer jagen, heranfahren, Risiken eingehen."
+  "gui.tacz_sewv.doctrine.preset.hunter_killer.tip": "Zuerst Panzer jagen, heranfahren, Risiken eingehen.",
+  "message.tacz_sewv.veterancy.promoted": "%s ist jetzt %s.",
+  "message.tacz_sewv.veterancy.budget": "Deine Kommandowertung bringt einen Doktrinpunkt: Budget %s.",
+  "gui.tacz_sewv.map.ribbon.veterancy": "Rang: %s",
+  "gui.tacz_sewv.doctrine.effect.budget": "Doktrinbudget %s Punkte",
+  "gui.tacz_sewv.veterancy.0": "Rekrut",
+  "gui.tacz_sewv.veterancy.1": "Regulär",
+  "gui.tacz_sewv.veterancy.2": "Veteran",
+  "gui.tacz_sewv.veterancy.3": "Elite"
 }

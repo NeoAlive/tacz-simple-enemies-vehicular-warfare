@@ -2749,5 +2749,13 @@
   "gui.tacz_sewv.doctrine.preset.combined_arms": "Общевойсковой",
   "gui.tacz_sewv.doctrine.preset.combined_arms.tip": "Опирается на поддержку, держится вместе, охотится на броню, бережёт корпус.",
   "gui.tacz_sewv.doctrine.preset.hunter_killer": "Охотник",
-  "gui.tacz_sewv.doctrine.preset.hunter_killer.tip": "Сначала охотится на броню, сближается, рискует."
+  "gui.tacz_sewv.doctrine.preset.hunter_killer.tip": "Сначала охотится на броню, сближается, рискует.",
+  "message.tacz_sewv.veterancy.promoted": "%s теперь: %s.",
+  "message.tacz_sewv.veterancy.budget": "Ваш командный рейтинг принёс очко доктрины: бюджет %s.",
+  "gui.tacz_sewv.map.ribbon.veterancy": "Ранг: %s",
+  "gui.tacz_sewv.doctrine.effect.budget": "Бюджет доктрины %s очков",
+  "gui.tacz_sewv.veterancy.0": "Новобранец",
+  "gui.tacz_sewv.veterancy.1": "Рядовой",
+  "gui.tacz_sewv.veterancy.2": "Ветеран",
+  "gui.tacz_sewv.veterancy.3": "Элита"
 }

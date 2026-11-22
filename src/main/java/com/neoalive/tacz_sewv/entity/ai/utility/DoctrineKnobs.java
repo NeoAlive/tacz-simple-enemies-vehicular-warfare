@@ -120,6 +120,47 @@ public final class DoctrineKnobs {
         return breakOffHealth(d) / BASE_BREAK_OFF;
     }
 
+    // ---- veterancy ------------------------------------------------------------------------------------------------
+
+    /** XP thresholds for Regular, Veteran and Elite; below the first a unit is Green (level 0). */
+    public static final int[] VETERANCY_XP = {10, 30, 60};
+    public static final int MAX_VETERANCY = VETERANCY_XP.length;
+    /** Command rating per extra ledger point, and the ceiling the budget grows to. */
+    public static final int RATING_PER_POINT = 40;
+    public static final int MAX_BUDGET = 30;
+
+    public static int veterancyLevel(int xp) {
+        int level = 0;
+        for (int threshold : VETERANCY_XP) {
+            if (xp >= threshold) level++;
+        }
+        return level;
+    }
+
+    /** Confidence points an experienced crew starts above a green one. */
+    public static double veterancyConfidence(int level) {
+        return 4.0 * clampLevel(level);
+    }
+
+    /** Acquisition delay multiplier: veterans notice faster. */
+    public static double veterancyAcquisition(int level) {
+        return 1.0 - 0.08 * clampLevel(level);
+    }
+
+    /** Stalemate patience multiplier: veterans stop wasting time on a fight they cannot win sooner. */
+    public static double veterancyStalemate(int level) {
+        return 1.0 - 0.1 * clampLevel(level);
+    }
+
+    /** The ledger budget a command rating earns: the base, plus one point per {@link #RATING_PER_POINT}, capped. */
+    public static int budget(int baseBudget, int rating) {
+        return Math.min(MAX_BUDGET, baseBudget + Math.max(0, rating) / RATING_PER_POINT);
+    }
+
+    private static int clampLevel(int level) {
+        return Math.max(0, Math.min(MAX_VETERANCY, level));
+    }
+
     // ---- infantry (SEM's CombatDecisionContext: pressure and confidence are 0..1) --------------------------------
 
     /** Confidence shift for an on-foot unit: aggression and risk embolden, preservation steadies. */

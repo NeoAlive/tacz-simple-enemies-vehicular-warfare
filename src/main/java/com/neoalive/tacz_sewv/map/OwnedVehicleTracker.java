@@ -149,7 +149,11 @@ public final class OwnedVehicleTracker {
         long formation = member.sewv$getFormationGroup();
         if (formation == 0L) formation = member.sewv$getFormationLeads();
         Platoon p = PlatoonRegistry.platoonOf(level, pmc.getId());
-        return new MarkerTags(formation, p != null ? p.groupId() : 0, stanceOf(pmc), OrderBatch.of(pmc), planOf(pmc));
+        int veterancy = pmc.getVehicle() != null
+                ? com.neoalive.tacz_sewv.crew.Veterancy.crewLevel(pmc.getVehicle())
+                : com.neoalive.tacz_sewv.crew.Veterancy.level(pmc);
+        return new MarkerTags(formation, p != null ? p.groupId() : 0, stanceOf(pmc), OrderBatch.of(pmc), planOf(pmc),
+                veterancy);
     }
 
     /** The driver's combat plan while it holds a target; NONE otherwise, so the map never shows a stale fight. */

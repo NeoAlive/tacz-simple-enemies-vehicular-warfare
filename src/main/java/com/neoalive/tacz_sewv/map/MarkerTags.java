@@ -7,9 +7,9 @@ import net.minecraft.network.FriendlyByteBuf;
  * stands under and the batch that order came from. All zero for a unit in none, and for every
  * marker that is not OWN.
  */
-public record MarkerTags(long formationGroup, int platoonId, Stance stance, long orderBatch, Plan plan) {
+public record MarkerTags(long formationGroup, int platoonId, Stance stance, long orderBatch, Plan plan, int veterancy) {
 
-    public static final MarkerTags NONE = new MarkerTags(0L, 0, Stance.NONE, 0L, Plan.NONE);
+    public static final MarkerTags NONE = new MarkerTags(0L, 0, Stance.NONE, 0L, Plan.NONE, 0);
 
     /**
      * What a crew in contact is doing right now, for the map's posture glyph. Mod-owned (not the utility Action
@@ -52,10 +52,11 @@ public record MarkerTags(long formationGroup, int platoonId, Stance stance, long
         buf.writeByte(this.stance.ordinal());
         buf.writeLong(this.orderBatch);
         buf.writeByte(this.plan.ordinal());
+        buf.writeByte(this.veterancy);
     }
 
     public static MarkerTags decode(FriendlyByteBuf buf) {
         return new MarkerTags(buf.readLong(), buf.readVarInt(), Stance.byId(buf.readByte()), buf.readLong(),
-                Plan.byId(buf.readByte()));
+                Plan.byId(buf.readByte()), buf.readByte());
     }
 }

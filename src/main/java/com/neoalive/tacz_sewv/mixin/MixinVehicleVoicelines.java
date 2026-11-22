@@ -41,9 +41,11 @@ public abstract class MixinVehicleVoicelines {
 
     @Inject(method = "destroy", at = @At("HEAD"), remap = false)
     private void tacz_sewv$destroyedVoice(CallbackInfo ci) {
-        if (!CrewRadio.enabled()) return;
         VehicleEntity hull = (VehicleEntity) (Object) this;
         if (hull.level().isClientSide) return;
+        // Veterancy first, and regardless of the radio: progression must not depend on a voice setting.
+        com.neoalive.tacz_sewv.crew.Veterancy.onHullDestroyed(hull, hull.getLastAttacker());
+        if (!CrewRadio.enabled()) return;
         CrewRadio.onHullDestroyed(hull, hull.getLastAttacker());
     }
 

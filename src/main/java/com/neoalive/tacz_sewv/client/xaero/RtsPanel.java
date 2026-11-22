@@ -1323,7 +1323,11 @@ public final class RtsPanel {
     private static void drawRow(GuiGraphics g, Font font, Row r, Layout l, int y, int mx, int my) {
         int ty = y + (ROW_H - 8) / 2;
         int nameX = l.x0 + 6 + SPRITE + 4;
-        g.drawString(font, font.plainSubstrByWidth(r.name(), NAME_W), nameX, ty, ineligible(r) ? DIM : TEXT, true);
+        // Veterancy pips share the name column: the name gives way to them, so the columns never move.
+        String pips = "\u2605".repeat(Math.max(0, Math.min(3, r.veterancy())));
+        int pipsW = pips.isEmpty() ? 0 : font.width(pips) + 2;
+        g.drawString(font, font.plainSubstrByWidth(r.name(), NAME_W - pipsW), nameX, ty, ineligible(r) ? DIM : TEXT, true);
+        if (!pips.isEmpty()) g.drawString(font, pips, nameX + NAME_W - pipsW + 2, ty, 0xFFFFD700, true);
 
         int barX = nameX + NAME_W + 4;
         healthBar(g, barX, y + (ROW_H - BAR_H) / 2, r.health());

@@ -457,6 +457,8 @@ public final class UnitRibbon {
             lines.add(I18n.get("gui.tacz_sewv.map.ribbon.health", Math.round(m.healthFrac() * 100)));
             lines.add(I18n.get("gui.tacz_sewv.map.stance." + m.tags().stance().name().toLowerCase(Locale.ROOT)));
             if (m.tags().platoonId() != 0) lines.add(I18n.get("gui.tacz_sewv.map.ribbon.platoon", m.tags().platoonId()));
+            lines.add(I18n.get("gui.tacz_sewv.map.ribbon.veterancy",
+                    I18n.get("gui.tacz_sewv.veterancy." + Math.max(0, Math.min(3, m.tags().veterancy())))));
             if (m.tags().formationGroup() != 0L) lines.add(I18n.get("gui.tacz_sewv.map.ribbon.in_formation"));
         }
         XaeroTheme.tooltip(g, font, lines, mx, my, sw, sh);

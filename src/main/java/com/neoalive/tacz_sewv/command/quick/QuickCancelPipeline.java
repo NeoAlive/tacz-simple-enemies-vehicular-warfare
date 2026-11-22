@@ -13,6 +13,7 @@ import com.neoalive.tacz_sewv.bridge.IEscort;
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.bridge.IMortarCrew;
 import com.neoalive.tacz_sewv.bridge.IPathwayInfantry;
+import com.neoalive.tacz_sewv.bridge.ITerritoryPost;
 import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.command.quick.scavenge.ScavengeTracker;
 import com.neoalive.tacz_sewv.config.EasyMode;
@@ -24,9 +25,11 @@ import com.neoalive.tacz_sewv.entity.ai.support.FormationSubjects;
 import com.neoalive.tacz_sewv.entity.ai.support.GuardSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.MortarSupport;
 import com.neoalive.tacz_sewv.entity.ai.support.PatrolSupport;
+import com.neoalive.tacz_sewv.entity.ai.support.TerritorySupport;
 import com.neoalive.tacz_sewv.entity.ai.support.TowRecoverySupport;
 import com.neoalive.tacz_sewv.fob.FobSupport;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
+import com.neoalive.tacz_sewv.territory.TerritoryManager;
 
 /**
  * Root Cancel: abort active Quick Evac / Scavenge, dismiss area / board / entrench / capture-medic
@@ -46,6 +49,11 @@ public final class QuickCancelPipeline implements QuickCommandPipeline {
         double radius = context.unitRadius(SewvConfig.QUICK_LAND_RADIUS.get());
         int cancelled = 0;
         for (PmcUnitEntity pmc : QuickCommandUnits.owned(issuer, level, context.unitIds(), radius)) {
+            // Stand-down wins over a Territory post, as for downed and bail.
+            if (((ITerritoryPost) pmc).sewv$hasTerritoryPost()) {
+                TerritorySupport.dropPost(pmc);
+                TerritoryManager.forgetCoverage(issuer.getUUID());
+            }
             dismissToFreeFire(pmc);
             cancelled++;
         }

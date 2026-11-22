@@ -516,6 +516,11 @@ public final class TerritoryManager {
 
     // ---- notifications ----------------------------------------------------------------------------------
 
+    /** The player stood a posted unit down: the chunk it leaves is not "going uncovered", so do not toast it. */
+    public static void forgetCoverage(UUID player) {
+        LAST_COVERED.remove(player);
+    }
+
     /** An order was refused because the unit is on a post: tell the player where to release it. */
     public static void notifyRefused(ServerPlayer issuer, PmcUnitEntity pmc, String channel) {
         notify(issuer, "refused_" + channel, String.valueOf(pmc.getId()),

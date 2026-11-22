@@ -20,8 +20,8 @@ import com.neoalive.tacz_sewv.util.LoadedTerrain;
  * follow/hold goals (priority 3). While the unit is still travelling it runs through combat: it walks to the
  * centre, fires opportunistically and never diverts or chases, even at a target inside the leash. Only once the
  * post has been REACHED does it yield to a target inside the leash (with the unit inside it too) — then SEM's own
- * chase takes over (Option B, leash-bounded pursuit). A target outside the leash never becomes a lock (the
- * {@code setTarget} veto) and, if one somehow is held, {@code FollowLeash} suppresses the chase.
+ * chase takes over (Option B, leash-bounded pursuit). A target outside the leash may still be acquired and is
+ * fired at from the post; the leash bounds pursuit, not acquisition, and {@code FollowLeash} suppresses the chase.
  *
  * <p>Hysteresis: arrived within 3 blocks; once arrived, only drift past 6 blocks pulls it back. The
  * {@code holding} flag is transient on purpose — after a reload a unit sitting in the 3-6 band simply

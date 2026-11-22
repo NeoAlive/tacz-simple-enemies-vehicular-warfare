@@ -88,6 +88,38 @@ public final class DoctrineKnobs {
         return p(d) > 0.2;
     }
 
+    // ---- aircraft -------------------------------------------------------------------------------------------------
+
+    /** Helicopter weapon engagement range multiplier: bold pilots close in, careful ones stand off. */
+    public static double heliRangeScale(Doctrine d) {
+        return clamp(1.0 - 0.2 * a(d) + 0.15 * p(d), 0.7, 1.3);
+    }
+
+    /** Blocks added to a helicopter's cruise altitude: careful pilots fly higher. */
+    public static double heliAltitudeOffset(Doctrine d) {
+        return 8.0 * p(d);
+    }
+
+    /** Hull fraction below which an aircraft keeps flares going. Neutral 0.5, as the constant it replaces. */
+    public static float decoyHealth(Doctrine d) {
+        return (float) clamp(0.5 + 0.15 * p(d), 0.3, 0.7);
+    }
+
+    /** Chance per check to pop a preserving flare. Neutral 0.5, as the constant it replaces. */
+    public static float decoyChance(Doctrine d) {
+        return (float) clamp(0.5 + 0.3 * p(d), 0.1, 0.9);
+    }
+
+    /** Lowest attack-run height above ground for a plane: bolder pilots run in lower. Neutral 40. */
+    public static double planeMinRunAgl(Doctrine d) {
+        return 40.0 - 10.0 * r(d);
+    }
+
+    /** Multiplier on the plane's emergency-landing health, tied to the break-off so one ledger moves both. */
+    public static double emergencyLandScale(Doctrine d) {
+        return breakOffHealth(d) / BASE_BREAK_OFF;
+    }
+
     // ---- infantry (SEM's CombatDecisionContext: pressure and confidence are 0..1) --------------------------------
 
     /** Confidence shift for an on-foot unit: aggression and risk embolden, preservation steadies. */

@@ -220,8 +220,8 @@ public class DriveHelicopterGoal extends Goal {
     private static final double[] GROUND_RING = {32.0, 64.0};
     private static final long GROUND_REF_TTL = 10L;
 
+    /** Rappel is refused below this hull fraction. Flares use DoctrineKnobs.decoyHealth instead. */
     private static final float DECOY_HEALTH_FRACTION = 0.5F;
-    private static final float PRESERVE_DECOY_CHANCE = 0.5F;
 
     private final AbstractUnit unit;
     private final VehicleTargeting.AllyAssist allyAssist = new VehicleTargeting.AllyAssist();
@@ -375,8 +375,9 @@ public class DriveHelicopterGoal extends Goal {
                 SewvConfig.HELI_CHUNK_LOADING.get() && !parked);
 
         // A burning airframe keeps popping flares all the way down.
+        com.neoalive.tacz_sewv.entity.ai.utility.Doctrine doctrine = com.neoalive.tacz_sewv.entity.ai.utility.Doctrine.forCrew(this.unit);
         AirframeSupport.updateDecoy(this.vehicle, this.unit, this.flares,
-                DECOY_HEALTH_FRACTION, PRESERVE_DECOY_CHANCE);
+                com.neoalive.tacz_sewv.entity.ai.utility.DoctrineKnobs.decoyHealth(doctrine), com.neoalive.tacz_sewv.entity.ai.utility.DoctrineKnobs.decoyChance(doctrine));
 
         // Hostile RU/US crews take no player flight orders and never idle parked: any grounded
         // resting state resolves to an immediate takeoff.
@@ -511,7 +512,8 @@ public class DriveHelicopterGoal extends Goal {
         sit.weaponGuided = sit.armed && HeliArmament.isGuidedProjectile(
                 HeliArmament.readSignals(this.vehicle, seat, this.heldWeaponSlot).projectileId());
         sit.noseAim = sit.armed && (!sit.weaponGuided || noseBeamRider());
-        sit.weaponRange = sit.weaponGuided ? GUIDED_RANGE : UNGUIDED_RANGE;
+        sit.weaponRange = (sit.weaponGuided ? GUIDED_RANGE : UNGUIDED_RANGE)
+                * com.neoalive.tacz_sewv.entity.ai.utility.DoctrineKnobs.heliRangeScale(com.neoalive.tacz_sewv.entity.ai.utility.Doctrine.forCrew(this.unit));
         sit.groundRef = groundRefAround(target);
         sit.aimDy = mover.getBbHeight() / 2.0;
         if (sit.armed) {
@@ -855,7 +857,7 @@ public class DriveHelicopterGoal extends Goal {
         boolean inPass = ph == FirePhase.INGRESS || ph == FirePhase.ATTACK;
         LivingEntity c = this.committed;
         if (inPass && c != null && c != current && c.isAlive() && !c.isRemoved()
-                && c.distanceToSqr(this.vehicle) < COMMIT_RANGE * COMMIT_RANGE) {
+                && c.distanceToSqr(this.vehicle) < sq(COMMIT_RANGE * com.neoalive.tacz_sewv.entity.ai.utility.DoctrineKnobs.heliRangeScale(com.neoalive.tacz_sewv.entity.ai.utility.Doctrine.forCrew(this.unit)))) {
             this.unit.setTarget(c);
             com.neoalive.tacz_sewv.entity.ai.targeting.AssignedTargets.stamp(this.unit);
             if (this.unit.getTarget() == c) return c;
@@ -1140,7 +1142,12 @@ public class DriveHelicopterGoal extends Goal {
     private double flightAltitude() {
         int alt = (this.unit instanceof IHelicopterPilot pilot)
                 ? pilot.sewv$getCruiseAltitude() : IHelicopterPilot.DEFAULT_CRUISE_ALTITUDE;
-        return Mth.clamp(alt, MIN_FLIGHT_ALT, MAX_FLIGHT_ALT);
+        // The doctrine lifts or lowers the whole band: a careful pilot cruises higher.
+        return Mth.clamp(alt, MIN_FLIGHT_ALT, MAX_FLIGHT_ALT) + com.neoalive.tacz_sewv.entity.ai.utility.DoctrineKnobs.heliAltitudeOffset(com.neoalive.tacz_sewv.entity.ai.utility.Doctrine.forCrew(this.unit));
+    }
+
+    private static double sq(double v) {
+        return v * v;
     }
 
     private int surfaceBelow() {

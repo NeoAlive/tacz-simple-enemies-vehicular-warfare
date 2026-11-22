@@ -44,6 +44,12 @@ public final class DoctrineSelfCheck {
         close(1.0, DoctrineKnobs.rankBias(n, false), "neutral infantry bias");
         assert !DoctrineKnobs.smokeOnHit(n) : "neutral smoke on hit";
         assert !DoctrineKnobs.creepsOnCourse(n) : "neutral creeps";
+        close(1.0, DoctrineKnobs.heliRangeScale(n), "neutral heli range");
+        close(0.0, DoctrineKnobs.heliAltitudeOffset(n), "neutral heli altitude");
+        close(0.5f, DoctrineKnobs.decoyHealth(n), "neutral flare health");
+        close(0.5f, DoctrineKnobs.decoyChance(n), "neutral flare chance");
+        close(40.0, DoctrineKnobs.planeMinRunAgl(n), "neutral run height");
+        close(1.0, DoctrineKnobs.emergencyLandScale(n), "neutral emergency landing");
     }
 
     private static void knobsMoveWithTheirAxis() {

@@ -81,6 +81,7 @@ public class NetworkHandler {
     // 23: heli firing-run phase sync for hover overlay.
     // 83: formation packet carries WIDTH/LENGTH stretch floats.
     // 122: doctrine sync (server to client).
+    // 123: doctrine preview (both directions).
     // 24: PMC rappel order packet.
     // 25: map markers carry optional OpenPAC tint RGB.
     // 26: removed PacketToggleAdvancing (autonomous KotH scrapped).
@@ -171,7 +172,7 @@ public class NetworkHandler {
     //      removed), PacketSyncPmcIdentity the logo link, PacketFetchWebLogo (C->S) + PacketWebLogo (S->C).
     // 121: PacketOpenTargetStack / PacketUpdateTargetStack replace the target priority allow list
     //      packets in the same slots: per faction an ordered priority list and an excluded list.
-    private static final String PROTOCOL_VERSION = "122";
+    private static final String PROTOCOL_VERSION = "123";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),
@@ -873,6 +874,13 @@ public class NetworkHandler {
                 PacketDoctrineSync::encode,
                 PacketDoctrineSync::new,
                 PacketDoctrineSync::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketDoctrinePreview.class,
+                PacketDoctrinePreview::encode,
+                PacketDoctrinePreview::new,
+                PacketDoctrinePreview::handle
         );
     }
 }

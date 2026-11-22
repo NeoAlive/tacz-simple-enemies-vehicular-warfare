@@ -12,6 +12,7 @@ import net.minecraft.util.Mth;
 import com.neoalive.tacz_sewv.client.DoctrineClient;
 import com.neoalive.tacz_sewv.entity.ai.utility.Doctrine;
 import com.neoalive.tacz_sewv.entity.ai.utility.DoctrineKnobs;
+import com.neoalive.tacz_sewv.entity.ai.utility.DoctrinePresets;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketSaveDoctrine;
 
@@ -28,7 +29,11 @@ public class DoctrineEditorScreen extends Screen {
     private static final int GAP = 8;
     private static final int STEP_BTN_W = 20;
     private static final int HEADER_H = 44;
-    private static final int FOOTER_H = 48;
+    private static final int FOOTER_H = 72;
+    private static final int PRESET_BTN_GAP = 4;
+    /** Debounce for preview requests while the player is clicking +/-. */
+    private static final long PREVIEW_DEBOUNCE_MS = 250L;
+
     private static final int SCROLLBAR_W = 6;
     private static final int SCROLL_STEP = 18;
 
@@ -37,6 +42,8 @@ public class DoctrineEditorScreen extends Screen {
     private final int budget = DoctrineClient.budget();
     private Button confirmButton;
     private boolean effectsBeside;
+    private boolean previewDirty = true;
+    private long previewChangedAt;
 
     private final List<AxisRow> rows = new ArrayList<>();
 
@@ -99,6 +106,19 @@ public class DoctrineEditorScreen extends Screen {
         addRenderableWidget(Button.builder(Component.translatable("gui.cancel"), b -> onClose())
                 .bounds(centerBtnX + 5, btnY, 100, 20).build());
 
+        int count = DoctrinePresets.ALL.size();
+        int presetW = Math.min(76, (Math.min(this.width - 20, 420) - PRESET_BTN_GAP * (count - 1)) / count);
+        int presetsX = this.width / 2 - (presetW * count + PRESET_BTN_GAP * (count - 1)) / 2;
+        for (int i = 0; i < count; i++) {
+            DoctrinePresets.Preset preset = DoctrinePresets.ALL.get(i);
+            addRenderableWidget(Button.builder(Component.translatable("gui.tacz_sewv.doctrine.preset." + preset.key()),
+                            b -> applyPreset(preset))
+                    .bounds(presetsX + i * (presetW + PRESET_BTN_GAP), this.height - 58, presetW, 20)
+                    .tooltip(net.minecraft.client.gui.components.Tooltip.create(
+                            Component.translatable("gui.tacz_sewv.doctrine.preset." + preset.key() + ".tip")))
+                    .build());
+        }
+
         layoutRows();
         updateConfirmButton();
     }
@@ -152,7 +172,29 @@ public class DoctrineEditorScreen extends Screen {
             if (newTotal <= this.budget) {
                 this.draftedAxes[index] = newVal;
                 updateConfirmButton();
+                markPreviewDirty();
             }
+        }
+    }
+
+    private void applyPreset(DoctrinePresets.Preset preset) {
+        System.arraycopy(preset.axes(), 0, this.draftedAxes, 0, this.draftedAxes.length);
+        updateConfirmButton();
+        markPreviewDirty();
+    }
+
+    private void markPreviewDirty() {
+        this.previewDirty = true;
+        this.previewChangedAt = net.minecraft.Util.getMillis();
+    }
+
+    @Override
+    public void tick() {
+        super.tick();
+        if (this.previewDirty && net.minecraft.Util.getMillis() - this.previewChangedAt >= PREVIEW_DEBOUNCE_MS) {
+            this.previewDirty = false;
+            NetworkHandler.CHANNEL.sendToServer(
+                    new com.neoalive.tacz_sewv.network.PacketDoctrinePreview(this.draftedAxes.clone()));
         }
     }
 
@@ -298,6 +340,24 @@ public class DoctrineEditorScreen extends Screen {
                 : t < 0.0 ? "gui.tacz_sewv.doctrine.effect.target_infantry" : "gui.tacz_sewv.doctrine.effect.target_none"));
         if (DoctrineKnobs.smokeOnHit(d)) out.add(Component.translatable("gui.tacz_sewv.doctrine.effect.smoke"));
         if (DoctrineKnobs.creepsOnCourse(d)) out.add(Component.translatable("gui.tacz_sewv.doctrine.effect.creep"));
+
+        // What the server's own scorer says these drafts would do, scenario by scenario.
+        out.add(Component.translatable("gui.tacz_sewv.doctrine.preview").withStyle(net.minecraft.ChatFormatting.GOLD));
+        if (!DoctrineClient.previewMatches(this.draftedAxes)) {
+            out.add(Component.translatable("gui.tacz_sewv.doctrine.preview.pending"));
+        } else {
+            byte[] actions = DoctrineClient.previewActions();
+            com.neoalive.tacz_sewv.entity.ai.utility.DoctrineScenarios.Scenario[] scenarios =
+                    com.neoalive.tacz_sewv.entity.ai.utility.DoctrineScenarios.Scenario.VALUES;
+            for (int i = 0; i < Math.min(actions.length, scenarios.length); i++) {
+                com.neoalive.tacz_sewv.entity.ai.utility.Action action =
+                        com.neoalive.tacz_sewv.network.PacketDoctrinePreview.action(actions[i]);
+                if (action == null) continue;
+                out.add(Component.translatable("gui.tacz_sewv.doctrine.preview.row",
+                        Component.translatable("gui.tacz_sewv.doctrine.scenario." + scenarios[i].key),
+                        Component.translatable("gui.tacz_sewv.doctrine.action." + action.key)));
+            }
+        }
         return out;
     }
 
@@ -311,7 +371,8 @@ public class DoctrineEditorScreen extends Screen {
         for (int i = 0; i < lines.size(); i++) {
             if (ly + 9 > y + h) break;
             String text = this.font.plainSubstrByWidth(lines.get(i).getString(), EFFECTS_W - 10);
-            g.drawString(this.font, text, x + 5, ly, i == 0 ? 0xFFFFAA00 : 0xFFDDDDDD, false);
+            boolean header = lines.get(i).getStyle().getColor() != null;
+            g.drawString(this.font, text, x + 5, ly, header ? 0xFFFFAA00 : 0xFFDDDDDD, false);
             ly += 12;
         }
     }

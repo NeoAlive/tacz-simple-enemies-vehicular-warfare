@@ -37,4 +37,29 @@ public final class DoctrineClient {
     public static int budget() {
         return budget;
     }
+
+    // ---- live preview ----------------------------------------------------------------------------------------
+
+    private static volatile int[] previewAxes = new int[0];
+    private static volatile byte[] previewActions = new byte[0];
+    private static volatile byte[] previewConfidence = new byte[0];
+
+    public static void acceptPreview(int[] forAxes, byte[] actions, byte[] confidence) {
+        previewAxes = forAxes.clone();
+        previewActions = actions.clone();
+        previewConfidence = confidence.clone();
+    }
+
+    /** True when the last answer was for exactly these axes, so the editor never shows a stale verdict. */
+    public static boolean previewMatches(int[] axesNow) {
+        return java.util.Arrays.equals(previewAxes, axesNow);
+    }
+
+    public static byte[] previewActions() {
+        return previewActions;
+    }
+
+    public static byte[] previewConfidence() {
+        return previewConfidence;
+    }
 }

@@ -20,6 +20,7 @@ public final class DoctrineSelfCheck {
         bailStaysUnderBreakOffEverywhere();
         doctrineOwnsTemperament();
         infantryKnobs();
+        presetsSpendTheBudgetAndDiffer();
 
         System.out.println("DoctrineSelfCheck OK");
     }
@@ -131,6 +132,39 @@ public final class DoctrineSelfCheck {
                 float p = DoctrineKnobs.infantryPressure(d, v);
                 assert c >= 0f && c <= 1f && p >= 0f && p <= 1f : "infantry knob left 0..1 at " + v;
             }
+        }
+    }
+
+    /**
+     * Every preset is a legal ledger at the base budget, and the presets are recognisably different crews: across the
+     * preview scenarios they do not all make the same choices.
+     */
+    private static void presetsSpendTheBudgetAndDiffer() {
+        UtilityWeights w = UtilityWeights.parse(java.util.Map.of(
+                new net.minecraft.resources.ResourceLocation("tacz_sewv", "weights"), shippedWeights()));
+        java.util.Set<String> behaviours = new java.util.HashSet<>();
+        for (DoctrinePresets.Preset preset : DoctrinePresets.ALL) {
+            int total = 0;
+            for (int v : preset.axes()) {
+                assert Math.abs(v) <= Doctrine.AXIS_LIMIT : preset.key() + " exceeds the axis limit";
+                total += Math.abs(v);
+            }
+            assert total == PlayerDoctrineData.BASE_BUDGET : preset.key() + " spends " + total;
+            StringBuilder pattern = new StringBuilder();
+            for (DoctrineScenarios.Scenario sc : DoctrineScenarios.Scenario.VALUES) {
+                pattern.append(DoctrineScenarios.decide(w, Doctrine.ofAxes(preset.axes()), sc).action().key).append(',');
+            }
+            behaviours.add(pattern.toString());
+        }
+        assert behaviours.size() >= 3 : "presets collapse to " + behaviours.size() + " behaviours: " + behaviours;
+    }
+
+    private static com.google.gson.JsonElement shippedWeights() {
+        try (java.io.Reader r = java.nio.file.Files.newBufferedReader(
+                java.nio.file.Path.of("src/main/resources/data/tacz_sewv/sewv/ai/weights.json"))) {
+            return com.google.gson.JsonParser.parseReader(r);
+        } catch (java.io.IOException e) {
+            throw new IllegalStateException(e);
         }
     }
 

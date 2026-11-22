@@ -23,7 +23,7 @@ public class DoctrineEditorScreen extends Screen {
     private static final int EFFECTS_W = 190;
     private static final int EFFECTS_GAP = 14;
     private static final int LIST_MIN_W = 260;
-    /** Armour engagement ring before doctrine, as Facts.preferredRange. */
+    /** Armour engagement ring before doctrine and tacticalScale, as Facts.preferredRange. */
     private static final double BASE_ARMOUR_RING = 40.0;
     private static final int PANEL_H = 36;
     private static final int GAP = 8;
@@ -323,7 +323,8 @@ public class DoctrineEditorScreen extends Screen {
                 Component.translatable("gui.tacz_sewv.doctrine.temper."
                         + Doctrine.Temperament.of(Doctrine.cautionCentre(d)).name().toLowerCase(java.util.Locale.ROOT))));
         out.add(Component.translatable("gui.tacz_sewv.doctrine.effect.ring",
-                Math.round(BASE_ARMOUR_RING * DoctrineKnobs.ringScale(d))));
+                Math.round(com.neoalive.tacz_sewv.entity.ai.utility.TacticalScale.of(BASE_ARMOUR_RING)
+                        * DoctrineKnobs.ringScale(d))));
         out.add(Component.translatable("gui.tacz_sewv.doctrine.effect.break_off",
                 Math.round(100 * DoctrineKnobs.breakOffHealth(d))));
         out.add(Component.translatable("gui.tacz_sewv.doctrine.effect.bail",

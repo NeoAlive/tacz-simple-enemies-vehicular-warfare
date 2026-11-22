@@ -9,14 +9,21 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
 
+import com.neoalive.tacz_sewv.client.DoctrineClient;
 import com.neoalive.tacz_sewv.entity.ai.utility.Doctrine;
+import com.neoalive.tacz_sewv.entity.ai.utility.DoctrineKnobs;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketSaveDoctrine;
 
 public class DoctrineEditorScreen extends Screen {
 
-    private static final int MAX_POINTS = 20;
     private static final int PANEL_W_PREF = 400;
+    /** Right-hand Effects panel; shown beside the list when it fits, otherwise as a tooltip on the points line. */
+    private static final int EFFECTS_W = 190;
+    private static final int EFFECTS_GAP = 14;
+    private static final int LIST_MIN_W = 260;
+    /** Armour engagement ring before doctrine, as Facts.preferredRange. */
+    private static final double BASE_ARMOUR_RING = 40.0;
     private static final int PANEL_H = 36;
     private static final int GAP = 8;
     private static final int STEP_BTN_W = 20;
@@ -26,7 +33,10 @@ public class DoctrineEditorScreen extends Screen {
     private static final int SCROLL_STEP = 18;
 
     private final int[] draftedAxes = new int[Doctrine.Axis.VALUES.length];
+    /** Points the ledger must spend, from the server's sync. */
+    private final int budget = DoctrineClient.budget();
     private Button confirmButton;
+    private boolean effectsBeside;
 
     private final List<AxisRow> rows = new ArrayList<>();
 
@@ -40,11 +50,17 @@ public class DoctrineEditorScreen extends Screen {
     private record AxisRow(Button minus, Button plus, int index) {}
 
     private int panelW() {
+        if (this.effectsBeside) return Math.min(PANEL_W_PREF, this.width - EFFECTS_W - EFFECTS_GAP - 40);
         return GuiFit.panelW(PANEL_W_PREF, this.width);
     }
 
     public DoctrineEditorScreen() {
         super(Component.translatable("item.tacz_sewv.doctrine_ledger"));
+        // Open on what is actually active, so a respec starts from the current doctrine instead of zeros.
+        if (DoctrineClient.has()) {
+            int[] saved = DoctrineClient.axes();
+            System.arraycopy(saved, 0, this.draftedAxes, 0, Math.min(saved.length, this.draftedAxes.length));
+        }
     }
 
     @Override
@@ -53,7 +69,9 @@ public class DoctrineEditorScreen extends Screen {
         this.scrollOffset = 0;
         this.draggingScrollbar = false;
 
-        this.listLeft = (this.width - panelW()) / 2;
+        this.effectsBeside = this.width >= LIST_MIN_W + EFFECTS_W + EFFECTS_GAP + 40;
+        int block = panelW() + (this.effectsBeside ? EFFECTS_GAP + EFFECTS_W : 0);
+        this.listLeft = (this.width - block) / 2;
         this.listTop = HEADER_H;
         this.listBottom = this.height - FOOTER_H;
         this.contentHeight = Doctrine.Axis.VALUES.length * PANEL_H
@@ -131,7 +149,7 @@ public class DoctrineEditorScreen extends Screen {
             int currentTotal = getTotalAllocated();
             int newTotal = currentTotal - Math.abs(oldVal) + Math.abs(newVal);
 
-            if (newTotal <= MAX_POINTS) {
+            if (newTotal <= this.budget) {
                 this.draftedAxes[index] = newVal;
                 updateConfirmButton();
             }
@@ -147,7 +165,7 @@ public class DoctrineEditorScreen extends Screen {
     }
 
     private void updateConfirmButton() {
-        this.confirmButton.active = (getTotalAllocated() == MAX_POINTS);
+        this.confirmButton.active = (getTotalAllocated() == this.budget);
     }
 
     private int scrollbarX() {
@@ -190,10 +208,13 @@ public class DoctrineEditorScreen extends Screen {
 
         g.drawCenteredString(this.font, this.title, this.width / 2, 12, 0xFFFFFF);
 
-        int remaining = MAX_POINTS - getTotalAllocated();
+        int remaining = this.budget - getTotalAllocated();
         int color = remaining == 0 ? 0x55FF55 : 0xFFFFFF;
-        g.drawCenteredString(this.font, Component.translatable("gui.tacz_sewv.doctrine.remaining", remaining),
-                this.width / 2, 28, color);
+        Component remainingText = Component.translatable("gui.tacz_sewv.doctrine.remaining", remaining);
+        g.drawCenteredString(this.font, remainingText, this.width / 2, 28, color);
+        int remW = this.font.width(remainingText);
+        boolean overRemaining = !this.effectsBeside && mouseY >= 26 && mouseY < 38
+                && Math.abs(mouseX - this.width / 2) <= remW / 2;
 
         g.enableScissor(this.listLeft, this.listTop, this.listLeft + panelW(), this.listBottom);
         String pendingAxisTip = null;
@@ -230,11 +251,68 @@ public class DoctrineEditorScreen extends Screen {
 
         renderScrollbar(g);
 
+        List<Component> effects = effectLines();
+        if (this.effectsBeside) renderEffects(g, effects);
+
         // Widgets (buttons) after panels so they sit on top; footer buttons stay outside the list.
         super.render(g, mouseX, mouseY, partialTick);
 
         if (pendingAxisTip != null) {
             g.renderTooltip(this.font, Component.literal(pendingAxisTip), mouseX, mouseY);
+        } else if (overRemaining) {
+            List<net.minecraft.util.FormattedCharSequence> tip = new ArrayList<>();
+            for (Component line : effects) tip.add(line.getVisualOrderText());
+            g.renderTooltip(this.font, tip, mouseX, mouseY);
+        }
+    }
+
+    /**
+     * What the drafted doctrine does, in the numbers the AI will use (DoctrineKnobs), so a player sees the change
+     * before committing a ledger to it.
+     */
+    private List<Component> effectLines() {
+        Doctrine d = Doctrine.ofAxes(this.draftedAxes);
+        List<Component> out = new ArrayList<>();
+        out.add(Component.translatable(DoctrineClient.has()
+                ? "gui.tacz_sewv.doctrine.effects" : "gui.tacz_sewv.doctrine.effects_none")
+                .withStyle(net.minecraft.ChatFormatting.GOLD));
+        out.add(Component.translatable("gui.tacz_sewv.doctrine.effect.temper",
+                Component.translatable("gui.tacz_sewv.doctrine.temper."
+                        + Doctrine.Temperament.of(Doctrine.cautionCentre(d)).name().toLowerCase(java.util.Locale.ROOT))));
+        out.add(Component.translatable("gui.tacz_sewv.doctrine.effect.ring",
+                Math.round(BASE_ARMOUR_RING * DoctrineKnobs.ringScale(d))));
+        out.add(Component.translatable("gui.tacz_sewv.doctrine.effect.break_off",
+                Math.round(100 * DoctrineKnobs.breakOffHealth(d))));
+        out.add(Component.translatable("gui.tacz_sewv.doctrine.effect.bail",
+                Math.round(100 * DoctrineKnobs.bailHealth(d))));
+        out.add(Component.translatable("gui.tacz_sewv.doctrine.effect.replan",
+                String.format(java.util.Locale.ROOT, "%.1f", DoctrineKnobs.commitTicks(d) / 20.0)));
+        out.add(Component.translatable("gui.tacz_sewv.doctrine.effect.reaction",
+                Math.round(100 * DoctrineKnobs.acquisitionScale(d))));
+        out.add(Component.translatable("gui.tacz_sewv.doctrine.effect.stalemate",
+                Math.round(100 * DoctrineKnobs.stalemateScale(d))));
+        out.add(Component.translatable("gui.tacz_sewv.doctrine.effect.support",
+                Math.round(100 * DoctrineKnobs.supportCooldownScale(d))));
+        double t = DoctrineKnobs.armourPreference(d);
+        out.add(Component.translatable(t > 0.0 ? "gui.tacz_sewv.doctrine.effect.target_armour"
+                : t < 0.0 ? "gui.tacz_sewv.doctrine.effect.target_infantry" : "gui.tacz_sewv.doctrine.effect.target_none"));
+        if (DoctrineKnobs.smokeOnHit(d)) out.add(Component.translatable("gui.tacz_sewv.doctrine.effect.smoke"));
+        if (DoctrineKnobs.creepsOnCourse(d)) out.add(Component.translatable("gui.tacz_sewv.doctrine.effect.creep"));
+        return out;
+    }
+
+    private void renderEffects(GuiGraphics g, List<Component> lines) {
+        int x = this.listLeft + panelW() + EFFECTS_GAP;
+        int y = this.listTop;
+        int h = Math.min(this.listBottom - this.listTop, 8 + lines.size() * 12);
+        g.fill(x, y, x + EFFECTS_W, y + h, 0x44000000);
+        g.renderOutline(x, y, EFFECTS_W, h, 0xFF444444);
+        int ly = y + 5;
+        for (int i = 0; i < lines.size(); i++) {
+            if (ly + 9 > y + h) break;
+            String text = this.font.plainSubstrByWidth(lines.get(i).getString(), EFFECTS_W - 10);
+            g.drawString(this.font, text, x + 5, ly, i == 0 ? 0xFFFFAA00 : 0xFFDDDDDD, false);
+            ly += 12;
         }
     }
 

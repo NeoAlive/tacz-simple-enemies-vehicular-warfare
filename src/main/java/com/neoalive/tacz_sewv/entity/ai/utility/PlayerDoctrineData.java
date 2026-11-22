@@ -103,6 +103,14 @@ public class PlayerDoctrineData extends SavedData {
         setDirty();
     }
 
+    /** Points every ledger must spend, before any progression. */
+    public static final int BASE_BUDGET = 20;
+
+    /** The points this player's ledger must spend, exactly. */
+    public int budget(UUID playerUuid) {
+        return BASE_BUDGET;
+    }
+
     public boolean hasReceivedBook(UUID playerUuid) {
         return receivedBook.contains(playerUuid);
     }

@@ -114,6 +114,7 @@ public class SewvCommand {
                         .then(Commands.literal("stop")
                                 .requires(source -> source.hasPermission(2))
                                 .executes(ctx -> graceStop(ctx.getSource()))))
+                .then(DoctrineCommand.node())
                 // Territory Mode debugging without the RTS panel (see TerritoryDebug).
                 .then(Commands.literal("territory")
                         .requires(source -> source.hasPermission(2))

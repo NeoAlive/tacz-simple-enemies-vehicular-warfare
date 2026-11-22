@@ -43,6 +43,7 @@ public class PlayerJoinHandler {
         }
 
         if (player instanceof ServerPlayer sp) {
+            com.neoalive.tacz_sewv.network.PacketDoctrineSync.sendTo(sp);
             String category = NamePreference.get(sp, SewvConfig.DEFAULT_NAME_CATEGORY.get());
             NetworkHandler.CHANNEL.send(
                     PacketDistributor.PLAYER.with(() -> sp),

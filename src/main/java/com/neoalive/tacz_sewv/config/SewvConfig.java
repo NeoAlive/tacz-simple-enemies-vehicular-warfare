@@ -1787,7 +1787,7 @@ public final class SewvConfig {
         builder.pop();
 
         builder.push("doctrine");
-        builder.comment("Default fighting style sliders for RU, US, and PMC commanders (-3 to +3 on each axis).");
+        builder.comment("Default fighting style for RU, US and PMC crews (-5 to +5 on each axis). A player's Doctrine Ledger replaces the PMC row for their own units.");
         DOCTRINE = new ForgeConfigSpec.IntValue[FACTION_KEYS.length][Doctrine.Axis.VALUES.length];
         for (int f = 0; f < FACTION_KEYS.length; f++) {
             builder.push(FACTION_KEYS[f]);

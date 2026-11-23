@@ -48,8 +48,9 @@ public interface IAiFireTracker {
 
     /**
      * The line-of-fire half of that verdict alone (hull occlusion, allies, danger-close, terrain,
-     * smoke along muzzle to {@code target}), evaluated now and NOT cached. Diagnostics only: the
-     * gate itself keeps using its cached verdict.
+     * smoke along muzzle to {@code target}), evaluated now and NOT cached. The gate itself keeps
+     * using its cached verdict. Retaliation asks this too, so a heavy hit turns the gun on a
+     * shooter the crewman's eyes cannot see.
      */
     boolean tacz_sewv$lineOfFireBlocked(net.minecraft.world.entity.LivingEntity living,
                                          net.minecraft.world.entity.LivingEntity target);

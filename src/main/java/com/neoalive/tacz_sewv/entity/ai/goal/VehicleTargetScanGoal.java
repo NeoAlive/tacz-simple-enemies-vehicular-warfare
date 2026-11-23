@@ -16,6 +16,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.RUunitEntity;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.USunitEntity;
 import org.jetbrains.annotations.Nullable;
 
+import com.neoalive.tacz_sewv.bridge.IAiFireTracker;
 import com.neoalive.tacz_sewv.config.EasyMode;
 import com.neoalive.tacz_sewv.config.EasyModePlayerEvents;
 import com.neoalive.tacz_sewv.config.SewvConfig;
@@ -357,13 +358,26 @@ if (EasyMode.vehicleTargetRequireLos()
         if (shooter == null || !isValidTarget(v, shooter)) return null;
         LivingEntity current = this.unit.getTarget();
         boolean hasCurrent = current != null && current.isAlive();
-        boolean currentVisible = hasCurrent && this.unit.getSensing().hasLineOfSight(current);
+        // The hook stamps the living gunner (MixinVehicleHullPressure). Eye sight never
+        // reaches a man inside a turret, and a hull-down crew's own eyes are behind the berm
+        // the muzzle is shooting over. "Visible" here is the fire gate's line: the same
+        // answer as whether turning the gun would actually let it shoot.
+        boolean currentVisible = hasCurrent && gunSees(v, current);
         boolean currentArmour = hasCurrent
                 && VehicleWeapons.classifyTarget(current) == VehicleWeapons.TargetCategory.VEHICLE;
         boolean closer = !hasCurrent || v.distanceToSqr(shooter) < v.distanceToSqr(current);
-        boolean act = HullPressure.shouldRetaliate(this.unit.getSensing().hasLineOfSight(shooter), shooter == current,
+        boolean act = HullPressure.shouldRetaliate(gunSees(v, shooter), shooter == current,
                 currentVisible, currentArmour, closer);
         return act ? shooter : null;
+    }
+
+    /** This seat's gun can lay on {@code who}. A seat with no weapon falls back to eye sight. */
+    private boolean gunSees(VehicleEntity v, LivingEntity who) {
+        int seat = v.getSeatIndex(this.unit);
+        if (seat >= 0 && v.hasWeapon(seat) && v instanceof IAiFireTracker tracker) {
+            return !tracker.tacz_sewv$lineOfFireBlocked(this.unit, who);
+        }
+        return this.unit.getSensing().hasLineOfSight(who);
     }
 
     @Override

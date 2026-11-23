@@ -132,7 +132,8 @@ public final class SuppressionSelfCheck {
         assert HullPressure.isHeavy(120.0f, 500.0f);
         assert !HullPressure.isHeavy(120.0f, 0.0f) : "unknown max health is never heavy";
 
-        // shouldRetaliate(attackerVisible, attackerIsCurrent, currentVisible, currentIsArmour, attackerCloser)
+        // shouldRetaliate(gunCanLayOnAttacker, attackerIsCurrent, gunCanLayOnCurrent, currentIsArmour, attackerCloser)
+        // The scan goal fills the two "lay on" bits from the fire gate, not from eye sight.
         assert HullPressure.shouldRetaliate(true, false, false, false, false) : "no usable lock: turn on the shooter";
         assert HullPressure.shouldRetaliate(true, false, true, false, false) : "lock is infantry: the shooter matters more";
         assert HullPressure.shouldRetaliate(true, false, true, true, true) : "a closer shooter beats a tank in sight";

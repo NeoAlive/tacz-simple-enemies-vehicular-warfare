@@ -85,8 +85,9 @@ public abstract class MixinVehicleHullPressure implements IHullPressure {
         if (attacker != null && attacker.getRootVehicle() == hull) return;
         float add = HullPressure.hitAmount(amount, hull.getMaxHealth()) * EasyMode.suppressionScale(hull);
         HullPressure.add(hull, add, hull.level().getGameTime());
-        // A hit that hurts names its shooter, so the crew can turn on it (VehicleTargetScanGoal.retaliate). A rocket
-        // on the hull never reaches the crew's own hurt-by goal: the hull takes the damage, not the riders.
+        // A hit that hurts names its shooter (the living gunner, who is who the turret locks), so the crew can
+        // turn on it. Whether the gun can lay on that man is the fire gate's line, not eye sight: the man sits
+        // inside the hull that just fired. A rocket on the hull never reaches the crew's own hurt-by goal.
         if (attacker instanceof LivingEntity && HullPressure.isHeavy(amount, hull.getMaxHealth())) {
             this.sewv$setHeavyAttacker(attacker.getId(), hull.level().getGameTime());
         }

@@ -23,6 +23,11 @@ final class SvcMicSource implements MicSource {
         this.sink = null;
     }
 
+    @Override
+    public String describe() {
+        return "Simple Voice Chat";
+    }
+
     /** Voice Chat's audio thread. */
     synchronized void push(short[] raw) {
         if (this.sink == null) return;

@@ -52,7 +52,8 @@ public final class VoiceOrders {
 
     /** How long the result line stays up. */
     private static final long LINE_MS = 3500;
-    private static final double ATTACK_PICK_RANGE = 50.0;
+    /** The block pick's reach, so "attack that" names what "move there" would. */
+    private static final double ATTACK_PICK_RANGE = com.neoalive.tacz_sewv.client.ClientEvents.BLOCK_PICK_RANGE;
 
     @Nullable
     private static VoicePhrases table;
@@ -122,7 +123,14 @@ public final class VoiceOrders {
     /** Voice Chat's microphone while it is sending, so the device is opened once; else our own capture. */
     private static MicSource openMic() {
         MicSource svc = VoicechatCompat.orderMic();
-        return svc != null ? svc : new JavaSoundMic();
+        if (svc != null) return svc;
+        String device;
+        try {
+            device = ClientConfig.VOICE_ORDERS_MIC_DEVICE.get();
+        } catch (Throwable t) {
+            device = "";
+        }
+        return new JavaSoundMic(device);
     }
 
     /**
@@ -133,14 +141,17 @@ public final class VoiceOrders {
         return VoskCompat.active() && !radioSession && !ClientConfig.flag(ClientConfig.VOICE_ORDERS_TRANSMIT);
     }
 
-    /** The utterance is over and decoded. Client thread. */
-    public static void onHeard(String heard) {
+    /** The utterance is over and decoded. {@code silent}: the device gave nothing but silence. Client thread. */
+    public static void onHeard(String heard, String device, boolean silent) {
         Minecraft mc = Minecraft.getInstance();
         VoicePhrases phrases = phrases(mc);
         if (mc.player == null || phrases == null) return;
         VoiceOrderParser.Result r = VoiceOrderParser.parse(phrases, heard);
+        TaczSewv.LOGGER.info("Voice orders: '{}' parsed {} {} scope={} aimed={}",
+                heard, r.status(), r.pipelineId(), r.scope(), r.aimed());
         switch (r.status()) {
-            case EMPTY -> show(I18n.get("hud.tacz_sewv.voice.empty"), false);
+            case EMPTY -> show(silent ? I18n.get("hud.tacz_sewv.voice.silent", device)
+                    : I18n.get("hud.tacz_sewv.voice.empty"), false);
             case UNKNOWN -> show(I18n.get("hud.tacz_sewv.voice.unknown", heard), false);
             case AMBIGUOUS -> show(I18n.get("hud.tacz_sewv.voice.ambiguous", heard), false);
             case OK -> give(mc.player, r, heard);
@@ -176,6 +187,11 @@ public final class VoiceOrders {
         QuickCommandWheelScreen.Aim aim = QuickCommandWheelScreen.captureAim();
         Entity target = r.aimed() && QuickCommandRegistry.ID_QUICK_ATTACK.equals(id)
                 ? CommanderRayTrace.rayTraceEntity(player, ATTACK_PICK_RANGE) : null;
+        if (r.aimed() && QuickCommandRegistry.ID_QUICK_ATTACK.equals(id) && target == null) {
+            // A click pick armed by voice waits silently for a click the player is not expecting.
+            show(I18n.get("hud.tacz_sewv.voice.no_target"), false);
+            return;
+        }
         boolean fired;
         if (r.aimed() && QuickCommandRegistry.ID_QUICK_MOVE.equals(id) && aim.block() != null) {
             fired = moveTo(id, label, aim.block());
@@ -184,6 +200,7 @@ public final class VoiceOrders {
         } else {
             fired = QuickCommandWheelScreen.dispatch(id, label, aim);
         }
+        TaczSewv.LOGGER.info("Voice orders: {} {}", id, fired ? "given" : "refused");
         if (fired) {
             show(I18n.get("hud.tacz_sewv.voice.heard", I18n.get(label), heard), true);
             Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.2F));

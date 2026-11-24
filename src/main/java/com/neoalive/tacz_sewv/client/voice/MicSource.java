@@ -16,4 +16,7 @@ public interface MicSource {
 
     /** Stop pushing frames. Every frame read before this returns has been pushed. */
     void stop();
+
+    /** Which device this is, for the log and the silent microphone message. */
+    String describe();
 }

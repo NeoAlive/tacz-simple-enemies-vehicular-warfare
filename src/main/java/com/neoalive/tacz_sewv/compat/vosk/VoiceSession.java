@@ -15,6 +15,7 @@ import org.vosk.Recognizer;
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.client.voice.MicSource;
 import com.neoalive.tacz_sewv.client.voice.VoiceOrders;
+import com.neoalive.tacz_sewv.client.voice.VoskJson;
 
 /**
  * One push to talk utterance at a time. VoskLib supplies the natives and the model only: its own
@@ -44,7 +45,15 @@ final class VoiceSession {
     private static volatile Phase phase = Phase.IDLE;
     private static volatile String partial = "";
     private static final StringBuilder HEARD = new StringBuilder();
+    /** Every word with its confidence, kept or not, for the log. */
+    private static final StringBuilder RAW = new StringBuilder();
+    /** Below this peak the whole utterance was silence: the device records nothing. About -60 dBFS. */
+    private static final int SILENT_PEAK = 33;
+
     private static Recognizer recognizer;
+    private static int peak;
+    private static long bytes;
+    private static String source = "";
     private static String recognizerGrammar;
     private static float minConfidence;
     private static int frames;
@@ -53,7 +62,8 @@ final class VoiceSession {
     // Client thread only.
     private static long startedAt;
     private static long releasedAt;
-    private static boolean needsRelease;
+    /** A held key does not retry until released, after a failure or the time limit. */
+    private static volatile boolean needsRelease;
 
     private VoiceSession() {}
 
@@ -101,6 +111,7 @@ final class VoiceSession {
                 }
                 if (model == null) {
                     notice(VoiceOrders.Notice.NO_MODEL);
+                    needsRelease = true;
                     phase = Phase.IDLE;
                     return;
                 }
@@ -114,20 +125,26 @@ final class VoiceSession {
                         recognizer.reset();
                     }
                     HEARD.setLength(0);
+                    RAW.setLength(0);
                     frames = 0;
+                    peak = 0;
+                    bytes = 0;
                     minConfidence = minConf;
                 }
-                MicSource source = micFactory.get();
-                if (!source.start(VoiceSession::feed)) {
+                MicSource opened = micFactory.get();
+                if (!opened.start(VoiceSession::feed)) {
                     notice(VoiceOrders.Notice.NO_MIC);
+                    needsRelease = true;
                     phase = Phase.IDLE;
                     return;
                 }
-                mic = source;
+                source = opened.describe();
+                mic = opened;
                 phase = Phase.LISTENING;
             } catch (Throwable t) {
                 TaczSewv.LOGGER.warn("Voice orders: recognizer setup failed", t);
                 notice(VoiceOrders.Notice.FAILED);
+                needsRelease = true;
                 phase = Phase.IDLE;
             }
         });
@@ -136,6 +153,11 @@ final class VoiceSession {
     private static void feed(byte[] pcm, int length) {
         synchronized (LOCK) {
             if (recognizer == null) return;
+            bytes += length;
+            for (int i = 0; i + 1 < length; i += 2) {
+                int v = Math.abs((short) ((pcm[i] & 0xFF) | (pcm[i + 1] << 8)));
+                if (v > peak) peak = v;
+            }
             if (recognizer.acceptWaveForm(pcm, length)) {
                 append(recognizer.getResult());
             } else if (++frames % 2 == 0) {
@@ -146,16 +168,23 @@ final class VoiceSession {
 
     private static void close() {
         phase = Phase.CLOSING;
-        MicSource source = mic;
+        MicSource opened = mic;
         mic = null;
         WORKER.execute(() -> {
             String text = "";
+            boolean silent = false;
+            String from = source;
             try {
-                if (source != null) source.stop();
+                if (opened != null) opened.stop();
                 synchronized (LOCK) {
                     if (recognizer != null) append(recognizer.getFinalResult());
                     text = HEARD.toString().trim();
                     HEARD.setLength(0);
+                    silent = peak < SILENT_PEAK;
+                    double db = peak == 0 ? Double.NEGATIVE_INFINITY : 20 * Math.log10(peak / 32768.0);
+                    TaczSewv.LOGGER.info("Voice orders: {} ms from {}, peak {} dBFS, words [{}], kept '{}'",
+                            bytes / 32, from, String.format(java.util.Locale.ROOT, "%.1f", db), RAW.toString().trim(), text);
+                    RAW.setLength(0);
                 }
             } catch (Throwable t) {
                 TaczSewv.LOGGER.warn("Voice orders: decode failed", t);
@@ -164,27 +193,32 @@ final class VoiceSession {
                 phase = Phase.IDLE;
             }
             String heard = text;
-            Minecraft.getInstance().execute(() -> VoiceOrders.onHeard(heard));
+            boolean quiet = silent;
+            Minecraft.getInstance().execute(() -> VoiceOrders.onHeard(heard, from, quiet));
         });
     }
 
     /** Words at or above the confidence floor, else the plain text when the result carries no words. */
     private static void append(String json) {
         try {
-            JsonObject o = JsonParser.parseString(json).getAsJsonObject();
+            JsonObject o = JsonParser.parseString(VoskJson.fixDecimals(json)).getAsJsonObject();
             StringBuilder out = new StringBuilder();
             if (o.has("result")) {
                 for (JsonElement e : o.getAsJsonArray("result")) {
                     JsonObject w = e.getAsJsonObject();
-                    if (w.get("conf").getAsFloat() >= minConfidence) out.append(w.get("word").getAsString()).append(' ');
+                    float conf = w.get("conf").getAsFloat();
+                    String word = w.get("word").getAsString();
+                    RAW.append(word).append('(').append(String.format(java.util.Locale.ROOT, "%.2f", conf)).append(") ");
+                    if (conf >= minConfidence) out.append(word).append(' ');
                 }
             } else if (o.has("text")) {
                 out.append(o.get("text").getAsString());
             }
             String s = out.toString().trim();
             if (!s.isEmpty()) HEARD.append(s).append(' ');
-        } catch (Exception ignored) {
+        } catch (Exception e) {
             // A malformed result is dropped, the rest of the utterance still counts.
+            TaczSewv.LOGGER.warn("Voice orders: unreadable recognizer result {}", json.replace('\n', ' '));
         }
     }
 

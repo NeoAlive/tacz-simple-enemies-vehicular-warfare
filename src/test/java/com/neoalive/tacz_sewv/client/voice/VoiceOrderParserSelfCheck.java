@@ -28,6 +28,7 @@ import com.neoalive.tacz_sewv.map.VehicleMarker;
  *   <li>Free text as a large model would hear it still parses, and junk does not.</li>
  *   <li>Platoon hues name the band they sit in.</li>
  *   <li>Voice Chat frames resample to 16 kHz: speech band kept, alias band cut, chunking irrelevant.</li>
+ *   <li>Vosk results written with a decimal comma (Italian and other locales) still parse.</li>
  *   <li>Only {@code compat/vosk} names a Vosk or VoskLib type.</li>
  * </ol>
  */
@@ -46,6 +47,7 @@ public final class VoiceOrderParserSelfCheck {
         grammar(table);
         colours();
         downsample();
+        voskJson();
         isolation();
         System.out.println("VoiceOrderParserSelfCheck OK");
     }
@@ -170,6 +172,18 @@ public final class VoiceOrderParserSelfCheck {
         short[] s = new short[samples];
         for (int i = 0; i < samples; i++) s[i] = (short) Math.round(12000 * Math.sin(2 * Math.PI * hz * i / 48000));
         return s;
+    }
+
+    private static void voskJson() {
+        String comma = "{  \"result\" : [{ \"conf\" : 0,474027, \"end\" : 0,840000, \"start\" : -1,5, "
+                + "\"word\" : \"attack\" }, { \"conf\" : 1, \"word\" : \"that\" }], \"text\" : \"attack that\" }";
+        com.google.gson.JsonObject o = com.google.gson.JsonParser.parseString(VoskJson.fixDecimals(comma)).getAsJsonObject();
+        com.google.gson.JsonObject w = o.getAsJsonArray("result").get(0).getAsJsonObject();
+        assert Math.abs(w.get("conf").getAsFloat() - 0.474027f) < 1e-6 : "conf read as " + w.get("conf");
+        assert Math.abs(w.get("start").getAsFloat() + 1.5f) < 1e-6 : "start read as " + w.get("start");
+        assert o.get("text").getAsString().equals("attack that");
+        String dot = "{\"conf\" : 0.5, \"text\" : \"a, b\"}";
+        assert VoskJson.fixDecimals(dot).equals(dot) : "a valid result must pass unchanged";
     }
 
     private static void isolation() throws IOException {

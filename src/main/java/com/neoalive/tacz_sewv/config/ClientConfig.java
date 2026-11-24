@@ -44,6 +44,7 @@ public final class ClientConfig {
     public static final ForgeConfigSpec.BooleanValue VOICE_ORDERS_ENABLED;
     public static final ForgeConfigSpec.BooleanValue VOICE_ORDERS_TRANSCRIPT;
     public static final ForgeConfigSpec.DoubleValue VOICE_ORDERS_MIN_CONFIDENCE;
+    public static final ForgeConfigSpec.ConfigValue<String> VOICE_ORDERS_MIC_DEVICE;
     public static final ForgeConfigSpec.BooleanValue VOICE_ORDERS_TRANSMIT;
     public static final ForgeConfigSpec.BooleanValue VOICE_ORDERS_ON_RADIO;
     public static final ForgeConfigSpec.BooleanValue HELMET_GRAYSCALE;
@@ -138,6 +139,9 @@ public final class ClientConfig {
         VOICE_ORDERS_MIN_CONFIDENCE = builder
                 .comment("Words the recognizer is less sure of than this are ignored (0 keeps everything).")
                 .defineInRange("voiceOrdersMinConfidence", 0.5, 0.0, 1.0);
+        VOICE_ORDERS_MIC_DEVICE = builder
+                .comment("Part of the name of the microphone to record voice orders from (the log lists them). Empty uses the system default.")
+                .define("voiceOrdersMicDevice", "");
         VOICE_ORDERS_TRANSMIT = builder
                 .comment("With Simple Voice Chat, let other players hear you while you speak a voice order.")
                 .define("voiceOrdersTransmit", false);

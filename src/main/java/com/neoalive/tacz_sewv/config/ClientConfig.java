@@ -41,6 +41,11 @@ public final class ClientConfig {
     public static final ForgeConfigSpec.BooleanValue RADIO_CHATTER;
     public static final ForgeConfigSpec.BooleanValue RADIO_VOICE_EFFECT;
     public static final ForgeConfigSpec.BooleanValue RADIO_VOICE_CLICKS;
+    public static final ForgeConfigSpec.BooleanValue VOICE_ORDERS_ENABLED;
+    public static final ForgeConfigSpec.BooleanValue VOICE_ORDERS_TRANSCRIPT;
+    public static final ForgeConfigSpec.DoubleValue VOICE_ORDERS_MIN_CONFIDENCE;
+    public static final ForgeConfigSpec.BooleanValue VOICE_ORDERS_TRANSMIT;
+    public static final ForgeConfigSpec.BooleanValue VOICE_ORDERS_ON_RADIO;
     public static final ForgeConfigSpec.BooleanValue HELMET_GRAYSCALE;
     public static final ForgeConfigSpec.BooleanValue SHOW_LAG_TIP;
 
@@ -124,6 +129,21 @@ public final class ClientConfig {
         RADIO_VOICE_CLICKS = builder
                 .comment("Play press-to-talk clicks at the start and end of radio voice transmissions.")
                 .define("radioVoiceClicks", true);
+        VOICE_ORDERS_ENABLED = builder
+                .comment("Push to talk voice orders (needs VoskLib and a speech model picked in its settings).")
+                .define("voiceOrdersEnabled", true);
+        VOICE_ORDERS_TRANSCRIPT = builder
+                .comment("Show what was heard while the voice order key is held, and the order it became.")
+                .define("voiceOrdersTranscript", true);
+        VOICE_ORDERS_MIN_CONFIDENCE = builder
+                .comment("Words the recognizer is less sure of than this are ignored (0 keeps everything).")
+                .defineInRange("voiceOrdersMinConfidence", 0.5, 0.0, 1.0);
+        VOICE_ORDERS_TRANSMIT = builder
+                .comment("With Simple Voice Chat, let other players hear you while you speak a voice order.")
+                .define("voiceOrdersTransmit", false);
+        VOICE_ORDERS_ON_RADIO = builder
+                .comment("With Simple Voice Chat, also take orders from what you say on a handheld radio, no key needed.")
+                .define("voiceOrdersOnRadio", false);
         HELMET_GRAYSCALE = builder
                 .comment("Desaturate only the PMC MICH DogTag UV to low-contrast grey (logo alpha kept).")
                 .define("helmetGrayscale", true);

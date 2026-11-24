@@ -160,6 +160,14 @@ config="tacz_sewv.gemrender.mixins.json"
     ordering="NONE"
     side="BOTH"
 
+# Soft compat: VoskLib, offline speech recognition for push to talk voice orders (compat/vosk).
+[[dependencies.tacz_sewv]]
+    modId="vosklib"
+    mandatory=false
+    versionRange="[1.1.0,)"
+    ordering="NONE"
+    side="CLIENT"
+
 # Soft compat: Limitless Vehicles — crews drive and gun its wheeled, tracked and boat hulls
 # (compat/lv). Everything LV-typed sits behind LvCompat; no mixins into LV.
 [[dependencies.tacz_sewv]]

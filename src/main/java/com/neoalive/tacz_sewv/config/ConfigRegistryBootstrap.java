@@ -85,6 +85,16 @@ final class ConfigRegistryBootstrap {
                 ClientConfig.RADIO_VOICE_EFFECT, ClientConfig.RADIO_VOICE_EFFECT::set);
         b.bool(ConfigScope.CLIENT, "overlay", "radioVoiceClicks",
                 ClientConfig.RADIO_VOICE_CLICKS, ClientConfig.RADIO_VOICE_CLICKS::set);
+        b.bool(ConfigScope.CLIENT, "overlay", "voiceOrdersEnabled",
+                ClientConfig.VOICE_ORDERS_ENABLED, ClientConfig.VOICE_ORDERS_ENABLED::set);
+        b.bool(ConfigScope.CLIENT, "overlay", "voiceOrdersTranscript",
+                ClientConfig.VOICE_ORDERS_TRANSCRIPT, ClientConfig.VOICE_ORDERS_TRANSCRIPT::set);
+        b.doubleRange(ConfigScope.CLIENT, "overlay", "voiceOrdersMinConfidence", 0.0, 1.0,
+                ClientConfig.VOICE_ORDERS_MIN_CONFIDENCE, ClientConfig.VOICE_ORDERS_MIN_CONFIDENCE::set);
+        b.bool(ConfigScope.CLIENT, "overlay", "voiceOrdersTransmit",
+                ClientConfig.VOICE_ORDERS_TRANSMIT, ClientConfig.VOICE_ORDERS_TRANSMIT::set);
+        b.bool(ConfigScope.CLIENT, "overlay", "voiceOrdersOnRadio",
+                ClientConfig.VOICE_ORDERS_ON_RADIO, ClientConfig.VOICE_ORDERS_ON_RADIO::set);
         b.bool(ConfigScope.CLIENT, "overlay", "helmetGrayscale",
                 ClientConfig.HELMET_GRAYSCALE, ClientConfig.HELMET_GRAYSCALE::set);
         b.bool(ConfigScope.CLIENT, "overlay", "showLagTip",

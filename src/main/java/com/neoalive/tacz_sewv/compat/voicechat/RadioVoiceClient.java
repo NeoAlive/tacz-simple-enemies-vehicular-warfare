@@ -50,7 +50,9 @@ final class RadioVoiceClient {
         event.setRawAudio(stream.dsp.process(raw));
     }
 
+    /** One handler so the voice order tap always sees a frame before the TX readout does. */
     static void onTransmit(ClientSoundEvent event) {
+        if (VoiceOrderTap.onFrame(event)) return;
         if (!event.isWhispering()) RadioVoiceHud.noteTransmit(System.nanoTime());
     }
 }

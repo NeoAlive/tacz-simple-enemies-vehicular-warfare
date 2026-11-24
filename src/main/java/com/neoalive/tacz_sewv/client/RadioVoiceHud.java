@@ -21,6 +21,7 @@ import net.minecraftforge.fml.common.Mod;
 
 import com.neoalive.tacz_sewv.TaczSewv;
 import com.neoalive.tacz_sewv.client.gui.GuiFit;
+import com.neoalive.tacz_sewv.client.voice.VoiceOrders;
 import com.neoalive.tacz_sewv.compat.voicechat.RadioVoiceIds;
 import com.neoalive.tacz_sewv.config.ClientConfig;
 import com.neoalive.tacz_sewv.item.HandheldRadioItem;
@@ -29,7 +30,8 @@ import com.neoalive.tacz_sewv.item.RadioSettings;
 /**
  * Radio voice on the client, without naming a Voice Chat type: Voice Chat's audio threads report frames
  * here, and the client tick turns them into key-up and key-down clicks and a small TX/RX readout left of
- * the notification stack.
+ * the notification stack. The voice order transcript is the top card of the same stack, so the two never
+ * overlap.
  */
 @Mod.EventBusSubscriber(modid = TaczSewv.MODID, value = Dist.CLIENT)
 public final class RadioVoiceHud {
@@ -44,6 +46,9 @@ public final class RadioVoiceHud {
     private static final int COL_RX = 0xFF4FD1C5;
     private static final String ICON_TX = "\u25CF";
     private static final String ICON_RX = "\u25C9";
+    private static final String ICON_VOICE = "\u25B6";
+    private static final int COL_VOICE = 0xFFE8B84A;
+    private static final int COL_VOICE_IDLE = 0xFF8A8F96;
     /** Pre-scale card height, drawn at the ticket stack's scale. */
     private static final int CARD_H = 14;
     private static final int CARD_GAP = 3;
@@ -77,6 +82,15 @@ public final class RadioVoiceHud {
         lastTx = nanos;
     }
 
+    /** Speech on the net ends an order spoken over the radio after this much silence. */
+    private static final long RADIO_ORDER_GAP_NANOS = 400_000_000L;
+
+    /** The player is talking on a voice radio right now. Client thread. */
+    public static boolean transmittingOnRadio(Minecraft mc) {
+        if (mc.player == null || System.nanoTime() - lastTx > RADIO_ORDER_GAP_NANOS || !RadioFlagsClient.voice()) return false;
+        return !HandheldRadioItem.findCarried(mc.player, s -> RadioSettings.readComms(s).voice()).isEmpty();
+    }
+
     /** Someone is talking on the net right now. */
     public static boolean receiving() {
         for (Entry e : STREAMS.values()) if (e.live) return true;
@@ -108,10 +122,12 @@ public final class RadioVoiceHud {
     @SubscribeEvent
     public static void onRenderGui(RenderGuiEvent.Post event) {
         Minecraft mc = Minecraft.getInstance();
-        if (mc.player == null || mc.options.hideGui || !ClientConfig.flag(ClientConfig.NOTIFICATIONS_ENABLED)) return;
+        if (mc.player == null || mc.options.hideGui) return;
         long now = System.nanoTime();
+        String voice = VoiceOrders.hudLine();
+        boolean banners = ClientConfig.flag(ClientConfig.NOTIFICATIONS_ENABLED);
         String tx = null;
-        if (now - lastTx < TX_NANOS && RadioFlagsClient.voice()) {
+        if (banners && now - lastTx < TX_NANOS && RadioFlagsClient.voice()) {
             ItemStack radio = HandheldRadioItem.findCarried(mc.player, s -> RadioSettings.readComms(s).voice());
             if (!radio.isEmpty()) tx = I18n.get("hud.tacz_sewv.radio.tx", RadioSettings.readComms(radio).net());
         }
@@ -119,8 +135,9 @@ public final class RadioVoiceHud {
         for (Map.Entry<UUID, Entry> e : STREAMS.entrySet()) {
             if (e.getValue().live && (newest == null || e.getValue().last > newest.getValue().last)) newest = e;
         }
-        String rx = newest == null ? null : I18n.get("hud.tacz_sewv.radio.rx", nameOf(mc, newest.getKey(), newest.getValue()));
-        if (tx == null && rx == null) return;
+        String rx = newest == null || !banners ? null
+                : I18n.get("hud.tacz_sewv.radio.rx", nameOf(mc, newest.getKey(), newest.getValue()));
+        if (tx == null && rx == null && voice == null) return;
 
         GuiGraphics g = event.getGuiGraphics();
         Font font = mc.font;
@@ -129,6 +146,11 @@ public final class RadioVoiceHud {
         float right = (screenW - NotificationHud.TICKET_W * scale) / 2f - 4f;
         float y = 0f;
         float pulse = 0.55f + 0.45f * (float) Math.abs(Math.sin(now / 90_000_000.0));
+        if (voice != null) {
+            boolean live = VoiceOrders.hudLive();
+            drawCard(g, font, right, y, scale, voice, ICON_VOICE, live ? COL_VOICE : COL_VOICE_IDLE, live ? pulse : 1f);
+            y += (CARD_H + CARD_GAP) * scale;
+        }
         if (tx != null) {
             drawCard(g, font, right, y, scale, tx, ICON_TX, COL_TX, pulse);
             y += (CARD_H + CARD_GAP) * scale;

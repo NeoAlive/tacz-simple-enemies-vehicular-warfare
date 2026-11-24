@@ -818,6 +818,15 @@ tasks.register('selfCheckLoadedTerrain', JavaExec) {
     jvmArgs '-ea'
 }
 
+tasks.register('selfCheckVoice', JavaExec) {
+    group = 'verification'
+    description = 'Runs the voice order phrase table, parser and isolation self-check.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
+    mainClass = 'com.neoalive.tacz_sewv.client.voice.VoiceOrderParserSelfCheck'
+    jvmArgs '-ea'
+}
+
 tasks.register('selfCheckLv', JavaExec) {
     group = 'verification'
     description = 'Runs the Limitless Vehicles steering-translation and isolation self-check.'
@@ -902,7 +911,7 @@ tasks.register('selfCheckLang', JavaExec) {
 tasks.register('selfCheck') {
     group = 'verification'
     description = 'Runs all headless AI self-checks.'
-    dependsOn 'selfCheckDoctrine', 'selfCheckArmor', 'selfCheckArtillery', 'selfCheckReducedCharge', 'selfCheckShieldRay', 'selfCheckCamo', 'selfCheckLoadout', 'selfCheckVehiclePacks', 'selfCheckMiscPacks', 'selfCheckUtility', 'selfCheckEasyMode', 'selfCheckRadial', 'selfCheckSignal', 'selfCheckCoverHold', 'selfCheckWeapons', 'selfCheckGunnery', 'selfCheckTargetStack', 'selfCheckMobToughness', 'selfCheckGrouping', 'selfCheckElection', 'selfCheckInfluence', 'selfCheckPlay', 'selfCheckFormation', 'selfCheckPlayerFormation', 'selfCheckInfantryFormation', 'selfCheckMarch', 'selfCheckSeam', 'selfCheckHeli', 'selfCheckHeliArmament', 'selfCheckPlane', 'selfCheckContactBoard', 'selfCheckWideScan', 'selfCheckPathBudget', 'selfCheckLofCache', 'selfCheckChunkTickets', 'selfCheckUnitLod', 'selfCheckTaskedDestination', 'selfCheckDismount', 'selfCheckMinefield', 'selfCheckTactics', 'selfCheckCues', 'selfCheckSuppression', 'selfCheckAcquisition', 'selfCheckEngineGates', 'selfCheckSounds', 'selfCheckRadioQueue', 'selfCheckCrewSkins', 'selfCheckAirport', 'selfCheckGround', 'selfCheckOrca', 'selfCheckSmoke', 'selfCheckCover', 'selfCheckBattlePosition', 'selfCheckBallistics', 'selfCheckIdle', 'selfCheckInvasion', 'selfCheckConfig', 'selfCheckPathway', 'selfCheckStructures', 'selfCheckTerritory', 'selfCheckDiplomacy', 'selfCheckVehicleAccess', 'selfCheckLv', 'selfCheckFcp', 'selfCheckRadioDsp', 'selfCheckMinimap', 'selfCheckWaypointDrag', 'selfCheckRibbon', 'selfCheckVehicleClientLod', 'selfCheckTaczCube', 'selfCheckScavenge', 'selfCheckLang', 'selfCheckLoadedTerrain', 'selfCheckEventSpots', 'selfCheckEventMarks'
+    dependsOn 'selfCheckDoctrine', 'selfCheckArmor', 'selfCheckArtillery', 'selfCheckReducedCharge', 'selfCheckShieldRay', 'selfCheckCamo', 'selfCheckLoadout', 'selfCheckVehiclePacks', 'selfCheckMiscPacks', 'selfCheckUtility', 'selfCheckEasyMode', 'selfCheckRadial', 'selfCheckSignal', 'selfCheckCoverHold', 'selfCheckWeapons', 'selfCheckGunnery', 'selfCheckTargetStack', 'selfCheckMobToughness', 'selfCheckGrouping', 'selfCheckElection', 'selfCheckInfluence', 'selfCheckPlay', 'selfCheckFormation', 'selfCheckPlayerFormation', 'selfCheckInfantryFormation', 'selfCheckMarch', 'selfCheckSeam', 'selfCheckHeli', 'selfCheckHeliArmament', 'selfCheckPlane', 'selfCheckContactBoard', 'selfCheckWideScan', 'selfCheckPathBudget', 'selfCheckLofCache', 'selfCheckChunkTickets', 'selfCheckUnitLod', 'selfCheckTaskedDestination', 'selfCheckDismount', 'selfCheckMinefield', 'selfCheckTactics', 'selfCheckCues', 'selfCheckSuppression', 'selfCheckAcquisition', 'selfCheckEngineGates', 'selfCheckSounds', 'selfCheckRadioQueue', 'selfCheckCrewSkins', 'selfCheckAirport', 'selfCheckGround', 'selfCheckOrca', 'selfCheckSmoke', 'selfCheckCover', 'selfCheckBattlePosition', 'selfCheckBallistics', 'selfCheckIdle', 'selfCheckInvasion', 'selfCheckConfig', 'selfCheckPathway', 'selfCheckStructures', 'selfCheckTerritory', 'selfCheckDiplomacy', 'selfCheckVehicleAccess', 'selfCheckLv', 'selfCheckFcp', 'selfCheckRadioDsp', 'selfCheckMinimap', 'selfCheckWaypointDrag', 'selfCheckRibbon', 'selfCheckVehicleClientLod', 'selfCheckTaczCube', 'selfCheckScavenge', 'selfCheckLang', 'selfCheckLoadedTerrain', 'selfCheckEventSpots', 'selfCheckEventMarks', 'selfCheckVoice'
 }
 
 mixin {
@@ -1088,6 +1097,12 @@ dependencies {
     compileOnly fg.deobf("blank:voicechat:1.0")
     if (project.hasProperty('withVoicechat')) {
         runtimeOnly fg.deobf("blank:voicechat:1.0")
+    }
+    // Soft: VoskLib (libs/vosklib.jar), offline speech recognition for voice orders. Client only; only
+    // compat/vosk/ names its types. Opt in with -PwithVosk.
+    compileOnly fg.deobf("blank:vosklib:1.0")
+    if (project.hasProperty('withVosk')) {
+        runtimeOnly fg.deobf("blank:vosklib:1.0")
     }
     // Soft: Coltan (SBW→GemRender bridge) + GemRender. Sticky paint / armor register through
     // reflection (ColtanSkinBridge, ColtanArmorBridge) so a clean checkout without libs/coltan.jar

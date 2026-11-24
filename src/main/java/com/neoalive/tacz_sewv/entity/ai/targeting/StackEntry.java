@@ -81,6 +81,25 @@ public record StackEntry(Kind kind, String value) {
         };
     }
 
+    /** How narrowly the row names a target: id 4, tag 3, mod 2, category or group 1. */
+    public int specificity() {
+        return switch (kind) {
+            case TYPE -> 4;
+            case TAG -> 3;
+            case MOD -> 2;
+            case CATEGORY, GROUP -> 1;
+        };
+    }
+
+    /**
+     * Whether a target stays excluded, given the most specific Excluded row it matches and the most
+     * specific Priority row (0 = none). A narrower Priority row wins, so naming a mob's id in
+     * Priority lifts a broad {@code cat:misc} exclusion; a tie stays excluded.
+     */
+    public static boolean stillExcluded(int excludedSpecificity, int prioritySpecificity) {
+        return excludedSpecificity > 0 && excludedSpecificity >= prioritySpecificity;
+    }
+
     @Nullable
     public Group group() {
         return kind == Kind.GROUP ? Group.byKey(value) : null;

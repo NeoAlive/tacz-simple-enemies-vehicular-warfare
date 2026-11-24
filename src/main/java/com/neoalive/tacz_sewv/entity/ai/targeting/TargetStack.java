@@ -52,7 +52,8 @@ public final class TargetStack {
     private final Map<Group, Integer> groupIndex = new EnumMap<>(Group.class);
     private final Map<EntityType<?>, Integer> livingRank = new HashMap<>();
     private final Map<EntityType<?>, Integer> hullRank = new HashMap<>();
-    private final Map<EntityType<?>, Boolean> excludedType = new HashMap<>();
+    private final Map<EntityType<?>, Integer> excludedType = new HashMap<>();
+    private final Map<EntityType<?>, Integer> priorityLift = new HashMap<>();
     private final Map<Group, Boolean> excludedGroup = new EnumMap<>(Group.class);
 
     private TargetStack(WorldTargetStack.Stack stack) {
@@ -99,9 +100,11 @@ public final class TargetStack {
      * golems for RU/US), exactly as the old category gate did.
      */
     public boolean excludes(LivingEntity e) {
-        Boolean byType = excludedType.computeIfAbsent(e.getType(), t -> matchesAny(excluded, t, true));
-        if (byType) return true;
-        return excludedGroup.containsKey(Group.HEAVY_CREATURE) && isHeavyCreature(e);
+        int lift = priorityLift.computeIfAbsent(e.getType(), t -> mostSpecific(priority, t));
+        int byType = excludedType.computeIfAbsent(e.getType(), t -> mostSpecific(excluded, t));
+        if (StackEntry.stillExcluded(byType, lift)) return true;
+        return excludedGroup.containsKey(Group.HEAVY_CREATURE)
+                && StackEntry.stillExcluded(1, lift) && isHeavyCreature(e);
     }
 
     /** Whether any faction may target this mob at all: the combatant index's soft-tier test. */
@@ -135,11 +138,13 @@ public final class TargetStack {
         return priority.size();
     }
 
-    private static boolean matchesAny(List<StackEntry> rows, EntityType<?> type, boolean living) {
+    /** Specificity of the narrowest static row matching a living target of this type, 0 if none. */
+    private static int mostSpecific(List<StackEntry> rows, EntityType<?> type) {
+        int best = 0;
         for (StackEntry e : rows) {
-            if (matches(e, type, living)) return true;
+            if (e.specificity() > best && matches(e, type, true)) best = e.specificity();
         }
-        return false;
+        return best;
     }
 
     /** Static rows. A hull is matched by id, mod and tag; category is the living target's own. */

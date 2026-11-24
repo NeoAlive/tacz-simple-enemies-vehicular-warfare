@@ -20,6 +20,7 @@ public final class TargetStackSelfCheck {
     public static void main(String[] args) {
         parsing();
         cleaning();
+        exclusionLift();
         migration();
         weight();
         ordering();
@@ -59,6 +60,20 @@ public final class TargetStackSelfCheck {
         for (int i = 0; i < 400; i++) many.add("minecraft:m" + i);
         check(WorldTargetStack.clean(many, List.of(), id -> false).priority().size() == WorldTargetStack.MAX_ROWS,
                 "capped");
+    }
+
+    private static void exclusionLift() {
+        int id = StackEntry.parse("skyfront:drone").specificity();
+        int mod = StackEntry.parse("@skyfront").specificity();
+        int cat = StackEntry.parse("cat:misc").specificity();
+        int tag = StackEntry.parse("#minecraft:raiders").specificity();
+        check(!StackEntry.stillExcluded(cat, id), "an id in priority lifts a category exclusion");
+        check(!StackEntry.stillExcluded(cat, mod), "a mod in priority lifts a category exclusion");
+        check(StackEntry.stillExcluded(id, cat), "an excluded id beats a priority category");
+        check(StackEntry.stillExcluded(tag, mod), "an excluded tag beats a priority mod");
+        check(StackEntry.stillExcluded(cat, cat), "a tie stays excluded");
+        check(StackEntry.stillExcluded(cat, 0), "nothing in priority stays excluded");
+        check(!StackEntry.stillExcluded(0, 0), "not excluded at all");
     }
 
     private static void migration() {

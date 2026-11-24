@@ -174,7 +174,7 @@ public class NetworkHandler {
     //      removed), PacketSyncPmcIdentity the logo link, PacketFetchWebLogo (C->S) + PacketWebLogo (S->C).
     // 121: PacketOpenTargetStack / PacketUpdateTargetStack replace the target priority allow list
     //      packets in the same slots: per faction an ordered priority list and an excluded list.
-    private static final String PROTOCOL_VERSION = "125";
+    private static final String PROTOCOL_VERSION = "126";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(TaczSewv.MODID, "main"),

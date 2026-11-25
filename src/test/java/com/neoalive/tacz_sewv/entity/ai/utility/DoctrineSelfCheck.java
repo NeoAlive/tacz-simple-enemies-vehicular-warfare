@@ -178,6 +178,17 @@ public final class DoctrineSelfCheck {
         assert DoctrineKnobs.budget(base, DoctrineKnobs.RATING_PER_POINT) == base + 1 : "first earned point";
         assert DoctrineKnobs.budget(base, 1_000_000) == DoctrineKnobs.MAX_BUDGET : "budget caps";
         assert DoctrineKnobs.MAX_BUDGET <= Doctrine.AXIS_LIMIT * Doctrine.Axis.VALUES.length : "unspendable budget";
+        // A ledger saved at the base stays confirmable after the budget grows; earned points are optional.
+        assert PlayerDoctrineData.validTotal(base, base) : "base ledger at base budget";
+        assert PlayerDoctrineData.validTotal(base, base + 3) : "legacy 20-point ledger refused after the budget grew";
+        assert PlayerDoctrineData.validTotal(base + 3, base + 3) : "full earned budget refused";
+        assert !PlayerDoctrineData.validTotal(base - 1, base + 3) : "under-spent ledger accepted";
+        assert !PlayerDoctrineData.validTotal(base + 4, base + 3) : "over-spent ledger accepted";
+        for (DoctrinePresets.Preset preset : DoctrinePresets.ALL) {
+            int total = 0;
+            for (int v : preset.axes()) total += Math.abs(v);
+            assert PlayerDoctrineData.validTotal(total, DoctrineKnobs.MAX_BUDGET) : preset.key() + " not confirmable at max budget";
+        }
     }
 
     private static com.google.gson.JsonElement shippedWeights() {

@@ -20,7 +20,9 @@ public class DoctrineEditorScreen extends SewvScreen {
 
     private static final int PANEL_W_PREF = 400;
     /** Right-hand Effects panel; shown beside the list when it fits, otherwise as a tooltip on the points line. */
-    private static final int EFFECTS_W = 190;
+    /** Effects panel width: grows toward the preferred width when the screen has room, never below the minimum. */
+    private static final int EFFECTS_W_MIN = 190;
+    private static final int EFFECTS_W_PREF = 240;
     private static final int EFFECTS_GAP = 14;
     private static final int LIST_MIN_W = 260;
     /** Armour engagement ring before doctrine and tacticalScale, as Facts.preferredRange. */
@@ -31,6 +33,7 @@ public class DoctrineEditorScreen extends SewvScreen {
     private static final int HEADER_H = 44;
     private static final int FOOTER_H = 72;
     private static final int PRESET_BTN_GAP = 4;
+    private static final int PRESET_ROW_H = 24;
     /** Debounce for preview requests while the player is clicking +/-. */
     private static final long PREVIEW_DEBOUNCE_MS = 250L;
 
@@ -42,6 +45,7 @@ public class DoctrineEditorScreen extends SewvScreen {
     private final int budget = DoctrineClient.budget();
     private Button confirmButton;
     private boolean effectsBeside;
+    private int effectsW = EFFECTS_W_MIN;
     private boolean previewDirty = true;
     private long previewChangedAt;
 
@@ -57,7 +61,7 @@ public class DoctrineEditorScreen extends SewvScreen {
     private record AxisRow(Button minus, Button plus, int index) {}
 
     private int panelW() {
-        if (this.effectsBeside) return Math.min(PANEL_W_PREF, this.width - EFFECTS_W - EFFECTS_GAP - 40);
+        if (this.effectsBeside) return Math.min(PANEL_W_PREF, this.width - this.effectsW - EFFECTS_GAP - 40);
         return GuiFit.panelW(PANEL_W_PREF, this.width);
     }
 
@@ -76,8 +80,9 @@ public class DoctrineEditorScreen extends SewvScreen {
         this.scrollOffset = 0;
         this.draggingScrollbar = false;
 
-        this.effectsBeside = this.width >= LIST_MIN_W + EFFECTS_W + EFFECTS_GAP + 40;
-        int block = panelW() + (this.effectsBeside ? EFFECTS_GAP + EFFECTS_W : 0);
+        this.effectsBeside = this.width >= LIST_MIN_W + EFFECTS_W_MIN + EFFECTS_GAP + 40;
+        this.effectsW = Mth.clamp(this.width - LIST_MIN_W - EFFECTS_GAP - 40, EFFECTS_W_MIN, EFFECTS_W_PREF);
+        int block = panelW() + (this.effectsBeside ? EFFECTS_GAP + this.effectsW : 0);
         this.listLeft = (this.width - block) / 2;
         this.listTop = HEADER_H;
         this.listBottom = this.height - FOOTER_H;
@@ -106,29 +111,46 @@ public class DoctrineEditorScreen extends SewvScreen {
         addRenderableWidget(Button.builder(Component.translatable("gui.cancel"), b -> onClose())
                 .bounds(centerBtnX + 5, btnY, 100, 20).build());
 
-        // Buttons sized to their labels (names differ a lot in length per language), shrunk evenly if the row overflows.
+        // Buttons sized to their full labels and wrapped onto extra rows when the screen is narrow, so no name is
+        // ever clipped; the axis list gives up the height.
         int count = DoctrinePresets.ALL.size();
+        int maxRowW = this.width - 20;
+        List<List<Integer>> presetRows = new ArrayList<>();
+        List<Integer> current = new ArrayList<>();
+        int rowW = 0;
         int[] widths = new int[count];
-        int total = PRESET_BTN_GAP * (count - 1);
         for (int i = 0; i < count; i++) {
-            widths[i] = this.font.width(Component.translatable(
-                    "gui.tacz_sewv.doctrine.preset." + DoctrinePresets.ALL.get(i).key())) + 12;
-            total += widths[i];
+            widths[i] = Math.min(maxRowW, this.font.width(Component.translatable(
+                    "gui.tacz_sewv.doctrine.preset." + DoctrinePresets.ALL.get(i).key())) + 12);
+            int add = widths[i] + (current.isEmpty() ? 0 : PRESET_BTN_GAP);
+            if (!current.isEmpty() && rowW + add > maxRowW) {
+                presetRows.add(current);
+                current = new ArrayList<>();
+                rowW = 0;
+                add = widths[i];
+            }
+            current.add(i);
+            rowW += add;
         }
-        float shrink = Math.min(1.0F, (this.width - 20) / (float) Math.max(1, total));
-        int px = this.width / 2 - Math.round(total * shrink) / 2;
-        for (int i = 0; i < count; i++) {
-            DoctrinePresets.Preset preset = DoctrinePresets.ALL.get(i);
-            int w = Math.max(20, Math.round(widths[i] * shrink));
-            int x = px;
-            px += w + Math.round(PRESET_BTN_GAP * shrink);
-            addRenderableWidget(Button.builder(Component.translatable("gui.tacz_sewv.doctrine.preset." + preset.key()),
-                            b -> applyPreset(preset))
-                    .bounds(x, this.height - 58, w, 20)
-                    .tooltip(net.minecraft.client.gui.components.Tooltip.create(
-                            Component.translatable("gui.tacz_sewv.doctrine.preset." + preset.key() + ".tip")))
-                    .build());
+        if (!current.isEmpty()) presetRows.add(current);
+        for (int r = 0; r < presetRows.size(); r++) {
+            List<Integer> row = presetRows.get(r);
+            int w = PRESET_BTN_GAP * (row.size() - 1);
+            for (int i : row) w += widths[i];
+            int px = this.width / 2 - w / 2;
+            int py = this.height - 58 - (presetRows.size() - 1 - r) * PRESET_ROW_H;
+            for (int i : row) {
+                DoctrinePresets.Preset preset = DoctrinePresets.ALL.get(i);
+                addRenderableWidget(Button.builder(Component.translatable("gui.tacz_sewv.doctrine.preset." + preset.key()),
+                                b -> applyPreset(preset))
+                        .bounds(px, py, widths[i], 20)
+                        .tooltip(net.minecraft.client.gui.components.Tooltip.create(
+                                Component.translatable("gui.tacz_sewv.doctrine.preset." + preset.key() + ".tip")))
+                        .build());
+                px += widths[i] + PRESET_BTN_GAP;
+            }
         }
+        this.listBottom = this.height - FOOTER_H - (presetRows.size() - 1) * PRESET_ROW_H;
 
         layoutRows();
         updateConfirmButton();
@@ -218,7 +240,8 @@ public class DoctrineEditorScreen extends SewvScreen {
     }
 
     private void updateConfirmButton() {
-        this.confirmButton.active = (getTotalAllocated() == this.budget);
+        this.confirmButton.active = com.neoalive.tacz_sewv.entity.ai.utility.PlayerDoctrineData.validTotal(
+                getTotalAllocated(), this.budget);
     }
 
     private int scrollbarX() {
@@ -262,7 +285,8 @@ public class DoctrineEditorScreen extends SewvScreen {
         g.drawCenteredString(this.font, this.title, this.width / 2, 12, 0xFFFFFF);
 
         int remaining = this.budget - getTotalAllocated();
-        int color = remaining == 0 ? 0x55FF55 : 0xFFFFFF;
+        int color = com.neoalive.tacz_sewv.entity.ai.utility.PlayerDoctrineData.validTotal(getTotalAllocated(), this.budget)
+                ? 0x55FF55 : 0xFFFFFF;
         Component remainingText = Component.translatable("gui.tacz_sewv.doctrine.remaining", remaining);
         g.drawCenteredString(this.font, remainingText, this.width / 2, 28, color);
         int remW = this.font.width(remainingText);
@@ -285,10 +309,8 @@ public class DoctrineEditorScreen extends SewvScreen {
             String tipKey = "gui.tacz_sewv.doctrine.axis." + axis.key + ".tip";
             String tip = Component.translatable(tipKey).getString();
             String desc = tip.equals(tipKey) ? axis.description : tip;
-            int maxDescWidth = panelW() - 90 - 12 - 10;
-            String truncatedDesc = this.font.plainSubstrByWidth(desc, maxDescWidth);
-            if (!truncatedDesc.equals(desc)) truncatedDesc += "...";
-            g.drawString(this.font, truncatedDesc, this.listLeft + 12, y + 20, 0xFFAAAAAA, true);
+            // Scaled down to fit before it is ever cut; the full text is the row's hover tooltip anyway.
+            drawFit(g, desc, this.listLeft + 12, y + 20, panelW() - 90 - 12 - 10, 0xFFAAAAAA, false);
 
             int value = this.draftedAxes[row.index()];
             String displayVal = (value > 0 ? "+" : "") + value;
@@ -332,7 +354,6 @@ public class DoctrineEditorScreen extends SewvScreen {
     }
 
     private static final int ROW_H = 11;
-    private static final int VALUE_W = 56;
     private static final int TEXT = 0xFFDDDDDD;
     private static final int HEADER = 0xFFFFAA00;
     private static final int MALUS = 0xFFE05A4F;
@@ -422,37 +443,60 @@ public class DoctrineEditorScreen extends SewvScreen {
 
     /** Zebra-striped rows: label on the left, the value in its own cell column, coloured by grade. */
     private void renderEffects(GuiGraphics g, List<EffectRow> rows) {
+        int w = this.effectsW;
         int x = this.listLeft + panelW() + EFFECTS_GAP;
         int y = this.listTop;
         int h = Math.min(this.listBottom - this.listTop, 2 + rows.size() * ROW_H);
-        int cellX = x + EFFECTS_W - VALUE_W;
-        g.fill(x, y, x + EFFECTS_W, y + h, 0x66000000);
+        // The value column fits its widest value, so short values leave the labels room.
+        int valueW = 0;
+        for (EffectRow row : rows) {
+            if (!row.header()) valueW = Math.max(valueW, this.font.width(row.value()));
+        }
+        valueW = Mth.clamp(valueW + 10, 34, (int) (w * 0.45F));
+        int cellX = x + w - valueW;
+        g.fill(x, y, x + w, y + h, 0x66000000);
         int ry = y + 1;
         int stripe = 0;
         for (EffectRow row : rows) {
             if (ry + ROW_H > y + h) break;
             if (row.header()) {
-                g.fill(x + 1, ry, x + EFFECTS_W - 1, ry + ROW_H, 0x55302008);
-                g.drawString(this.font, this.font.plainSubstrByWidth(row.label().getString(), EFFECTS_W - 8),
-                        x + 4, ry + 2, HEADER, false);
+                g.fill(x + 1, ry, x + w - 1, ry + ROW_H, 0x55302008);
+                drawFit(g, row.label().getString(), x + 4, ry + 2, w - 8, HEADER, false);
                 stripe = 0;
             } else {
-                g.fill(x + 1, ry, x + EFFECTS_W - 1, ry + ROW_H, (stripe++ & 1) == 0 ? 0x22FFFFFF : 0x0AFFFFFF);
-                g.fill(cellX, ry, x + EFFECTS_W - 1, ry + ROW_H, 0x33000000);
-                g.fill(cellX, ry, cellX + 1, ry + ROW_H, 0x55FFFFFF);
+                g.fill(x + 1, ry, x + w - 1, ry + ROW_H, (stripe++ & 1) == 0 ? 0x22FFFFFF : 0x0AFFFFFF);
                 boolean wide = row.value().getString().isEmpty();
-                int labelW = (wide ? EFFECTS_W : EFFECTS_W - VALUE_W) - 8;
-                g.drawString(this.font, this.font.plainSubstrByWidth(row.label().getString(), labelW),
-                        x + 4, ry + 2, TEXT, false);
                 if (!wide) {
-                    String value = this.font.plainSubstrByWidth(row.value().getString(), VALUE_W - 6);
-                    g.drawString(this.font, value, x + EFFECTS_W - 4 - this.font.width(value), ry + 2,
-                            gradeColour(row.grade()), false);
+                    g.fill(cellX, ry, x + w - 1, ry + ROW_H, 0x33000000);
+                    g.fill(cellX, ry, cellX + 1, ry + ROW_H, 0x55FFFFFF);
+                    drawFit(g, row.value().getString(), x + w - 4, ry + 2, valueW - 7, gradeColour(row.grade()), true);
                 }
+                drawFit(g, row.label().getString(), x + 4, ry + 2, (wide ? w : w - valueW) - 8, TEXT, false);
             }
             ry += ROW_H;
         }
-        g.renderOutline(x, y, EFFECTS_W, h, 0xFF444444);
+        g.renderOutline(x, y, w, h, 0xFF444444);
+    }
+
+    /**
+     * Text that may not fit: drawn as is when it does, scaled down (to 70% at most) when it nearly does, and only
+     * truncated past that. {@code right} anchors the text's right edge at {@code x}.
+     */
+    private void drawFit(GuiGraphics g, String text, int x, int y, int maxW, int colour, boolean right) {
+        int tw = this.font.width(text);
+        if (tw <= maxW) {
+            g.drawString(this.font, text, right ? x - tw : x, y, colour, false);
+            return;
+        }
+        float scale = Math.max(0.7F, maxW / (float) tw);
+        String fitted = tw * scale <= maxW ? text : this.font.plainSubstrByWidth(text, (int) (maxW / scale));
+        int fw = Math.round(this.font.width(fitted) * scale);
+        var pose = g.pose();
+        pose.pushPose();
+        pose.translate(right ? x - fw : x, y + (1.0F - scale) * 4.0F, 0.0F);
+        pose.scale(scale, scale, 1.0F);
+        g.drawString(this.font, fitted, 0, 0, colour, false);
+        pose.popPose();
     }
 
     /** The same rows for the narrow-screen tooltip: label, then the coloured value. */

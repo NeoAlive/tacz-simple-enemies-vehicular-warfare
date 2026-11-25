@@ -14,7 +14,6 @@ import com.neoalive.tacz_sewv.init.ModItems;
 import com.neoalive.tacz_sewv.network.NetworkHandler;
 import com.neoalive.tacz_sewv.network.PacketSyncPmcIdentity;
 import com.neoalive.tacz_sewv.platform.PacketDistributor;
-import com.neoalive.tacz_sewv.platform.StackTag;
 
 public class PlayerJoinHandler {
 
@@ -31,7 +30,6 @@ public class PlayerJoinHandler {
 
         if (!data.hasReceivedBook(playerUuid)) {
             ItemStack ledger = new ItemStack(ModItems.DOCTRINE_LEDGER.get());
-            StackTag.update(ledger, tag -> tag.putBoolean("sewv_is_initial", true));
 
             if (player.getInventory().add(ledger)) {
                 data.setReceivedBook(playerUuid);

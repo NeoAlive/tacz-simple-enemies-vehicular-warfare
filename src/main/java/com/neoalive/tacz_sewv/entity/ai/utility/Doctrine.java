@@ -14,21 +14,21 @@ public final class Doctrine {
 
     public enum Axis {
         AGGRESSION("aggression",
-                "Willingness to initiate combat, pursue enemies, and tolerate damage."),
+                "Closer range, presses attacks, breaks off later."),
         PRESERVATION("preservation",
-                "How valuable the vehicle is considered: retreat timing, smoke, casualty tolerance."),
+                "Longer standoff, breaks off and bails earlier."),
         COHESION("cohesion",
-                "Formation discipline, reinforcement, and willingness to operate alone."),
+                "Stays with allies, falls back on friends."),
         INITIATIVE("initiative",
-                "How aggressively opportunities are exploited and contacts investigated."),
+                "Re-plans and reacts faster, chases contacts."),
         SUPPORT_RELIANCE("supportReliance",
-                "Dependence on indirect fire: mortar, TOW and air support requests."),
+                "Calls mortar, TOW and air support. Needs a radio."),
         TARGET_PRIORITY("targetPriority",
-                "Negative prioritises infantry, positive prioritises armored targets."),
+                "Positive: armour first. Negative: infantry first."),
         MANEUVER("maneuver",
-                "Negative favours direct assault, positive increases flanking preference."),
+                "Flanks more, repositions sooner when stuck."),
         RISK_TOLERANCE("riskTolerance",
-                "Willingness to attack under poor odds and cross exposed terrain.");
+                "Ignores bad odds, incoming fire and exposure.");
 
         /** The config key and the weights-file key — one name, so the two can never drift. */
         public final String key;

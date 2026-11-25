@@ -269,6 +269,8 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.BooleanValue INFANTRY_ARMOR_AWARENESS;
     public static final ForgeConfigSpec.BooleanValue ACQUISITION_DELAY_ENABLED;
     public static final ForgeConfigSpec.BooleanValue SUPPRESSIVE_FIRE_ENABLED;
+    public static final ForgeConfigSpec.BooleanValue REVERSE_GEAR_ENABLED;
+    public static final ForgeConfigSpec.IntValue REVERSE_MAX_BLOCKS;
 
     public static final ForgeConfigSpec.BooleanValue COVER_CACHE_ENABLED;
     public static final ForgeConfigSpec.IntValue COVER_CACHE_BAKE_CELLS_PER_TICK;
@@ -1199,6 +1201,13 @@ public final class SewvConfig {
                         "For a few seconds after losing sight of an enemy, a crew machine gun may rake the spot it",
                         "vanished from (one gun per lost enemy). Also gates the player's Suppress Area order.")
                 .define("suppressiveFireEnabled", true);
+        REVERSE_GEAR_ENABLED = builder.comment(
+                        "Ground crews drive a short leg astern when that arrives sooner than turning round:",
+                        "a pivot or three-point turn costed against the hull's own forward and reverse speed.")
+                .define("reverseGearEnabled", true);
+        REVERSE_MAX_BLOCKS = builder.comment(
+                        "Longest leg a crew will drive astern, in blocks. Past it the hull always turns round.")
+                .defineInRange("reverseMaxBlocks", 24, 4, 96);
         COVER_CACHE_ENABLED = builder.comment(
                         "Shared Killzone-style cover visibility table (2x2 columns, 8 compass dirs at turret height).",
                         "Used by individual tactics for exposure / keyhole / scoot without per-tick raycasts.")

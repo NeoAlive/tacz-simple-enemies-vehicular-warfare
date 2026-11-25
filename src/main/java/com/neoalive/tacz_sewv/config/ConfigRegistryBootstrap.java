@@ -767,6 +767,10 @@ final class ConfigRegistryBootstrap {
                 SewvConfig.ACQUISITION_DELAY_ENABLED, SewvConfig.ACQUISITION_DELAY_ENABLED::set);
         b.bool(ConfigScope.SERVER, "crew_ai", "suppressiveFireEnabled",
                 SewvConfig.SUPPRESSIVE_FIRE_ENABLED, SewvConfig.SUPPRESSIVE_FIRE_ENABLED::set);
+        b.bool(ConfigScope.SERVER, "crew_ai", "reverseGearEnabled",
+                SewvConfig.REVERSE_GEAR_ENABLED, SewvConfig.REVERSE_GEAR_ENABLED::set);
+        b.intRange(ConfigScope.SERVER, "crew_ai", "reverseMaxBlocks", 4, 96,
+                SewvConfig.REVERSE_MAX_BLOCKS, SewvConfig.REVERSE_MAX_BLOCKS::set);
         b.bool(ConfigScope.SERVER, "crew_ai", "coverCacheEnabled",
                 SewvConfig.COVER_CACHE_ENABLED, SewvConfig.COVER_CACHE_ENABLED::set);
         b.intRange(ConfigScope.SERVER, "crew_ai", "coverCacheBakeCellsPerTick", 8, 256,

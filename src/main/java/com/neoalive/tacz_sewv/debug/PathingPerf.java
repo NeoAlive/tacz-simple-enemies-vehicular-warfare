@@ -36,6 +36,10 @@ public final class PathingPerf {
     /** Multi-point maneuver searches ({@code ManeuverPlanner}), each one a PathBudget slot. */
     public static long maneuverNanos;
     public static int maneuverCalls;
+    /** Gear decisions ({@code GearChoice}) and how many of them chose reverse. */
+    public static long gearNanos;
+    public static int gearCalls;
+    public static int gearReverse;
 
     private PathingPerf() {}
 
@@ -43,14 +47,15 @@ public final class PathingPerf {
         String s = String.format(
                 "pathing fan=%.2fms/%d path=%.2fms/%d deferred=%d restored=%d slotFlips=%d pathFlips=%d "
                         + "colCache=%d/%d gradeCache=%d/%d gradeSkip=%d cellCache=%d/%d"
-                        + " | trees=%.2fms/%d sectionsSkipped=%d | cover=%.2fms/%d chunks | pods=%.2fms/%d refreshes | maneuver=%.2fms/%d",
+                        + " | trees=%.2fms/%d sectionsSkipped=%d | cover=%.2fms/%d chunks | pods=%.2fms/%d refreshes | maneuver=%.2fms/%d | gear=%.3fms/%d rev=%d",
                 fanNanos / 1.0e6, fanCalls, pathNanos / 1.0e6, pathCalls, pathDeferred, pathRestored, slotFlips, pathFlips,
                 columnCacheHits, columnCacheHits + columnCacheMisses,
                 gradeCacheHits, gradeCacheHits + gradeCacheMisses, gradeSkipped,
                 cellCacheHits, cellCacheHits + cellCacheMisses,
                 treeScanNanos / 1.0e6, treeScans, treeSectionsSkipped,
                 coverBakeNanos / 1.0e6, coverChunksBaked,
-                podQueryNanos / 1.0e6, podRefreshes, maneuverNanos / 1.0e6, maneuverCalls);
+                podQueryNanos / 1.0e6, podRefreshes, maneuverNanos / 1.0e6, maneuverCalls,
+                gearNanos / 1.0e6, gearCalls, gearReverse);
         fanNanos = 0;
         fanCalls = 0;
         pathNanos = 0;
@@ -75,6 +80,9 @@ public final class PathingPerf {
         podRefreshes = 0;
         maneuverNanos = 0;
         maneuverCalls = 0;
+        gearNanos = 0;
+        gearCalls = 0;
+        gearReverse = 0;
         return s;
     }
 }

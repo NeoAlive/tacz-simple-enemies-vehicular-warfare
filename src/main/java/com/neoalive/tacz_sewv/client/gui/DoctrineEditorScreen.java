@@ -33,6 +33,7 @@ public class DoctrineEditorScreen extends Screen {
     private static final int HEADER_H = 44;
     private static final int FOOTER_H = 72;
     private static final int PRESET_BTN_GAP = 4;
+    private static final int PRESET_ROW_H = 24;
     /** Debounce for preview requests while the player is clicking +/-. */
     private static final long PREVIEW_DEBOUNCE_MS = 250L;
 
@@ -110,29 +111,46 @@ public class DoctrineEditorScreen extends Screen {
         addRenderableWidget(Button.builder(Component.translatable("gui.cancel"), b -> onClose())
                 .bounds(centerBtnX + 5, btnY, 100, 20).build());
 
-        // Buttons sized to their labels (names differ a lot in length per language), shrunk evenly if the row overflows.
+        // Buttons sized to their full labels and wrapped onto extra rows when the screen is narrow, so no name is
+        // ever clipped; the axis list gives up the height.
         int count = DoctrinePresets.ALL.size();
+        int maxRowW = this.width - 20;
+        List<List<Integer>> presetRows = new ArrayList<>();
+        List<Integer> current = new ArrayList<>();
+        int rowW = 0;
         int[] widths = new int[count];
-        int total = PRESET_BTN_GAP * (count - 1);
         for (int i = 0; i < count; i++) {
-            widths[i] = this.font.width(Component.translatable(
-                    "gui.tacz_sewv.doctrine.preset." + DoctrinePresets.ALL.get(i).key())) + 12;
-            total += widths[i];
+            widths[i] = Math.min(maxRowW, this.font.width(Component.translatable(
+                    "gui.tacz_sewv.doctrine.preset." + DoctrinePresets.ALL.get(i).key())) + 12);
+            int add = widths[i] + (current.isEmpty() ? 0 : PRESET_BTN_GAP);
+            if (!current.isEmpty() && rowW + add > maxRowW) {
+                presetRows.add(current);
+                current = new ArrayList<>();
+                rowW = 0;
+                add = widths[i];
+            }
+            current.add(i);
+            rowW += add;
         }
-        float shrink = Math.min(1.0F, (this.width - 20) / (float) Math.max(1, total));
-        int px = this.width / 2 - Math.round(total * shrink) / 2;
-        for (int i = 0; i < count; i++) {
-            DoctrinePresets.Preset preset = DoctrinePresets.ALL.get(i);
-            int w = Math.max(20, Math.round(widths[i] * shrink));
-            int x = px;
-            px += w + Math.round(PRESET_BTN_GAP * shrink);
-            addRenderableWidget(Button.builder(Component.translatable("gui.tacz_sewv.doctrine.preset." + preset.key()),
-                            b -> applyPreset(preset))
-                    .bounds(x, this.height - 58, w, 20)
-                    .tooltip(net.minecraft.client.gui.components.Tooltip.create(
-                            Component.translatable("gui.tacz_sewv.doctrine.preset." + preset.key() + ".tip")))
-                    .build());
+        if (!current.isEmpty()) presetRows.add(current);
+        for (int r = 0; r < presetRows.size(); r++) {
+            List<Integer> row = presetRows.get(r);
+            int w = PRESET_BTN_GAP * (row.size() - 1);
+            for (int i : row) w += widths[i];
+            int px = this.width / 2 - w / 2;
+            int py = this.height - 58 - (presetRows.size() - 1 - r) * PRESET_ROW_H;
+            for (int i : row) {
+                DoctrinePresets.Preset preset = DoctrinePresets.ALL.get(i);
+                addRenderableWidget(Button.builder(Component.translatable("gui.tacz_sewv.doctrine.preset." + preset.key()),
+                                b -> applyPreset(preset))
+                        .bounds(px, py, widths[i], 20)
+                        .tooltip(net.minecraft.client.gui.components.Tooltip.create(
+                                Component.translatable("gui.tacz_sewv.doctrine.preset." + preset.key() + ".tip")))
+                        .build());
+                px += widths[i] + PRESET_BTN_GAP;
+            }
         }
+        this.listBottom = this.height - FOOTER_H - (presetRows.size() - 1) * PRESET_ROW_H;
 
         layoutRows();
         updateConfirmButton();
@@ -291,10 +309,8 @@ public class DoctrineEditorScreen extends Screen {
             String tipKey = "gui.tacz_sewv.doctrine.axis." + axis.key + ".tip";
             String tip = Component.translatable(tipKey).getString();
             String desc = tip.equals(tipKey) ? axis.description : tip;
-            int maxDescWidth = panelW() - 90 - 12 - 10;
-            String truncatedDesc = this.font.plainSubstrByWidth(desc, maxDescWidth);
-            if (!truncatedDesc.equals(desc)) truncatedDesc += "...";
-            g.drawString(this.font, truncatedDesc, this.listLeft + 12, y + 20, 0xFFAAAAAA, true);
+            // Scaled down to fit before it is ever cut; the full text is the row's hover tooltip anyway.
+            drawFit(g, desc, this.listLeft + 12, y + 20, panelW() - 90 - 12 - 10, 0xFFAAAAAA, false);
 
             int value = this.draftedAxes[row.index()];
             String displayVal = (value > 0 ? "+" : "") + value;

@@ -27,6 +27,7 @@ import net.nekoyuni.SimpleEnemyMod.network.ModNetworking;
 import net.nekoyuni.SimpleEnemyMod.network.packets.PacketIssueOrder;
 
 import com.neoalive.tacz_sewv.TaczSewv;
+import com.neoalive.tacz_sewv.client.RadioCue;
 import com.neoalive.tacz_sewv.client.RadioVoiceHud;
 import com.neoalive.tacz_sewv.client.radial.OrderQueueClient;
 import com.neoalive.tacz_sewv.client.radial.QuickCommandWheelScreen;
@@ -65,6 +66,8 @@ public final class VoiceOrders {
     private static long lineAt;
     /** The current utterance was started by talking on the radio, not by the order key. */
     private static volatile boolean radioSession;
+    /** The press cue played and the release cue is owed. Client thread. */
+    private static boolean cueOpen;
 
     /** Built only if touched: a KeyMapping enters vanilla's key table on construction. */
     public static final class Keys {
@@ -114,9 +117,32 @@ public final class VoiceOrders {
             boolean active = VoskCompat.active();
             if (!active) radioSession = !key && onRadio;
             boolean down = key || onRadio;
+            cues(key);
             if (!down && !active) return;
             if (phrases(mc) == null) return;
             VoskCompat.tick(down, grammar, (float) minConfidence(), VoiceOrders::openMic);
+        }
+
+        /**
+         * Key-up and key-down for a key held order, so the player knows when to talk and when it is over.
+         * The press cue waits for the microphone to be open, not for the key, so speech started on it is
+         * never clipped; the release cue plays the moment the key comes up, ahead of the tail. An order
+         * spoken over the radio net gets none: the radio's own clicks already mark it.
+         */
+        private static void cues(boolean key) {
+            if (radioSession || !ClientConfig.flag(ClientConfig.VOICE_ORDERS_CUES)) {
+                cueOpen = false;
+                return;
+            }
+            boolean listening = VoskCompat.listening();
+            if (!cueOpen && key && listening) {
+                RadioCue.click(1.0F);
+                cueOpen = true;
+            } else if (cueOpen && (!key || !listening)) {
+                RadioCue.click(0.8F);
+                RadioCue.squelch(0.35F);
+                cueOpen = false;
+            }
         }
     }
 

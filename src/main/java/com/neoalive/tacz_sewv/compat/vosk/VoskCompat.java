@@ -64,6 +64,11 @@ public final class VoskCompat {
         return present() && VoiceSession.active();
     }
 
+    /** The microphone is open: the moment the player can start talking. */
+    public static boolean listening() {
+        return present() && VoiceSession.listening();
+    }
+
     /** What has been heard so far in the current utterance. */
     public static String partial() {
         return present() ? VoiceSession.partial() : "";

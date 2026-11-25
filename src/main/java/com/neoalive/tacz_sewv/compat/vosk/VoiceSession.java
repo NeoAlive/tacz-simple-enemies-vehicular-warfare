@@ -78,6 +78,11 @@ final class VoiceSession {
         return name == null || name.equals("none") ? null : name;
     }
 
+    /** The microphone is open and frames are reaching the recognizer. */
+    static boolean listening() {
+        return phase == Phase.LISTENING;
+    }
+
     static String partial() {
         return partial;
     }

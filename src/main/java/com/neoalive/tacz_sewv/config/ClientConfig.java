@@ -46,6 +46,7 @@ public final class ClientConfig {
     public static final ForgeConfigSpec.DoubleValue VOICE_ORDERS_MIN_CONFIDENCE;
     public static final ForgeConfigSpec.ConfigValue<String> VOICE_ORDERS_MIC_DEVICE;
     public static final ForgeConfigSpec.BooleanValue VOICE_SETUP_PROMPT;
+    public static final ForgeConfigSpec.BooleanValue VOICE_ORDERS_CUES;
     public static final ForgeConfigSpec.BooleanValue VOICE_ORDERS_TRANSMIT;
     public static final ForgeConfigSpec.BooleanValue VOICE_ORDERS_ON_RADIO;
     public static final ForgeConfigSpec.BooleanValue HELMET_GRAYSCALE;
@@ -143,6 +144,9 @@ public final class ClientConfig {
         VOICE_ORDERS_MIC_DEVICE = builder
                 .comment("Part of the name of the microphone to record voice orders from (the log lists them). Empty uses the system default.")
                 .define("voiceOrdersMicDevice", "");
+        VOICE_ORDERS_CUES = builder
+                .comment("Play a radio key click when the voice order microphone opens and a click and squelch when it closes.")
+                .define("voiceOrdersCues", true);
         VOICE_SETUP_PROMPT = builder
                 .comment("Offer voice order setup on the title screen while VoskLib has no speech model.")
                 .define("voiceSetupPrompt", true);

@@ -266,7 +266,9 @@ public final class VoiceOrders {
 
     @Nullable
     private static VoicePhrases phrases(Minecraft mc) {
-        String lang = mc.getLanguageManager().getSelected();
+        // The model's language decides, since it only hears its own words; the game's is the fallback.
+        String model = VoicePhrases.langOfModel(VoskCompat.modelName());
+        String lang = model != null ? model : mc.getLanguageManager().getSelected();
         if (table == null || !lang.equals(tableLang)) {
             table = VoicePhrases.load(lang);
             tableLang = lang;

@@ -37,6 +37,12 @@ public final class VoskCompat {
         }
     }
 
+    /** The model VoskLib has selected, or null with none or without VoskLib. */
+    @javax.annotation.Nullable
+    public static String modelName() {
+        return present() ? VoiceSession.modelName() : null;
+    }
+
     /** A voice order is being listened to or decoded. */
     public static boolean active() {
         return present() && VoiceSession.active();

@@ -9,6 +9,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import net.minecraft.client.Minecraft;
 import org.infinitytwogames.vosklib.VoskManager;
+import org.infinitytwogames.vosklib.data.DataLoader;
 import org.vosk.Model;
 import org.vosk.Recognizer;
 
@@ -69,6 +70,11 @@ final class VoiceSession {
 
     static boolean active() {
         return phase != Phase.IDLE;
+    }
+
+    static String modelName() {
+        String name = DataLoader.getSelected();
+        return name == null || name.equals("none") ? null : name;
     }
 
     static String partial() {

@@ -38,8 +38,41 @@ public record VoicePhrases(Map<String, List<List<String>>> orders, Map<String, L
     /** The table for {@code lang}, else English. Null only if even English is missing or broken. */
     @Nullable
     public static VoicePhrases load(String lang) {
-        VoicePhrases table = loadExact(lang.toLowerCase(Locale.ROOT));
+        String code = lang.toLowerCase(Locale.ROOT);
+        VoicePhrases table = loadExact(code);
+        if (table == null) {
+            String family = FAMILY.get(code.split("_")[0]);
+            if (family != null) table = loadExact(family);
+        }
         return table != null ? table : loadExact(DEFAULT_LANG);
+    }
+
+    /**
+     * The table for a language family: a game locale without a table of its own ({@code es_mx},
+     * {@code pt_pt}) and a model's language both land here.
+     */
+    public static final Map<String, String> FAMILY = Map.of(
+            "en", "en_us", "it", "it_it", "de", "de_de", "fr", "fr_fr", "es", "es_es",
+            "pt", "pt_br", "pl", "pl_pl", "ru", "ru_ru", "zh", "zh_cn");
+
+    /** Model language codes that are not ISO 639-1. */
+    private static final Map<String, String> MODEL_CODES = Map.of("cn", "zh");
+
+    /**
+     * The table for a Vosk model, read off its name ({@code vosk-model-small-it-0.22} is Italian), or null
+     * when no table matches. The table must follow the model, not the game: a model only knows its own
+     * language's words, so Italian phrases on an English model are words it cannot hear.
+     */
+    @Nullable
+    public static String langOfModel(@Nullable String modelName) {
+        if (modelName == null) return null;
+        String name = modelName.toLowerCase(Locale.ROOT);
+        if (!name.startsWith("vosk-model-")) return null;
+        name = name.substring("vosk-model-".length());
+        if (name.startsWith("small-")) name = name.substring("small-".length());
+        String code = name.split("-")[0];
+        code = MODEL_CODES.getOrDefault(code, code);
+        return FAMILY.get(code);
     }
 
     @Nullable

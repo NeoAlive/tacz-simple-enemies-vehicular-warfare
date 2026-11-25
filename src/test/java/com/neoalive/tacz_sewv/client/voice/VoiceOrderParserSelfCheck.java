@@ -40,9 +40,17 @@ public final class VoiceOrderParserSelfCheck {
         VoicePhrases table = VoicePhrases.load(VoicePhrases.DEFAULT_LANG);
         assert table != null : "en_us voice table did not load";
         assert VoicePhrases.load("xx_yy") != null : "unknown language must fall back to English";
-        phrases(table);
-        scopes(table);
-        ids(table);
+        for (String lang : new java.util.TreeSet<>(VoicePhrases.FAMILY.values())) {
+            VoicePhrases t = VoicePhrases.load(lang);
+            assert t != null : lang + " voice table did not load";
+            assert !lang.equals(VoicePhrases.DEFAULT_LANG) || t == table || t.orders().equals(table.orders());
+            assert t.orders().keySet().equals(table.orders().keySet()) : lang + " orders differ from en_us";
+            assert t.scopes().keySet().equals(table.scopes().keySet()) : lang + " scopes differ from en_us";
+            phrases(t);
+            scopes(t);
+            ids(t);
+        }
+        languages();
         freeText(table);
         grammar(table);
         colours();
@@ -65,13 +73,44 @@ public final class VoiceOrderParserSelfCheck {
     private static void scopes(VoicePhrases table) {
         for (Map.Entry<String, List<List<String>>> e : table.scopes().entrySet()) {
             for (List<String> p : e.getValue()) {
-                String said = String.join(" ", p) + " hold position";
+                String said = String.join(" ", p) + " " + longestHold(table);
                 Result r = VoiceOrderParser.parse(table, said);
                 assert r.status() == Status.OK && "quick_hold".equals(r.pipelineId())
                         : "'" + said + "' lost its order: " + r;
                 assert e.getKey().equals(r.scope()) : "'" + said + "' gave scope " + r.scope() + ", want " + e.getKey();
             }
         }
+    }
+
+    private static String longestHold(VoicePhrases table) {
+        List<String> best = List.of();
+        for (List<String> p : table.orders().get("quick_hold")) if (p.size() > best.size()) best = p;
+        return String.join(" ", best);
+    }
+
+    /** A model's name picks its table, and a locale without one falls back inside its language. */
+    private static void languages() {
+        assert "it_it".equals(VoicePhrases.langOfModel("vosk-model-small-it-0.22"));
+        assert "en_us".equals(VoicePhrases.langOfModel("vosk-model-small-en-us-0.15"));
+        assert "en_us".equals(VoicePhrases.langOfModel("vosk-model-en-us-0.22-lgraph"));
+        assert "en_us".equals(VoicePhrases.langOfModel("vosk-model-small-en-gb-0.15"));
+        assert "zh_cn".equals(VoicePhrases.langOfModel("vosk-model-small-cn-0.22"));
+        assert "pt_br".equals(VoicePhrases.langOfModel("vosk-model-small-pt-0.3"));
+        assert "de_de".equals(VoicePhrases.langOfModel("vosk-model-small-de-0.15"));
+        assert VoicePhrases.langOfModel("vosk-model-small-ja-0.22") == null : "no Japanese table yet";
+        assert VoicePhrases.langOfModel("none") == null;
+        assert VoicePhrases.langOfModel(null) == null;
+        VoicePhrases mx = VoicePhrases.load("es_mx");
+        assert mx.orders().equals(VoicePhrases.load("es_es").orders()) : "es_mx must use the Spanish table";
+        assert VoicePhrases.load("pt_pt").orders().equals(VoicePhrases.load("pt_br").orders()) : "pt_pt must use pt_br";
+        Result it = VoiceOrderParser.parse(VoicePhrases.load("it_it"), "carri armati attaccate quello");
+        assert it.status() == Status.OK && "quick_attack".equals(it.pipelineId()) && it.aimed()
+                && "KIND:ARMOR,MECHANIZED,ANTI_AIR".equals(it.scope()) : "Italian sample gave " + it;
+        Result zh = VoiceOrderParser.parse(VoicePhrases.load("zh_cn"), "全体 攻击 那个");
+        assert zh.status() == Status.OK && "quick_attack".equals(zh.pipelineId()) && "ALL".equals(zh.scope())
+                && zh.aimed() : "Chinese sample gave " + zh;
+        Result ru = VoiceOrderParser.parse(VoicePhrases.load("ru_ru"), "танки прекратить огонь");
+        assert ru.status() == Status.OK && "quick_cease_fire".equals(ru.pipelineId()) : "Russian sample gave " + ru;
     }
 
     private static void ids(VoicePhrases table) throws IOException {

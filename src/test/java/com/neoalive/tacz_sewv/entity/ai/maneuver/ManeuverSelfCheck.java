@@ -59,6 +59,7 @@ public final class ManeuverSelfCheck {
         checkGearClassContrast();        // 15
         checkGearWheeledEstimate();      // 16
         checkGearPivotModel();           // 17
+        checkGearFrontBias();            // 18
         System.out.println("ManeuverSelfCheck OK — r_min=" + R_MIN);
     }
 
@@ -589,6 +590,24 @@ public final class ManeuverSelfCheck {
             worst = Math.max(worst, Math.abs(StrictMath.log(ratio)));
         }
         assert worst <= StrictMath.log(1.3) : "three-point estimate off the planner by more than 30%";
+    }
+
+    // 18: keeping the bow on a retreat's threat only ever lengthens the reverse.
+    private static void checkGearFrontBias() {
+        for (boolean tracked : new boolean[] {false, true}) {
+            double plain = 0.0;
+            double biased = 0.0;
+            for (double d = 0.5; d <= 96; d += 0.5) {
+                GearChoice.Input in = gear(180, d, tracked, false);
+                GearChoice.Input b = new GearChoice.Input(in.theta(), in.d(), in.vFwd(), in.vBack(), in.aFwd(), in.aBack(),
+                        in.tracked(), in.steeringSpeed(), in.fluid(), in.planSpeed(), in.maxBlocks(), false, 0.3);
+                if (gearOf(in) == GearChoice.Gear.REVERSE) plain = d;
+                if (gearOf(b) == GearChoice.Gear.REVERSE) biased = d;
+                assert gearOf(in) != GearChoice.Gear.REVERSE || gearOf(b) == GearChoice.Gear.REVERSE : "bias took a reverse away";
+            }
+            System.out.println("gear front bias tracked=" + tracked + ": reverses to " + plain + " -> " + biased);
+            assert biased > plain : "front bias did nothing";
+        }
     }
 
     // 17: the tracked pivot table matches the SBW recurrence and is monotone.

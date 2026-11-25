@@ -299,6 +299,8 @@ public final class VehicleDriver {
     private int gearCooldown;
     private int sternTurn;
     private BlockPos gearGoal;
+    private BlockPos frontThreat;
+    private long frontThreatAt = Long.MIN_VALUE;
 
     // Planned multi-point maneuvers (ManeuverPlanner). The route run is recovery-like state and
     // clearRecovery drops it; the ARRIVAL state below must not live there, because DriveVehicleGoal
@@ -541,6 +543,9 @@ public final class VehicleDriver {
             return;
         }
         if (checkSubmergedFailsafe()) return;
+        // A retreat names its threat: the gear choice may then back off bow-on rather than turn tail.
+        this.frontThreat = targetPos;
+        this.frontThreatAt = this.vehicle.level().getGameTime();
         navigateTo(VehicleTargeting.computeStandoffPoint(this.vehicle, this.input::forwardDirection, targetPos, retreatRadius, 0.0),
                 distanceSq);
     }
@@ -1037,6 +1042,8 @@ public final class VehicleDriver {
     private static final double GEAR_DEST_DRIFT = 4.0;
     private static final int GEAR_RESCORE_TICKS = 10;
     private static final int GEAR_LEG_HARD_CAP = 300;
+    private static final double FRONT_BIAS_BASE = 0.3;
+    private static final double FRONT_ARC_RAD = Math.toRadians(60.0);
 
     private static boolean reverseGearEnabled() {
         try {
@@ -1081,7 +1088,7 @@ public final class VehicleDriver {
                 return false;
             } else if (now >= this.gearRescoreAt) {
                 this.gearRescoreAt = now + GEAR_RESCORE_TICKS;
-                if (decideGear(theta, goal, true).gear() != GearChoice.Gear.REVERSE) {
+                if (decideGear(theta, travel, goal, true).gear() != GearChoice.Gear.REVERSE) {
                     dropGear("rescored", false);
                     return false;
                 }
@@ -1093,7 +1100,7 @@ public final class VehicleDriver {
                 return false;
             }
             if (this.gearCooldown > 0 || sameDest) return false;
-            GearChoice.Result r = decideGear(theta, goal, false);
+            GearChoice.Result r = decideGear(theta, travel, goal, false);
             this.gearDest = goal;
             if (r.gear() != GearChoice.Gear.REVERSE) return false;
             this.gear = GearChoice.Gear.REVERSE;
@@ -1122,7 +1129,7 @@ public final class VehicleDriver {
         return true;
     }
 
-    private GearChoice.Result decideGear(double theta, BlockPos goal, boolean latched) {
+    private GearChoice.Result decideGear(double theta, Vec3 travel, BlockPos goal, boolean latched) {
         long t0 = System.nanoTime();
         double s = this.hull.turnSteeringSpeed();
         double speed = this.vehicle.getDeltaMovement().horizontalDistance();
@@ -1130,10 +1137,27 @@ public final class VehicleDriver {
         GearChoice.Result r = GearChoice.decide(new GearChoice.Input(theta, remainingPathLength(goal),
                 HullPace.forward(pace, this.hull.forwardRate()),
                 HullPace.backward(pace, this.hull.forwardRate(), this.hull.backwardRate()),
-                Double.NaN, Double.NaN, this.hull.isTracked(), s, false, speed, reverseMaxBlocks(), latched, 0.0));
+                Double.NaN, Double.NaN, this.hull.isTracked(), s, false, speed, reverseMaxBlocks(), latched,
+                frontBias(travel)));
         PathingPerf.gearNanos += System.nanoTime() - t0;
         PathingPerf.gearCalls++;
         return r;
+    }
+
+    /**
+     * Share of the astern cost forgiven for keeping the bow on a retreat's threat: only while a retreat is
+     * running this tick, and only when the leg astern keeps the threat within the frontal arc. Neutral
+     * doctrine gets {@link #FRONT_BIAS_BASE}; preserving crews more, bold ones less.
+     */
+    private double frontBias(Vec3 travel) {
+        BlockPos threat = this.frontThreat;
+        if (threat == null || this.vehicle.level().getGameTime() - this.frontThreatAt > 1) return 0.0;
+        Vec3 toThreat = new Vec3(threat.getX() + 0.5 - this.vehicle.getX(), 0, threat.getZ() + 0.5 - this.vehicle.getZ());
+        if (toThreat.lengthSqr() < 1.0E-6) return 0.0;
+        Vector3f bowAstern = new Vector3f((float) -travel.x, 0, (float) -travel.z);
+        if (Math.abs(VehicleTargeting.signedAngleTo(bowAstern, toThreat.normalize())) > FRONT_ARC_RAD) return 0.0;
+        return FRONT_BIAS_BASE * com.neoalive.tacz_sewv.entity.ai.utility.DoctrineKnobs.frontBiasScale(
+                com.neoalive.tacz_sewv.entity.ai.utility.Doctrine.forCrew(this.unit));
     }
 
     /** Hold the back key and turn the stern onto {@code travel}. Astern the bow swing inverts against the key. */

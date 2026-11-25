@@ -42,6 +42,7 @@ public final class DoctrineSelfCheck {
         close(1.0, DoctrineKnobs.acquisitionScale(n), "neutral acquisition");
         close(1.0, DoctrineKnobs.stalemateScale(n), "neutral stalemate");
         close(1.0, DoctrineKnobs.supportCooldownScale(n), "neutral support cooldown");
+        close(1.0, DoctrineKnobs.frontBiasScale(n), "neutral front bias");
         close(1.0, DoctrineKnobs.rankBias(n, true), "neutral armour bias");
         close(1.0, DoctrineKnobs.rankBias(n, false), "neutral infantry bias");
         assert !DoctrineKnobs.smokeOnHit(n) : "neutral smoke on hit";
@@ -58,6 +59,8 @@ public final class DoctrineSelfCheck {
         int lim = Doctrine.AXIS_LIMIT;
         assert DoctrineKnobs.ringScale(only(Axis.AGGRESSION, lim)) < 1.0 : "aggression closes the ring";
         assert DoctrineKnobs.ringScale(only(Axis.PRESERVATION, lim)) > 1.0 : "preservation opens the ring";
+        assert DoctrineKnobs.frontBiasScale(only(Axis.PRESERVATION, lim)) > 1.0 : "preservation keeps the bow on";
+        assert DoctrineKnobs.frontBiasScale(only(Axis.AGGRESSION, lim)) < 1.0 : "aggression turns and goes";
         assert DoctrineKnobs.breakOffHealth(only(Axis.PRESERVATION, lim)) > 0.25 : "preservation breaks off earlier";
         assert DoctrineKnobs.breakOffHealth(only(Axis.RISK_TOLERANCE, lim)) < 0.25 : "risk breaks off later";
         assert DoctrineKnobs.commitTicks(only(Axis.INITIATIVE, lim)) < 40 : "initiative re-plans sooner";

@@ -67,6 +67,14 @@ public final class DoctrineKnobs {
         return 1.0 - 0.4 * m(d);
     }
 
+    /**
+     * Multiplier on how much a retreating crew prefers backing off bow-on to turning its rear to the threat.
+     * Preserving crews keep the glacis to the enemy more; bold and aggressive ones simply turn and go.
+     */
+    public static double frontBiasScale(Doctrine d) {
+        return clamp(1.0 + 0.5 * p(d) - 0.3 * r(d) - 0.2 * a(d), 0.25, 1.75);
+    }
+
     /** Multiplier on the fire-support request cooldown. Reliant crews call again sooner. */
     public static double supportCooldownScale(Doctrine d) {
         return 1.0 - 0.5 * s(d);

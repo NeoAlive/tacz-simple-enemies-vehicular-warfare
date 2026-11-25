@@ -56,6 +56,7 @@ final class VoiceSession {
     private static long bytes;
     private static String source = "";
     private static String recognizerGrammar;
+    private static Model recognizerModel;
     private static float minConfidence;
     private static int frames;
 
@@ -122,11 +123,14 @@ final class VoiceSession {
                     return;
                 }
                 synchronized (LOCK) {
-                    if (recognizer == null || !grammar.equals(recognizerGrammar)) {
+                    // VoskLib reloads its model when another is picked and frees the old one, so a recognizer
+                    // built on it must not be reused.
+                    if (recognizer == null || !grammar.equals(recognizerGrammar) || model != recognizerModel) {
                         if (recognizer != null) recognizer.close();
                         recognizer = new Recognizer(model, SAMPLE_RATE, grammar);
                         recognizer.setWords(true);
                         recognizerGrammar = grammar;
+                        recognizerModel = model;
                     } else {
                         recognizer.reset();
                     }

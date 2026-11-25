@@ -1,6 +1,10 @@
 package com.neoalive.tacz_sewv.compat.voicechat;
 
+import javax.annotation.Nullable;
+
 import net.neoforged.fml.ModList;
+
+import com.neoalive.tacz_sewv.client.voice.MicSource;
 
 /**
  * The only Voice Chat entry point shared code may call. Names no {@code de.maxhenkel} type, so it loads on
@@ -27,6 +31,12 @@ public final class VoicechatCompat {
     /** Voice Chat's proximity distance: receivers inside it already hear the speaker directly. */
     public static double proximity() {
         return proximity;
+    }
+
+    /** Voice Chat's microphone for a voice order while Voice Chat is sending, else null. Client. */
+    @Nullable
+    public static MicSource orderMic() {
+        return present() ? VoiceOrderTap.micIfLive() : null;
     }
 
     static void serverStarted(double voiceDistance) {

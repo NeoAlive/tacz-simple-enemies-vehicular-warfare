@@ -50,6 +50,14 @@ public final class VehiclePoolCatalogSource {
         return out;
     }
 
+    /** Whether {@code id} names a registered vehicle type. The target stack keeps these out of Excluded. */
+    public static boolean isVehicleId(String id) {
+        ResourceLocation rl = ResourceLocation.tryParse(id);
+        if (rl == null || !BuiltInRegistries.ENTITY_TYPE.containsKey(rl)) return false;
+        EntityType<?> type = BuiltInRegistries.ENTITY_TYPE.get(rl);
+        return type != null && isVehicleType(type);
+    }
+
     /**
      * {@link VehicleEntity} assignable from the factory base class, or SBW {@link VehicleData} knows
      * the type (covers odd Forge registrations where {@code getBaseClass()} is too generic).

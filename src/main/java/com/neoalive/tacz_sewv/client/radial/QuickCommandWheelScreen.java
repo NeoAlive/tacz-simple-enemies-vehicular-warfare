@@ -96,7 +96,7 @@ public final class QuickCommandWheelScreen extends Screen {
      * The crosshair when the wheel opened. The view is frozen while the wheel is up, so this is
      * the aim the player chose — Board, Board as Passenger and Entrench act on it.
      */
-    private record Aim(@Nullable Entity entity, @Nullable BlockPos block) {}
+    public record Aim(@Nullable Entity entity, @Nullable BlockPos block) {}
 
     private final RadialInputState input;
     private final Aim aim;
@@ -154,10 +154,7 @@ public final class QuickCommandWheelScreen extends Screen {
         Player player = Minecraft.getInstance().player;
         boolean radio = player != null && HandheldRadioItem.canCall(player);
         boolean signal = player != null && !SignalRelayItem.findBound(player).isEmpty();
-        if (radio) {
-            ItemStack carried = HandheldRadioItem.findCarried(player);
-            if (!carried.isEmpty()) supportDelay = RadioSettings.read(carried).delaySeconds();
-        }
+        if (radio) seedSupportDelay(player);
         int at = root.indexOf(QuickCommandRegistry.SUPPORT_CATEGORY);
         if (!radio && !signal) {
             root.remove(at);
@@ -172,7 +169,13 @@ public final class QuickCommandWheelScreen extends Screen {
         return root;
     }
 
-    private static Aim captureAim() {
+    /** Mortar delay follows the carried radio's setting. */
+    public static void seedSupportDelay(Player player) {
+        ItemStack carried = HandheldRadioItem.findCarried(player);
+        if (!carried.isEmpty()) supportDelay = RadioSettings.read(carried).delaySeconds();
+    }
+
+    public static Aim captureAim() {
         Player player = Minecraft.getInstance().player;
         if (player == null) return new Aim(null, null);
         Entity entity = CommanderRayTrace.rayTraceEntity(player, AIM_ENTITY_RANGE);
@@ -483,21 +486,12 @@ public final class QuickCommandWheelScreen extends Screen {
                 SelectLeaves.toggle(id);
                 return;
             }
-            if (OrderQueueClient.queueable(id) && this.minecraft != null) {
-                // Queue mode: the order's packets are bracketed and held server-side. The wheel
-                // stays open to queue more, unless the order needs a world pick first.
-                List<Integer> units = QuickAirClient.isAirClientAction(id)
-                        ? QuickAirClient.pilotsFor(id)
-                        : WheelScope.units(id, null);
-                OrderQueueClient.begin(id, hotLabel, units);
-                boolean fired = firePipeline(RoleChoice.concreteId(id));
-                OrderQueueClient.endOrAwaitPick();
-                if (fired && (CommanderOverlayRenderer.isSelectingPosition
-                        || CommanderOverlayRenderer.isSelectingTarget
-                        || ClientEvents.hasPendingOrderPick())) {
-                    closeQuiet();
-                }
-            } else if (firePipeline(RoleChoice.concreteId(id))) {
+            boolean queued = OrderQueueClient.queueable(id);
+            boolean fired = dispatch(id, hotLabel, this.aim);
+            // Queue mode keeps the wheel open to queue more, unless the order needs a world pick first.
+            if (fired && (!queued || CommanderOverlayRenderer.isSelectingPosition
+                    || CommanderOverlayRenderer.isSelectingTarget
+                    || ClientEvents.hasPendingOrderPick())) {
                 closeQuiet();
             }
             // Client-side reject (no units, etc.): keep the wheel open.
@@ -517,9 +511,27 @@ public final class QuickCommandWheelScreen extends Screen {
         }
     }
 
+    /**
+     * Fire a leaf as the wheel would, queue mode included. Shared with voice orders, so both give
+     * the same order for the same id. {@code label} is what the queue shows.
+     */
+    public static boolean dispatch(String id, String label, Aim aim) {
+        if (OrderQueueClient.queueable(id)) {
+            // Queue mode: the order's packets are bracketed and held server-side.
+            List<Integer> units = QuickAirClient.isAirClientAction(id)
+                    ? QuickAirClient.pilotsFor(id)
+                    : WheelScope.units(id, null);
+            OrderQueueClient.begin(id, label, units);
+            boolean fired = firePipeline(RoleChoice.concreteId(id), aim);
+            OrderQueueClient.endOrAwaitPick();
+            return fired;
+        }
+        return firePipeline(RoleChoice.concreteId(id), aim);
+    }
+
     /** @return {@code true} if the packet was sent / mode armed (caller should close). */
-    private boolean firePipeline(String pipelineId) {
-        Minecraft mc = this.minecraft;
+    private static boolean firePipeline(String pipelineId, Aim aim) {
+        Minecraft mc = Minecraft.getInstance();
         if (mc == null || mc.player == null || mc.level == null) return false;
 
         switch (pipelineId) {
@@ -576,10 +588,10 @@ public final class QuickCommandWheelScreen extends Screen {
             }
             // Board the hull under the crosshair; with nothing aimed, Board auto-assigns nearby seats.
             case QuickCommandRegistry.ID_BOARD_PASSENGER -> {
-                return this.aim.entity() != null && BoardKeybind.orderBoard(this.aim.entity(), true);
+                return aim.entity() != null && BoardKeybind.orderBoard(aim.entity(), true);
             }
             case QuickCommandRegistry.ID_QUICK_BOARD -> {
-                if (this.aim.entity() != null) return BoardKeybind.orderBoard(this.aim.entity(), false);
+                if (aim.entity() != null) return BoardKeybind.orderBoard(aim.entity(), false);
             }
             default -> {
             }
@@ -652,15 +664,17 @@ public final class QuickCommandWheelScreen extends Screen {
         boolean coverHold = QuickCommandRegistry.ID_QUICK_COVER_HOLD.equals(pipelineId);
         BlockPos aimBlock = QuickCommandRegistry.ID_QUICK_ENTRENCH.equals(pipelineId)
                 || QuickCommandRegistry.ID_QUICK_SUPPRESS.equals(pipelineId) || coverHold
-                || QuickCommandRegistry.isMinefield(pipelineId) ? this.aim.block() : null;
+                || QuickCommandRegistry.isMinefield(pipelineId) ? aim.block() : null;
         String sendId = coverHold
-                ? QuickCommandRegistry.coverHoldId(OrderScales.get(OrderScales.Scale.HOLD)) : pipelineId;
+                ? QuickCommandRegistry.coverHoldId(OrderScales.get(OrderScales.Scale.HOLD))
+                : QuickCommandRegistry.ID_QUICK_CEASE_FIRE.equals(pipelineId)
+                ? QuickCommandRegistry.ceaseFireId(OrderScales.get(OrderScales.Scale.CEASE_FIRE)) : pipelineId;
         NetworkHandler.CHANNEL.sendToServer(
                 new PacketQuickCommand(sendId, units, WheelScope.explicit(), aimBlock));
         return true;
     }
 
-    private boolean fireFormation(Minecraft mc, String pipelineId, List<Integer> unitIds) {
+    private static boolean fireFormation(Minecraft mc, String pipelineId, List<Integer> unitIds) {
         FormationShape shape = QuickCommandRegistry.formationShapeOf(pipelineId);
         if (shape == null || mc.player == null || mc.level == null) return false;
         List<PmcUnitEntity> all = resolvePmcList(mc, unitIds);
@@ -718,6 +732,14 @@ public final class QuickCommandWheelScreen extends Screen {
         BoardKeybind.orderFormation(filteredIds, shape, IFormationMember.axisOf(axis), yaw, rowSize,
                 formationWidth, formationLength, anchorMode);
         return true;
+    }
+
+    /** Voice orders have no filter strip: lay the formation for whatever kind the units are. */
+    public static void matchFormationFilter(List<Integer> unitIds) {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.level == null) return;
+        FormationComposition.Kind kind = FormationComposition.resolve(resolvePmcList(mc, unitIds));
+        if (kind != null) formationFilter = kind;
     }
 
     private static List<PmcUnitEntity> resolvePmcList(Minecraft mc, List<Integer> unitIds) {
@@ -1015,16 +1037,19 @@ public final class QuickCommandWheelScreen extends Screen {
         }
         OrderScales.Scale scale = OrderScales.forPipeline(pipelineId);
         if (scale == null) throw new IllegalArgumentException(pipelineId);
-        if (scale == OrderScales.Scale.HOLD) {
+        if (scale == OrderScales.Scale.HOLD || scale == OrderScales.Scale.CEASE_FIRE) {
+            boolean hold = scale == OrderScales.Scale.HOLD;
             int seconds = OrderScales.get(scale);
             String value = seconds <= 0
                     ? I18n.get("gui.tacz_sewv.wheel.scale.forever")
                     : I18n.get("gui.tacz_sewv.wheel.scale.seconds", seconds);
             String forever = I18n.get("gui.tacz_sewv.wheel.scale.forever");
             String longest = I18n.get("gui.tacz_sewv.wheel.scale.seconds", scale.max);
-            return new ScaleCardDraw.Card(I18n.get("gui.tacz_sewv.wheel.scale.hold"), value,
+            return new ScaleCardDraw.Card(I18n.get(hold ? "gui.tacz_sewv.wheel.scale.hold"
+                    : "gui.tacz_sewv.wheel.scale.cease_fire"), value,
                     forever.length() > longest.length() ? forever : longest,
-                    I18n.get("gui.tacz_sewv.wheel.scale.tag.hold"), scale.fraction(seconds), true);
+                    I18n.get(hold ? "gui.tacz_sewv.wheel.scale.tag.hold" : "gui.tacz_sewv.wheel.scale.tag.cease_fire"),
+                    scale.fraction(seconds), true);
         }
         boolean altitude = scale == OrderScales.Scale.ALTITUDE;
         String title = altitude

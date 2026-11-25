@@ -30,8 +30,6 @@ import com.neoalive.tacz_sewv.entity.ai.support.IdleGroupSupport;
  */
 public final class TacticalBrain {
 
-    private static final int MIN_PLAN_TICKS = 40;
-    private static final double SWITCH_MARGIN = 10.0;
     /** {@code individualAiDebug}: an unchanged plan is re-logged at most this often per crew. */
     private static final long DEBUG_HEARTBEAT_TICKS = 200;
 
@@ -81,7 +79,9 @@ public final class TacticalBrain {
         // Order matters: the facts are projected onto signals, confidence is judged from those,
         // and only then are the actions scored — because confidence is itself an input to them.
         sample(unit, this.facts, now);
-        this.facts.confidence = Confidence.evaluate(this.signals, doctrine, weights, EasyMode.confidenceMalus(unit));
+        // Veteran crews start from higher ground: the bonus rides Easy Mode's malus slot as a negative malus.
+        this.facts.confidence = Confidence.evaluate(this.signals, doctrine, weights, EasyMode.confidenceMalus(unit)
+                - DoctrineKnobs.veterancyConfidence(com.neoalive.tacz_sewv.crew.Veterancy.crewLevel(hull)));
         this.signals[Signal.CONFIDENCE.ordinal()] = Confidence.asSignal(this.facts.confidence);
 
         decide(unit, doctrine, weights, now);
@@ -102,7 +102,9 @@ public final class TacticalBrain {
         UtilityWeights weights = UtilityWeights.active();
 
         sample(unit, this.facts, now);
-        this.facts.confidence = Confidence.evaluate(this.signals, doctrine, weights, EasyMode.confidenceMalus(unit));
+        // Veteran crews start from higher ground: the bonus rides Easy Mode's malus slot as a negative malus.
+        this.facts.confidence = Confidence.evaluate(this.signals, doctrine, weights, EasyMode.confidenceMalus(unit)
+                - DoctrineKnobs.veterancyConfidence(com.neoalive.tacz_sewv.crew.Veterancy.crewLevel(hull)));
         this.signals[Signal.CONFIDENCE.ordinal()] = Confidence.asSignal(this.facts.confidence);
 
         posture.evaluate(unit, hull, this.facts, doctrine);
@@ -194,8 +196,9 @@ public final class TacticalBrain {
             case OK -> 0.0;
         };
 
-        s[Signal.OUTNUMBERED.ordinal()] =
-                Mth.clamp(1.0 / Math.max(f.forceRatio, 1.0E-3) - 1.0, 0.0, 1.0);
+        // Saturates at 1:3, not 1:2: one hull with its three escort riflemen weighs 2, and reading that as fully
+        // outnumbered had every healthy crew breaking off from even fights.
+        s[Signal.OUTNUMBERED.ordinal()] = DoctrineScenarios.outnumbered(f.forceRatio);
         // Beyond the first, each enemy is more pressure — but the difference between four and ten
         // is not something a tank commander meaningfully distinguishes.
         // Weighted like forceRatio: three riflemen press like one hull.
@@ -311,8 +314,9 @@ public final class TacticalBrain {
         boolean planStillValid = this.feasible[this.plan.ordinal()];
         double current = planStillValid ? this.scores[this.plan.ordinal()] : bestScore;
 
-        boolean committed = Facts.ticksSince(this.planStarted, now) < MIN_PLAN_TICKS;
-        boolean beaten = bestScore > current + SWITCH_MARGIN;
+        // Initiative shortens both: a crew that seizes opportunities re-plans sooner and on a smaller lead.
+        boolean committed = Facts.ticksSince(this.planStarted, now) < DoctrineKnobs.commitTicks(doctrine);
+        boolean beaten = bestScore > current + DoctrineKnobs.switchMargin(doctrine);
 
         // A plan that has become impossible is dropped at once — neither the switch margin nor the
         // minimum duration may keep a crew committed to something it can no longer carry out.
@@ -421,7 +425,7 @@ public final class TacticalBrain {
 
     private boolean canRequest(FireMissionSupport.Kind kind) {
         return this.facts.support.contains(kind)
-                && !this.facts.memory.recentlyCalledSupport(this.lastSampledTick);
+                && !this.facts.memory.recentlyCalledSupport(this.lastSampledTick, this.facts.supportScale);
     }
 
     /**
@@ -460,7 +464,7 @@ public final class TacticalBrain {
         }
 
         CrewAssignment.Snapshot task = CrewAssignment.of(unit.getId());
-        SewvDiag.crew("{}#{} plan={} task={} temper={}({}) conf={} hp={} fire={} ammo={} allies={} enemies={} range={}"
+        SewvDiag.crew("{}#{} plan={} task={} temper={}({}) conf={} hp={} fire={} ammo={} gun={} allies={} enemies={} range={}"
                         + " | best: {} | blocked: {} | {}",
                 unit.getType().toShortString(), unit.getId(), this.plan.key,
                 task == null ? "-" : task.role() + (task.flankSide() == null ? "" : "/" + task.flankSide()),
@@ -469,6 +473,8 @@ public final class TacticalBrain {
                 String.format("%.2f", this.facts.health),
                 String.format("%.2f", this.facts.pressure),
                 this.facts.ammo + "(" + this.facts.ammoCount + ")",
+                unit.getVehicle() instanceof com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity gunHull
+                        ? com.neoalive.tacz_sewv.debug.GunneryProbe.tag(gunHull, gunHull.getSeatIndex(unit)) : "-",
                 this.facts.allies, this.facts.enemies,
                 String.format("%.1f", this.facts.targetDist == Double.MAX_VALUE ? -1.0 : this.facts.targetDist),
                 top, String.join(",", blocked), doctrine);

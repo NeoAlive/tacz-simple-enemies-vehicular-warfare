@@ -53,6 +53,13 @@ public final class ManeuverSelfCheck {
         checkDeterminism();              // 9
         checkMirror();                   // 10
         checkPurity();                   // 11
+        checkGearGates();                // 12
+        checkGearMonotone();             // 13
+        checkGearHysteresis();           // 14
+        checkGearClassContrast();        // 15
+        checkGearWheeledEstimate();      // 16
+        checkGearPivotModel();           // 17
+        checkGearFrontBias();            // 18
         System.out.println("ManeuverSelfCheck OK — r_min=" + R_MIN);
     }
 
@@ -477,5 +484,143 @@ public final class ManeuverSelfCheck {
                 assert !NON_STRICT_TRIG.matcher(src).find() : p + " uses non-strict Math";
             }
         }
+    }
+
+    // ------------------------------------------------------------------ gear choice
+
+    // FCP-like numbers: a Stryker (1.19 / 0.32) and a T-72 (0.71 / 0.32), scaled to blocks per tick.
+    private static final double V_FWD = 0.75;
+    private static final double V_BACK = 0.32;
+
+    private static GearChoice.Input gear(double thetaDeg, double d, boolean tracked, boolean latched) {
+        return gear(thetaDeg, d, V_FWD, V_BACK, tracked, 96.0, latched);
+    }
+
+    private static GearChoice.Input gear(double thetaDeg, double d, double vf, double vb, boolean tracked,
+                                         double maxBlocks, boolean latched) {
+        return new GearChoice.Input(thetaDeg * DEG, d, vf, vb, Double.NaN, Double.NaN, tracked, S, false,
+                ManeuverPlanner.PLAN_SPEED_MIN, maxBlocks, latched, 0.0);
+    }
+
+    private static GearChoice.Gear gearOf(GearChoice.Input in) {
+        return GearChoice.decide(in).gear();
+    }
+
+    // 12: ahead, too far, unknown speed and a degenerate leg are all today's behaviour.
+    private static void checkGearGates() {
+        assert gearOf(gear(180, 5, false, false)) == GearChoice.Gear.REVERSE : "a short leg dead astern must reverse";
+        assert gearOf(gear(60, 5, false, false)) == GearChoice.Gear.FORWARD : "target ahead reversed";
+        assert gearOf(gear(180, 30, V_FWD, V_BACK, false, 24, false)) == GearChoice.Gear.FORWARD : "past the block cap";
+        assert gearOf(gear(180, 5, Double.NaN, V_BACK, false, 96, false)) == GearChoice.Gear.FORWARD : "NaN vFwd";
+        assert gearOf(gear(180, 5, V_FWD, Double.NaN, false, 96, false)) == GearChoice.Gear.FORWARD : "NaN vBack";
+        assert gearOf(gear(180, 0, false, false)) == GearChoice.Gear.FORWARD : "zero leg";
+        for (double t : new double[] {95, 120, 150, 179}) {
+            for (boolean tracked : new boolean[] {false, true}) {
+                assert GearChoice.decide(gear(t, 12, tracked, false)).equals(GearChoice.decide(gear(-t, 12, tracked, false)))
+                        : "mirror changed the gear at " + t;
+            }
+        }
+    }
+
+    // 13: shrinking the leg never takes a reverse away.
+    private static void checkGearMonotone() {
+        for (boolean tracked : new boolean[] {false, true}) {
+            for (double t : new double[] {100, 135, 170, 180}) {
+                boolean reversing = false;
+                for (double d = 96; d > 0.5; d -= 0.5) {
+                    boolean r = gearOf(gear(t, d, tracked, false)) == GearChoice.Gear.REVERSE;
+                    assert !reversing || r : "reverse lost while closing in, tracked=" + tracked + " theta=" + t + " d=" + d;
+                    reversing |= r;
+                }
+            }
+        }
+    }
+
+    // 14: anything that enters also holds once latched, and the band is real somewhere.
+    private static void checkGearHysteresis() {
+        int band = 0;
+        for (boolean tracked : new boolean[] {false, true}) {
+            for (double t = 95; t <= 180; t += 5) {
+                for (double d = 1; d <= 96; d += 1) {
+                    boolean enter = gearOf(gear(t, d, tracked, false)) == GearChoice.Gear.REVERSE;
+                    boolean hold = gearOf(gear(t, d, tracked, true)) == GearChoice.Gear.REVERSE;
+                    assert !enter || hold : "a latched reverse is stricter than entering one";
+                    if (hold && !enter) band++;
+                }
+            }
+        }
+        assert band > 0 : "no hysteresis band";
+    }
+
+    // 15: the wheeled hull still backs up at distances where the tracked one already turns round.
+    private static void checkGearClassContrast() {
+        double lastTracked = lastReverse(true);
+        double lastWheeled = lastReverse(false);
+        System.out.println("gear dead astern: tracked reverses to " + lastTracked + " blocks, wheeled to " + lastWheeled);
+        assert lastTracked > 0.0 : "a tracked hull never reverses even a block";
+        assert lastWheeled > lastTracked + 5.0 : "a costly turn does not buy a longer reverse";
+        GearChoice.Result w = GearChoice.decide(gear(180, 10, false, false));
+        GearChoice.Result k = GearChoice.decide(gear(180, 10, true, false));
+        assert w.breakEven() > k.breakEven() : "break-even ordering";
+    }
+
+    private static double lastReverse(boolean tracked) {
+        double last = 0.0;
+        for (double d = 0.5; d <= 96; d += 0.5) {
+            if (gearOf(gear(180, d, tracked, false)) == GearChoice.Gear.REVERSE) last = d;
+        }
+        return last;
+    }
+
+    // 16: the cheap three-point estimate tracks what the planner would actually plan.
+    private static void checkGearWheeledEstimate() {
+        double worst = 0.0;
+        for (double t = 100; t <= 180; t += 10) {
+            double rad = t * DEG;
+            Input in = route(20.0 * StrictMath.cos(rad), 20.0 * StrictMath.sin(rad), true, false, true);
+            in = new Input(in.x(), in.z(), in.fx(), in.fz(), in.ta(), in.tl(), in.phi(), in.arriveRadius(), in.rMin(),
+                    in.steeringSpeed(), in.fluid(), ManeuverPlanner.PLAN_SPEED_MIN, in.tracked(),
+                    in.straightThreshold(), in.finalPoint(), in.wasAligning(), in.preferLeft());
+            List<Maneuver> ranked = ManeuverPlanner.ranked(in);
+            if (ranked.isEmpty()) continue;
+            double planned = ranked.get(0).ticks();
+            double est = GearChoice.wheeledTurnTicks(gear(t, 20, false, false), rad);
+            double ratio = est / planned;
+            System.out.println("gear wheeled estimate theta=" + t + " est=" + est + " planned=" + planned + " ratio=" + ratio);
+            worst = Math.max(worst, Math.abs(StrictMath.log(ratio)));
+        }
+        assert worst <= StrictMath.log(1.3) : "three-point estimate off the planner by more than 30%";
+    }
+
+    // 18: keeping the bow on a retreat's threat only ever lengthens the reverse.
+    private static void checkGearFrontBias() {
+        for (boolean tracked : new boolean[] {false, true}) {
+            double plain = 0.0;
+            double biased = 0.0;
+            for (double d = 0.5; d <= 96; d += 0.5) {
+                GearChoice.Input in = gear(180, d, tracked, false);
+                GearChoice.Input b = new GearChoice.Input(in.theta(), in.d(), in.vFwd(), in.vBack(), in.aFwd(), in.aBack(),
+                        in.tracked(), in.steeringSpeed(), in.fluid(), in.planSpeed(), in.maxBlocks(), false, 0.3);
+                if (gearOf(in) == GearChoice.Gear.REVERSE) plain = d;
+                if (gearOf(b) == GearChoice.Gear.REVERSE) biased = d;
+                assert gearOf(in) != GearChoice.Gear.REVERSE || gearOf(b) == GearChoice.Gear.REVERSE : "bias took a reverse away";
+            }
+            System.out.println("gear front bias tracked=" + tracked + ": reverses to " + plain + " -> " + biased);
+            assert biased > plain : "front bias did nothing";
+        }
+    }
+
+    // 17: the tracked pivot table matches the SBW recurrence and is monotone.
+    private static void checkGearPivotModel() {
+        double half = GearChoice.pivotTicks(S, StrictMath.PI);
+        System.out.println("gear pivot 180 at s=" + S + ": " + half + " ticks");
+        assert half > 30.0 && half < 120.0 : "pivot model out of band: " + half;
+        double prev = 0.0;
+        for (double t = 5; t <= 360; t += 5) {
+            double ticks = GearChoice.pivotTicks(S, t * DEG);
+            assert ticks > prev : "pivot ticks not monotone at " + t;
+            prev = ticks;
+        }
+        assert Double.isNaN(GearChoice.pivotTicks(Double.NaN, 1.0)) && GearChoice.pivotTicks(S, 0.0) == 0.0;
     }
 }

@@ -100,6 +100,10 @@ public final class SewvConfig {
     public static final ModConfigSpec.BooleanValue WEB_LOGOS_ENABLED;
 
     public static final ModConfigSpec.ConfigValue<List<? extends String>> NVG_ELIGIBLE_ITEMS;
+    public static final ModConfigSpec.ConfigValue<List<? extends String>> HEAVY_MOB_NAMESPACES;
+    public static final ModConfigSpec.BooleanValue SCORED_WEAPON_SELECTION;
+    public static final ModConfigSpec.DoubleValue TARGET_STACK_MAX_FACTOR;
+    public static final ModConfigSpec.IntValue STACK_RECHECK_TICKS;
     public static final ModConfigSpec.DoubleValue NVG_SPAWN_CHANCE;
     public static final ModConfigSpec.DoubleValue DARK_ACCURACY_FRACTION;
     public static final ModConfigSpec.DoubleValue NVG_ACCURACY_FRACTION;
@@ -265,6 +269,8 @@ public final class SewvConfig {
     public static final ModConfigSpec.BooleanValue INFANTRY_ARMOR_AWARENESS;
     public static final ModConfigSpec.BooleanValue ACQUISITION_DELAY_ENABLED;
     public static final ModConfigSpec.BooleanValue SUPPRESSIVE_FIRE_ENABLED;
+    public static final ModConfigSpec.BooleanValue REVERSE_GEAR_ENABLED;
+    public static final ModConfigSpec.IntValue REVERSE_MAX_BLOCKS;
 
     public static final ModConfigSpec.BooleanValue COVER_CACHE_ENABLED;
     public static final ModConfigSpec.IntValue COVER_CACHE_BAKE_CELLS_PER_TICK;
@@ -758,6 +764,24 @@ public final class SewvConfig {
                         "Pause before an AI ground/ship/emplacement crew fires on a newly acquired target, in game ticks.",
                         "Helicopters, planes and artillery are exempt. 0 disables.")
                 .defineInRange("aiFireHesitationTicks", 12, 0, 200);
+        HEAVY_MOB_NAMESPACES = builder.comment(
+                        "Mods whose mobs are never left to a crew's machine gun (mod ids). Crews open on them with",
+                        "the main gun. Other mobs go to the MG only when their health behind armour is low.")
+                .defineList("heavyMobNamespaces", List.of("phayriosisreborn", "spore"),
+                        o -> o instanceof String str && !str.isBlank());
+        SCORED_WEAPON_SELECTION = builder.comment(
+                        "Crews pick weapon and shell by the fire command: the coax for troops, a round that",
+                        "penetrates for armour, and the loaded round stays while it suits the target.",
+                        "Off = the old fixed tables.")
+                .define("scoredWeaponSelection", true);
+        TARGET_STACK_MAX_FACTOR = builder.comment(
+                        "How much the target priority stack outweighs distance. A target in the top row counts at",
+                        "its real distance, an unlisted one at this many times it, rows between in steps.",
+                        "1 = nearest always wins; higher = closer to strict order.")
+                .defineInRange("targetStackMaxFactor", 4.0, 1.0, 16.0);
+        STACK_RECHECK_TICKS = builder.comment(
+                        "How often (game ticks) a unit on foot re-checks its target against the priority stack.")
+                .defineInRange("stackRecheckTicks", 20, 5, 200);
         AI_FIRE_HESITATION_JITTER = builder.comment(
                         "Per-crew spread on top of aiFireHesitationTicks (0.5 = each crew waits up to 50% longer),",
                         "fixed per crew so a group does not fire in unison.")
@@ -771,7 +795,7 @@ public final class SewvConfig {
                         "How many degrees off-target an AI crew may still pull the trigger.",
                         "Wider = more missed shots but less sitting silent. Existing configs keep their old value until you edit them.")
                 .defineInRange("aiFireAssistConeDeg", 35.0, 4.0, 90.0);
-        SMOKE_BLOCK_RADIUS = builder.comment("AI will not shoot if smoke is this close (blocks).")
+        SMOKE_BLOCK_RADIUS = builder.comment("Settled reach of a smoke cloud for AI line of fire (blocks). A fresh cloud grows to it over a few seconds.")
                 .defineInRange("smokeBlockRadius", 6.0, 1.0, 16.0);
         FRIENDLY_FIRE_VEHICLE_RADIUS = builder.comment(
                         "AI vehicle weapons (including TOWs) hold fire when the target is this close (blocks)",
@@ -1177,6 +1201,13 @@ public final class SewvConfig {
                         "For a few seconds after losing sight of an enemy, a crew machine gun may rake the spot it",
                         "vanished from (one gun per lost enemy). Also gates the player's Suppress Area order.")
                 .define("suppressiveFireEnabled", true);
+        REVERSE_GEAR_ENABLED = builder.comment(
+                        "Ground crews drive a short leg astern when that arrives sooner than turning round:",
+                        "a pivot or three-point turn costed against the hull's own forward and reverse speed.")
+                .define("reverseGearEnabled", true);
+        REVERSE_MAX_BLOCKS = builder.comment(
+                        "Longest leg a crew will drive astern, in blocks. Past it the hull always turns round.")
+                .defineInRange("reverseMaxBlocks", 24, 4, 96);
         COVER_CACHE_ENABLED = builder.comment(
                         "Shared Killzone-style cover visibility table (2x2 columns, 8 compass dirs at turret height).",
                         "Used by individual tactics for exposure / keyhole / scoot without per-tick raycasts.")
@@ -1765,7 +1796,7 @@ public final class SewvConfig {
         builder.pop();
 
         builder.push("doctrine");
-        builder.comment("Default fighting style sliders for RU, US, and PMC commanders (-3 to +3 on each axis).");
+        builder.comment("Default fighting style for RU, US and PMC crews (-5 to +5 on each axis). A player's Doctrine Ledger replaces the PMC row for their own units.");
         DOCTRINE = new ModConfigSpec.IntValue[FACTION_KEYS.length][Doctrine.Axis.VALUES.length];
         for (int f = 0; f < FACTION_KEYS.length; f++) {
             builder.push(FACTION_KEYS[f]);
@@ -1921,7 +1952,7 @@ public final class SewvConfig {
                 .define("easySoftSupportCalls", true);
         EASY_TIGHTER_ENGAGE_RINGS = builder.comment("Easy Mode: tacticalScale 1.0 (closer engage rings / command distances).")
                 .define("easyTighterEngageRings", true);
-        EASY_KEEP_LOS_GATES = builder.comment("Easy Mode: force vehicle LoS locks and a larger smoke block radius.")
+        EASY_KEEP_LOS_GATES = builder.comment("Easy Mode: force vehicle LoS locks and a larger smoke block radius for hostile shooters.")
                 .define("easyKeepLosGates", true);
         EASY_PLAYER_DAMAGE_SCALE_ENABLED = builder.comment(
                         "Easy Mode: scale hostile vehicle/unit/mortar damage dealt to the player.")

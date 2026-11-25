@@ -347,6 +347,19 @@ public final class FormationSubjects {
 
     // ---------------------------------------------------------------- fire posture
 
+    /** Ends a timed cease fire: a leader lifts it for its whole formation, anyone else just takes the order. */
+    public static void resumeFire(PmcUnitEntity pmc, OrderType order) {
+        long leads = ((IFormationMember) pmc).sewv$getFormationLeads();
+        if (leads != 0L) {
+            leaderTakes(pmc, leads, order, null, -1);
+            return;
+        }
+        pmc.setOrder(order);
+        if (pmc.getVehicle() instanceof VehicleEntity hull && hull.getFirstPassenger() == pmc) {
+            CrewRadio.play(hull, CrewRadio.Line.ORDER_DISPATCH);
+        }
+    }
+
     /** Whether this unit is under a cease-fire: its own CEASE_FIRE order, or its formation leader's. */
     public static boolean ceaseFire(PmcUnitEntity pmc) {
         return pmc.getOrder() == OrderType.CEASE_FIRE || ((IFormationMember) pmc).sewv$getFormationHoldFire();

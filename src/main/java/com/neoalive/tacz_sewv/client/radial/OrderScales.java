@@ -5,6 +5,7 @@ import javax.annotation.Nullable;
 import com.neoalive.tacz_sewv.bridge.IHelicopterPilot;
 import com.neoalive.tacz_sewv.command.quick.QuickCommandRegistry;
 import com.neoalive.tacz_sewv.entity.ai.support.CoverHoldOrders;
+import com.neoalive.tacz_sewv.entity.ai.support.TimedCeaseFire;
 import com.neoalive.tacz_sewv.network.PacketHelicopterCommand;
 import com.neoalive.tacz_sewv.network.PacketPatrolVehicle;
 
@@ -22,7 +23,9 @@ public final class OrderScales {
         ALTITUDE(PacketHelicopterCommand.MIN_ALTITUDE, PacketHelicopterCommand.MAX_ALTITUDE, 5,
                 IHelicopterPilot.DEFAULT_CRUISE_ALTITUDE),
         /** Cover and Hold time in seconds; 0, the default, is until the next order. */
-        HOLD(0, CoverHoldOrders.MAX_HOLD_SECONDS, CoverHoldOrders.HOLD_STEP_SECONDS, 0);
+        HOLD(0, CoverHoldOrders.MAX_HOLD_SECONDS, CoverHoldOrders.HOLD_STEP_SECONDS, 0),
+        /** Cease Fire time in seconds; 0, the default, is the plain order until the next one. */
+        CEASE_FIRE(0, TimedCeaseFire.MAX_SECONDS, TimedCeaseFire.STEP_SECONDS, 0);
 
         public final int min;
         public final int max;
@@ -92,6 +95,7 @@ public final class OrderScales {
             case QuickCommandRegistry.ID_QUICK_SEARCH -> Scale.SEARCH;
             case QuickCommandRegistry.ID_QUICK_TAKEOFF -> Scale.ALTITUDE;
             case QuickCommandRegistry.ID_QUICK_COVER_HOLD -> Scale.HOLD;
+            case QuickCommandRegistry.ID_QUICK_CEASE_FIRE -> Scale.CEASE_FIRE;
             default -> null;
         };
     }

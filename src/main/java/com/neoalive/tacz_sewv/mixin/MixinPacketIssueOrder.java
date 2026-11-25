@@ -125,6 +125,7 @@ public abstract class MixinPacketIssueOrder {
         com.neoalive.tacz_sewv.entity.ai.support.SuppressOrders.clear(pmc);
         com.neoalive.tacz_sewv.fpas.SignalTasks.clear(pmc);
         com.neoalive.tacz_sewv.entity.ai.support.CoverHoldOrders.clear(pmc);
+        com.neoalive.tacz_sewv.entity.ai.support.TimedCeaseFire.clear(pmc);
         com.neoalive.tacz_sewv.command.quick.GearSearchTracker.release(pmc);
         com.neoalive.tacz_sewv.command.quick.scavenge.ScavengeTracker.release(pmc);
         com.neoalive.tacz_sewv.command.quick.MinefieldTracker.release(pmc);

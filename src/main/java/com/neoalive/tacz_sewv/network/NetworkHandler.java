@@ -80,6 +80,10 @@ public class NetworkHandler {
     // 20–22: prior bumps.
     // 23: heli firing-run phase sync for hover overlay.
     // 83: formation packet carries WIDTH/LENGTH stretch floats.
+    // 122: doctrine sync (server to client).
+    // 123: doctrine preview (both directions).
+    // 124: map marker tags carry the crew's combat plan.
+    // 125: marker tags and RTS roster rows carry veterancy.
     // 24: PMC rappel order packet.
     // 25: map markers carry optional OpenPAC tint RGB.
     // 26: removed PacketToggleAdvancing (autonomous KotH scrapped).
@@ -168,7 +172,9 @@ public class NetworkHandler {
     // 117: PacketSetVoice (C->S) + crew voice in PacketSyncPmcIdentity.
     // 118: PacketApplyPmcIdentity carries the whole terminal (PacketSetVoice and PacketSetNameCategory
     //      removed), PacketSyncPmcIdentity the logo link, PacketFetchWebLogo (C->S) + PacketWebLogo (S->C).
-    private static final String PROTOCOL_VERSION = "120";
+    // 121: PacketOpenTargetStack / PacketUpdateTargetStack replace the target priority allow list
+    //      packets in the same slots: per faction an ordered priority list and an excluded list.
+    private static final String PROTOCOL_VERSION = "126";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             ResourceLocation.fromNamespaceAndPath(TaczSewv.MODID, "main"),
@@ -449,17 +455,17 @@ public class NetworkHandler {
         );
         CHANNEL.registerMessage(
                 nextId(),
-                PacketOpenTargetPriority.class,
-                PacketOpenTargetPriority::encode,
-                PacketOpenTargetPriority::new,
-                PacketOpenTargetPriority::handle
+                PacketOpenTargetStack.class,
+                PacketOpenTargetStack::encode,
+                PacketOpenTargetStack::new,
+                PacketOpenTargetStack::handle
         );
         CHANNEL.registerMessage(
                 nextId(),
-                PacketUpdateTargetPriority.class,
-                PacketUpdateTargetPriority::encode,
-                PacketUpdateTargetPriority::new,
-                PacketUpdateTargetPriority::handle
+                PacketUpdateTargetStack.class,
+                PacketUpdateTargetStack::encode,
+                PacketUpdateTargetStack::new,
+                PacketUpdateTargetStack::handle
         );
         CHANNEL.registerMessage(
                 nextId(),
@@ -872,6 +878,20 @@ public class NetworkHandler {
                 PacketWebLogo::encode,
                 PacketWebLogo::new,
                 PacketWebLogo::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketDoctrineSync.class,
+                PacketDoctrineSync::encode,
+                PacketDoctrineSync::new,
+                PacketDoctrineSync::handle
+        );
+        CHANNEL.registerMessage(
+                nextId(),
+                PacketDoctrinePreview.class,
+                PacketDoctrinePreview::encode,
+                PacketDoctrinePreview::new,
+                PacketDoctrinePreview::handle
         );
     }
 }

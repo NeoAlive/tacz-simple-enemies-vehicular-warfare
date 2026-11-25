@@ -186,6 +186,7 @@ public final class FireMissionSupport {
                 // faction-friendly toggles so a radio/utility call cannot put a friendly
                 // player/PMC onto an RU/US tube.
                 crew.setTarget(target);
+                com.neoalive.tacz_sewv.entity.ai.targeting.AssignedTargets.stamp(crew);
                 ArtillerySupport.markDesignated(crew, target);
             }
         }
@@ -266,6 +267,7 @@ public final class FireMissionSupport {
                     ordered++;
                 } else if (VehicleTargeting.mayAssignTarget(crew, entityTarget)) {
                     crew.setTarget(entityTarget);
+                    com.neoalive.tacz_sewv.entity.ai.targeting.AssignedTargets.stamp(crew);
                     ArtillerySupport.markDesignated(crew, entityTarget);
                     ordered++;
                 }

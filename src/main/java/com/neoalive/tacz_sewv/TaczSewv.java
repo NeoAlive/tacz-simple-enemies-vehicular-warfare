@@ -98,6 +98,7 @@ public class TaczSewv {
         NeoForge.EVENT_BUS.register(ChunkTicketSweep.class);
         NeoForge.EVENT_BUS.register(com.neoalive.tacz_sewv.util.ChunkTicketCoverage.class);
         NeoForge.EVENT_BUS.register(com.neoalive.tacz_sewv.entity.ai.core.ObbHitIndex.class);
+        NeoForge.EVENT_BUS.register(com.neoalive.tacz_sewv.util.SmokeVision.class);
         NeoForge.EVENT_BUS.register(com.neoalive.tacz_sewv.entity.ai.support.UnitLod.class);
         if (com.neoalive.tacz_sewv.compat.TripodCompat.present()) {
             NeoForge.EVENT_BUS.register(com.neoalive.tacz_sewv.compat.TripodCompat.Events.class);
@@ -241,6 +242,13 @@ public class TaczSewv {
         // equally unsafe to touch from an AI tick before it has been baked.
         Doctrine.refreshPresets();
         WorldTargetPriority.refreshCatalog();
+        com.neoalive.tacz_sewv.entity.ai.targeting.TargetStack.invalidate();
+    }
+
+    /** Tags are rebuilt on a datapack reload; the stack's per-type rank cache reads them. */
+    @SubscribeEvent
+    public void onTagsUpdated(net.neoforged.neoforge.event.TagsUpdatedEvent event) {
+        com.neoalive.tacz_sewv.entity.ai.targeting.TargetStack.invalidate();
     }
 
     /**

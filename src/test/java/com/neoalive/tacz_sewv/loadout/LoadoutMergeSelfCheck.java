@@ -34,6 +34,7 @@ public final class LoadoutMergeSelfCheck {
         replaceWithOnlySbwKeepsSemAndTakesEverySpawn(raw);
         unmanagedOrNoSbwIsEmptyPool(raw);
         weaponPresetsAreWellFormed();
+        tacz120GunsStayListed();
         System.out.println("LoadoutMergeSelfCheck OK");
     }
 
@@ -43,6 +44,19 @@ public final class LoadoutMergeSelfCheck {
             for (String id : WeaponPackPresets.allIds(pack)) {
                 assert id.matches("[a-z0-9_.-]+:[a-z0-9_./-]+") : pack + " bad id " + id;
             }
+        }
+    }
+
+    /** Guns added in TaCZ 1.2.0. Dropping one here drops it from the default-pack preset. */
+    private static void tacz120GunsStayListed() {
+        var ids = WeaponPackPresets.allIds(WeaponPackPresets.Pack.TACZ_DEFAULT);
+        for (String id : new String[] {
+            "tacz:ak12", "tacz:ak74m", "tacz:svd", "tacz:pkm",
+            "tacz:hcar", "tacz:hk_mp7a1", "tacz:hm50b", "tacz:m1897", "tacz:mcx_spear_lt",
+            "tacz:mk18", "tacz:mrad", "tacz:scar_mk20", "tacz:urgi",
+            "tacz:tec_9", "tacz:m1866", "tacz:qr_24"
+        }) {
+            assert ids.contains(id) : "missing " + id;
         }
     }
 

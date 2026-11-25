@@ -87,6 +87,7 @@ public class FobScrambleGoal extends Goal {
             LivingEntity hostile = ThreatEvaluator.nearestHostile(level, fob, this.unit.blockPosition());
             if (hostile != null) {
                 this.unit.setTarget(hostile);
+                com.neoalive.tacz_sewv.entity.ai.targeting.AssignedTargets.stamp(this.unit);
             }
         }
         if (!this.unit.isPassenger()) {

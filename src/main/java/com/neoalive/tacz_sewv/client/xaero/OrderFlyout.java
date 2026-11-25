@@ -224,7 +224,7 @@ public final class OrderFlyout {
         int v = OrderScales.get(e.scale());
         return switch (e.scale()) {
             case PATROL, SEARCH, ALTITUDE -> I18n.get("gui.tacz_sewv.map.flyout.blocks", v);
-            case HOLD -> v == 0 ? I18n.get("gui.tacz_sewv.map.flyout.forever") : I18n.get("gui.tacz_sewv.map.flyout.seconds", v);
+            case HOLD, CEASE_FIRE -> v == 0 ? I18n.get("gui.tacz_sewv.map.flyout.forever") : I18n.get("gui.tacz_sewv.map.flyout.seconds", v);
         };
     }
 

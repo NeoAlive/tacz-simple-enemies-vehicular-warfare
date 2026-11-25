@@ -39,8 +39,9 @@ import com.neoalive.tacz_sewv.invasion.InvasionTags;
  * fighting it, bails out, and scrambles clear of the wreck-to-be.
  *
  * <p>This is the last step of an escalation that starts in {@link DriveVehicleGoal}:
- * that goal breaks contact (smoke + fall back past the standoff ring) below a quarter
- * health while still crewing the vehicle. Below {@link #BAIL_HEALTH_FRACTION} the
+ * that goal breaks contact (smoke + fall back past the standoff ring) below its doctrine's
+ * break-off while still crewing the vehicle. Below the doctrine's bail line
+ * ({@code DoctrineKnobs.bailHealth}, always under break-off) the
  * vehicle is written off — the tank is a coffin and a coffin isn't worth crewing, so
  * everyone gets out. It applies to the whole crew without iterating passengers: every
  * unit that can crew carries its own instance of this goal (see
@@ -61,10 +62,6 @@ import com.neoalive.tacz_sewv.invasion.InvasionTags;
  */
 public class BailOutVehicleGoal extends Goal {
 
-    // Bail below this fraction of the hull's max health. Under DriveVehicleGoal's
-    // retreat threshold (0.25) on purpose: a crew retreats first and abandons only if
-    // retreating didn't save it.
-    private static final float BAIL_HEALTH_FRACTION = 0.15F;
 
     /** Pending RU/US scramble after leaving a sandbag — absolute, no vehicle required. */
     public static final String TAG_SANDBAG_SCRAMBLE = "sewv:sandbag_scramble";
@@ -201,15 +198,18 @@ public class BailOutVehicleGoal extends Goal {
         }
         if (!(this.unit.getVehicle() instanceof VehicleEntity vehicle)) return false;
         if (vehicle.getPersistentData().getBoolean(InvasionTags.SPAWN)) return false;
-        return isWrittenOff(vehicle);
+        return isWrittenOff(vehicle, this.unit);
     }
 
-    private static boolean isWrittenOff(VehicleEntity vehicle) {
+    private static boolean isWrittenOff(VehicleEntity vehicle, net.minecraft.world.entity.Entity crew) {
         if (vehicle.isWreck()) return true;
         float max = vehicle.getMaxHealth();
         // A hull that reports no max health gives no fraction to compare against;
         // don't bail the crew out on a garbage reading.
-        if (max > 0.0F && vehicle.getHealth() <= max * BAIL_HEALTH_FRACTION) return true;
+        // The crew's doctrine moves the line (DoctrineKnobs.bailHealth); neutral is 0.15.
+        double bail = com.neoalive.tacz_sewv.entity.ai.utility.DoctrineKnobs.bailHealth(
+                com.neoalive.tacz_sewv.entity.ai.utility.Doctrine.forCrew(crew));
+        if (max > 0.0F && vehicle.getHealth() <= max * bail) return true;
         return isLogisticsDry(vehicle);
     }
 

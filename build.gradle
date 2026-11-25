@@ -47,6 +47,11 @@ def dormantSources = [
         'com/neoalive/tacz_sewv/compat/TripodCompat.java',
         'com/neoalive/tacz_sewv/mixin/tripod/**',
         'com/neoalive/tacz_sewv/mixin/TripodMixinPlugin.java',
+        // TaCZ 1.2.0 (Forge 1.20.1) render hooks, temporary on main
+        'com/neoalive/tacz_sewv/mixin/temp/**',
+        // VoskLib (VoiceSession and VoskSetup are stubbed)
+        'com/neoalive/tacz_sewv/compat/vosk/VoiceSession.java',
+        'com/neoalive/tacz_sewv/compat/vosk/VoskSetup.java',
         // GemRender
         'com/neoalive/tacz_sewv/mixin/gemrender/**',
         'com/neoalive/tacz_sewv/mixin/GemRenderMixinPlugin.java',
@@ -55,6 +60,7 @@ def dormantMixinConfigs = [
         'tacz_sewv.komodo.mixins.json',
         'tacz_sewv.tripod.mixins.json',
         'tacz_sewv.gemrender.mixins.json',
+        'tacz_sewv.temp.mixins.json',
 ]
 sourceSets {
     main {
@@ -417,6 +423,15 @@ tasks.register('selfCheckUtility', JavaExec) {
     jvmArgs '-ea'
 }
 
+tasks.register('selfCheckDoctrine', JavaExec) {
+    group = 'verification'
+    description = 'Runs the doctrine knobs self-check.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
+    mainClass = 'com.neoalive.tacz_sewv.entity.ai.utility.DoctrineSelfCheck'
+    jvmArgs '-ea'
+}
+
 tasks.register('selfCheckSpawnZones', JavaExec) {
     group = 'verification'
     description = 'Runs the spawn zone layer and geometry self-check.'
@@ -462,12 +477,30 @@ tasks.register('selfCheckCoverHold', JavaExec) {
     jvmArgs '-ea'
 }
 
-tasks.register('selfCheckShellRanking', JavaExec) {
+tasks.register('selfCheckMobToughness', JavaExec) {
     group = 'verification'
-    description = 'Runs the cannon shell ranking self-check.'
+    description = 'Runs the machine gun versus main gun mob toughness self-check.'
     dependsOn tasks.named('testClasses')
     classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
-    mainClass = 'com.neoalive.tacz_sewv.entity.ai.core.ShellRankingSelfCheck'
+    mainClass = 'com.neoalive.tacz_sewv.entity.ai.core.MobToughnessSelfCheck'
+    jvmArgs '-ea'
+}
+
+tasks.register('selfCheckTargetStack', JavaExec) {
+    group = 'verification'
+    description = 'Runs the target priority stack self-check.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
+    mainClass = 'com.neoalive.tacz_sewv.entity.ai.targeting.TargetStackSelfCheck'
+    jvmArgs '-ea'
+}
+
+tasks.register('selfCheckGunnery', JavaExec) {
+    group = 'verification'
+    description = 'Runs the vehicle seat fire command self-check.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
+    mainClass = 'com.neoalive.tacz_sewv.entity.ai.core.gunnery.FireCommandSelfCheck'
     jvmArgs '-ea'
 }
 
@@ -852,6 +885,15 @@ tasks.register('selfCheckOrca', JavaExec) {
     jvmArgs '-ea'
 }
 
+tasks.register('selfCheckSmoke', JavaExec) {
+    group = 'verification'
+    description = 'Runs the smoke cloud growth and shape self-check.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
+    mainClass = 'com.neoalive.tacz_sewv.util.SmokeCloudSelfCheck'
+    jvmArgs '-ea'
+}
+
 tasks.register('selfCheckCover', JavaExec) {
     group = 'verification'
     description = 'Runs the cover visibility / Killzone-table self-check.'
@@ -1016,6 +1058,14 @@ tasks.register('selfCheckLoadedTerrain', JavaExec) {
     jvmArgs '-ea'
 }
 
+tasks.register('selfCheckVoice', JavaExec) {
+    group = 'verification'
+    description = 'Runs the voice order phrase table, parser and isolation self-check.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath + sourceSets.main.output
+    mainClass = 'com.neoalive.tacz_sewv.client.voice.VoiceOrderParserSelfCheck'
+    jvmArgs '-ea'
+}
 
 // The self-checks are plain JavaExec mains: run them on the Java 21 toolchain the classes are
 // compiled for, not on whatever JVM is running Gradle.
@@ -1117,7 +1167,7 @@ tasks.register('selfCheckLang', JavaExec) {
 tasks.register('selfCheck') {
     group = 'verification'
     description = 'Runs all headless AI self-checks.'
-    dependsOn 'selfCheckArmor', 'selfCheckArtillery', 'selfCheckReducedCharge', 'selfCheckShieldRay', 'selfCheckCamo', 'selfCheckLoadout', 'selfCheckVehiclePacks', 'selfCheckMiscPacks', 'selfCheckUtility', 'selfCheckEasyMode', 'selfCheckRadial', 'selfCheckSignal', 'selfCheckCoverHold', 'selfCheckWeapons', 'selfCheckShellRanking', 'selfCheckGrouping', 'selfCheckElection', 'selfCheckInfluence', 'selfCheckPlay', 'selfCheckFormation', 'selfCheckPlayerFormation', 'selfCheckInfantryFormation', 'selfCheckMarch', 'selfCheckSeam', 'selfCheckHeli', 'selfCheckHeliArmament', 'selfCheckPlane', 'selfCheckContactBoard', 'selfCheckWideScan', 'selfCheckPathBudget', 'selfCheckLofCache', 'selfCheckChunkTickets', 'selfCheckUnitLod', 'selfCheckTaskedDestination', 'selfCheckDismount', 'selfCheckMinefield', 'selfCheckTactics', 'selfCheckCues', 'selfCheckSuppression', 'selfCheckAcquisition', 'selfCheckEngineGates', 'selfCheckSounds', 'selfCheckRadioQueue', 'selfCheckCrewSkins', 'selfCheckAirport', 'selfCheckGround', 'selfCheckOrca', 'selfCheckCover', 'selfCheckBattlePosition', 'selfCheckBallistics', 'selfCheckIdle', 'selfCheckInvasion', 'selfCheckConfig', 'selfCheckPathway', 'selfCheckStructures', 'selfCheckTerritory', 'selfCheckDiplomacy', 'selfCheckVehicleAccess', 'selfCheckRadioDsp', 'selfCheckMinimap', 'selfCheckWaypointDrag', 'selfCheckRibbon', 'selfCheckVehicleClientLod', 'selfCheckTaczCube', 'selfCheckScavenge', 'selfCheckLang', 'selfCheckLoadedTerrain', 'selfCheckEventSpots', 'selfCheckEventMarks', 'selfCheckDormantStubs', 'selfCheckLv', 'selfCheckFcp'
+    dependsOn 'selfCheckDoctrine', 'selfCheckGunnery', 'selfCheckTargetStack', 'selfCheckMobToughness', 'selfCheckSmoke', 'selfCheckVoice', 'selfCheckArmor', 'selfCheckArtillery', 'selfCheckReducedCharge', 'selfCheckShieldRay', 'selfCheckCamo', 'selfCheckLoadout', 'selfCheckVehiclePacks', 'selfCheckMiscPacks', 'selfCheckUtility', 'selfCheckEasyMode', 'selfCheckRadial', 'selfCheckSignal', 'selfCheckCoverHold', 'selfCheckWeapons', 'selfCheckGrouping', 'selfCheckElection', 'selfCheckInfluence', 'selfCheckPlay', 'selfCheckFormation', 'selfCheckPlayerFormation', 'selfCheckInfantryFormation', 'selfCheckMarch', 'selfCheckSeam', 'selfCheckHeli', 'selfCheckHeliArmament', 'selfCheckPlane', 'selfCheckContactBoard', 'selfCheckWideScan', 'selfCheckPathBudget', 'selfCheckLofCache', 'selfCheckChunkTickets', 'selfCheckUnitLod', 'selfCheckTaskedDestination', 'selfCheckDismount', 'selfCheckMinefield', 'selfCheckTactics', 'selfCheckCues', 'selfCheckSuppression', 'selfCheckAcquisition', 'selfCheckEngineGates', 'selfCheckSounds', 'selfCheckRadioQueue', 'selfCheckCrewSkins', 'selfCheckAirport', 'selfCheckGround', 'selfCheckOrca', 'selfCheckCover', 'selfCheckBattlePosition', 'selfCheckBallistics', 'selfCheckIdle', 'selfCheckInvasion', 'selfCheckConfig', 'selfCheckPathway', 'selfCheckStructures', 'selfCheckTerritory', 'selfCheckDiplomacy', 'selfCheckVehicleAccess', 'selfCheckRadioDsp', 'selfCheckMinimap', 'selfCheckWaypointDrag', 'selfCheckRibbon', 'selfCheckVehicleClientLod', 'selfCheckTaczCube', 'selfCheckScavenge', 'selfCheckLang', 'selfCheckLoadedTerrain', 'selfCheckEventSpots', 'selfCheckEventMarks', 'selfCheckDormantStubs', 'selfCheckLv', 'selfCheckFcp'
 }
 
 // Average-modpack jars live in modpack/ (gitignored). syncModpack pulls from Prism.

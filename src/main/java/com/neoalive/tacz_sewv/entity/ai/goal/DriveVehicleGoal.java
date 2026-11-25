@@ -119,6 +119,8 @@ public class DriveVehicleGoal extends Goal {
     private boolean taskDriving;
     /** Game time the run-start smoke volley's decoy hold ends; {@link Long#MIN_VALUE} = none open. */
     private long smokeUntil = Long.MIN_VALUE;
+    /** Held a live target since the last award: coming out of contact intact earns the crew veterancy. */
+    private boolean engaged;
     /** Game ticks a Cover and Hold drive may go without closing on its spot before it holds where it is. */
     private static final long COVER_STALL_TICKS = 1200;
     private double coverBestDistSq = Double.MAX_VALUE;
@@ -235,6 +237,7 @@ public class DriveVehicleGoal extends Goal {
         this.lastSpokenPlan = Action.HOLD;
         this.pendingDispatchPlan = null;
         this.pendingDispatchSince = Long.MIN_VALUE;
+        this.engaged = false; // a crew that leaves the seat mid-fight earns nothing for it
         this.dismount.abort(this.unit.level().getGameTime());
         this.driver.stop();
         this.vehicle.setDecoyInputDown(false);
@@ -284,6 +287,13 @@ public class DriveVehicleGoal extends Goal {
         this.driver.tickTimers();
         // The speed cap is re-asserted by whichever branch wants it, every tick; nothing inherits last tick's.
         this.driver.setSpeedCap(Double.NaN);
+        LivingEntity held = this.unit.getTarget();
+        if (held != null && held.isAlive()) {
+            this.engaged = true;
+        } else if (this.engaged) {
+            this.engaged = false;
+            com.neoalive.tacz_sewv.crew.Veterancy.onEngagementSurvived(this.vehicle);
+        }
         boolean farIdle = farIdle();
         this.driver.setFarIdle(farIdle);
         TreeFellingSupport.tick(this.unit, this.vehicle, this.hull, farIdle);
@@ -396,6 +406,7 @@ public class DriveVehicleGoal extends Goal {
             }
             selectWeaponForTarget(this.vehicle.getSeatIndex(this.unit), target);
             fireAssistIfSpecial(target);
+            shapeHeldCourse(target);
             standDownTick(targetPos);
             return;
         }
@@ -626,8 +637,15 @@ public class DriveVehicleGoal extends Goal {
      * {@link #PLAN_DISPATCH_HOLD_TICKS} before speaking so ATTACK↔FLANK thrash does not spam.
      */
     private void maybePlanDispatch(Action plan) {
-        if (!(this.unit instanceof RUunitEntity) && !(this.unit instanceof USunitEntity)) return;
+        if (!(this.unit instanceof RUunitEntity) && !(this.unit instanceof USunitEntity)
+                && !(this.unit instanceof PmcUnitEntity)) return;
         if (this.vehicle == null || plan == null) return;
+        com.neoalive.tacz_sewv.entity.ai.utility.Doctrine doctrine =
+                com.neoalive.tacz_sewv.entity.ai.utility.Doctrine.forCrew(this.unit);
+        // Doctrine colours the chatter: a bold crew does not announce falling back unless it really is broken.
+        if (plan == Action.RETREAT
+                && doctrine.get(com.neoalive.tacz_sewv.entity.ai.utility.Doctrine.Axis.PRESERVATION) < 0.0
+                && !isLowHealth()) return;
         long now = this.unit.level().getGameTime();
         if (plan == this.lastSpokenPlan) {
             this.pendingDispatchPlan = null;
@@ -639,7 +657,11 @@ public class DriveVehicleGoal extends Goal {
             this.pendingDispatchSince = now;
             return;
         }
-        if (now - this.pendingDispatchSince < PLAN_DISPATCH_HOLD_TICKS) return;
+        // An aggressive crew calls its push sooner.
+        boolean eager = (plan == Action.ADVANCE || plan == Action.FLANK_LEFT || plan == Action.FLANK_RIGHT)
+                && doctrine.get(com.neoalive.tacz_sewv.entity.ai.utility.Doctrine.Axis.AGGRESSION) > 0.4;
+        long hold = eager ? Math.round(PLAN_DISPATCH_HOLD_TICKS * 0.7) : PLAN_DISPATCH_HOLD_TICKS;
+        if (now - this.pendingDispatchSince < hold) return;
         CrewRadio.onPlan(this.vehicle, plan);
         this.lastSpokenPlan = plan;
         this.pendingDispatchPlan = null;
@@ -698,6 +720,13 @@ public class DriveVehicleGoal extends Goal {
         // while retreating, where silence is success rather than a stall.
         Action plan = this.brain.plan();
 
+        // The doctrine's break-off is a floor, not a lean: below it the crew preserves the hull whatever the scorer
+        // prefers, which is what makes the ledger's "breaks off at N%" true.
+        if (isLowHealth() && plan != Action.RETREAT && plan != Action.DEPLOY_SMOKE) {
+            plan = this.brain.facts().smokeReady ? Action.DEPLOY_SMOKE : Action.RETREAT;
+            this.brain.force(plan, this.unit.level().getGameTime());
+        }
+
         if (plan != Action.RETREAT && plan != Action.DEPLOY_SMOKE) {
             BlockPos orbit = this.breaker.update(target, combatPos, ring);
             // A crew on a battle position answers the breaker by moving to its alternate, not by orbiting into the
@@ -733,8 +762,15 @@ public class DriveVehicleGoal extends Goal {
         }
 
         switch (plan) {
-            case RETREAT -> this.driver.retreatFrom(combatPos,
-                    ring + TacticalScale.of(PRESERVE_RETREAT_MARGIN), distanceSq);
+            case RETREAT -> {
+                BlockPos rally = cohesionRally(combatPos);
+                if (rally != null) {
+                    this.driver.navigateTo(rally, this.vehicle.distanceToSqr(
+                            rally.getX() + 0.5, rally.getY(), rally.getZ() + 0.5));
+                } else {
+                    this.driver.retreatFrom(combatPos, ring + TacticalScale.of(PRESERVE_RETREAT_MARGIN), distanceSq);
+                }
+            }
 
             // Smoke is a screened withdrawal, not a standalone puff: the launcher fires along the
             // turret vector (already tracking the threat) while the hull falls back behind it.
@@ -1179,8 +1215,58 @@ public class DriveVehicleGoal extends Goal {
         }
     }
 
+    /** Ticks after a hit that a held-course crew may still answer it with smoke, and the gap between screens. */
+    private static final long COURSE_SMOKE_HIT_WINDOW = 40L;
+    private static final long COURSE_SMOKE_COOLDOWN = 200L;
+    private static final long COURSE_SMOKE_HOLD = 20L;
+
+    /**
+     * Doctrine on a course the player owns (MOVE, FOLLOW, FORM, area tasks). It shapes how the crew rides it and never
+     * where it goes: a preserving crew screens with smoke when hit, a risk-averse one creeps at march pace while a
+     * target is inside its ring. The speed cap is re-asserted here each tick, like every other owner of it.
+     */
+    private void shapeHeldCourse(LivingEntity target) {
+        com.neoalive.tacz_sewv.entity.ai.utility.Doctrine doctrine =
+                com.neoalive.tacz_sewv.entity.ai.utility.Doctrine.forCrew(this.unit);
+        long now = this.unit.level().getGameTime();
+        Facts.Memory memory = this.brain.facts().memory;
+        if (com.neoalive.tacz_sewv.entity.ai.utility.DoctrineKnobs.smokeOnHit(doctrine) && this.vehicle.hasDecoy()
+                && memory.recentlyHit(now, COURSE_SMOKE_HIT_WINDOW)
+                && Facts.ticksSince(memory.lastSmokeTick, now) > COURSE_SMOKE_COOLDOWN) {
+            // Latched input: the tick head releases it once smokeUntil passes.
+            this.vehicle.setDecoyInputDown(true);
+            this.smokeUntil = now + COURSE_SMOKE_HOLD;
+            memory.lastSmokeTick = now;
+        }
+        if (com.neoalive.tacz_sewv.entity.ai.utility.DoctrineKnobs.creepsOnCourse(doctrine)
+                && this.vehicle.distanceTo(target)
+                        < Facts.preferredRange(this.unit, target, VehicleWeapons.classifyTarget(target))) {
+            this.driver.setInfantryPace(true);
+        }
+    }
+
+    /**
+     * Cohesion falls back on friends: a cohesive crew retreats to its nearest ally when that ally stands further from
+     * the threat than we do. Null (plain retreat) for a crew without cohesion, with no ally, or with the ally between
+     * us and the enemy, where driving to it would mean driving at the threat.
+     */
+    @javax.annotation.Nullable
+    private BlockPos cohesionRally(BlockPos threat) {
+        if (com.neoalive.tacz_sewv.entity.ai.utility.Doctrine.forCrew(this.unit)
+                .get(com.neoalive.tacz_sewv.entity.ai.utility.Doctrine.Axis.COHESION) <= 0.2) return null;
+        AbstractUnit ally = this.brain.facts().nearestAlly;
+        if (ally == null || !ally.isAlive()) return null;
+        double allyToThreat = ally.distanceToSqr(threat.getX() + 0.5, threat.getY(), threat.getZ() + 0.5);
+        double usToThreat = this.vehicle.distanceToSqr(threat.getX() + 0.5, threat.getY(), threat.getZ() + 0.5);
+        return allyToThreat > usToThreat ? ally.blockPosition() : null;
+    }
+
+    /** This crew's own break-off: the doctrine moves it (DoctrineKnobs.breakOffHealth), neutral is the shared 25%. */
     private boolean isLowHealth() {
-        return isLowHealth(this.vehicle);
+        float max = this.vehicle.getMaxHealth();
+        double breakOff = com.neoalive.tacz_sewv.entity.ai.utility.DoctrineKnobs.breakOffHealth(
+                com.neoalive.tacz_sewv.entity.ai.utility.Doctrine.forCrew(this.unit));
+        return max > 0.0F && this.vehicle.getHealth() < max * breakOff;
     }
 
     /**
@@ -1341,6 +1427,11 @@ public class DriveVehicleGoal extends Goal {
     private BlockPos marchSlotPos() {
         MarchRegistry.Slot slot = MarchRegistry.slotFor(this.unit.getId(), this.unit.level().getGameTime());
         return slot != null && slot.hull() ? BlockPos.containing(slot.x(), this.vehicle.getY(), slot.z()) : null;
+    }
+
+    /** The crew's current plan, for the map's posture glyph. Read-only. */
+    public Action currentPlan() {
+        return this.brain.plan();
     }
 
     /** Debug-forced idle modes steer from hull NBT before the scorer adopts IDLE_* . */

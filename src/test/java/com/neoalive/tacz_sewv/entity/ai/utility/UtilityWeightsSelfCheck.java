@@ -25,6 +25,7 @@ public final class UtilityWeightsSelfCheck {
         if (!assertionsOn) throw new IllegalStateException("run with -ea, or this checks nothing");
 
         signalWeightsAreSummed();
+        modsScaleTheirSignal();
         doctrineAxesAreNormalised();
         unknownKeysAreIgnoredNotFatal();
         laterFilesReplaceAnActionWholesale();
@@ -38,8 +39,87 @@ public final class UtilityWeightsSelfCheck {
         idleCrewsDoNotJustSit();
         investigateBeatsIdleFormation();
         emptyCrewsDisengage();
+        outnumberedRampsToOneInThree();
+        doctrinesMakeDistinctCrews();
+        groupDoctrineSteersPlays();
 
         System.out.println("utility scorer self-check: OK");
+    }
+
+    /** The commander's doctrine reaches the play scorer: aggression favours pursuit, preservation the withdrawal. */
+    private static void groupDoctrineSteersPlays() {
+        UtilityWeights w = UtilityWeights.parse(
+                Map.of(ResourceLocation.fromNamespaceAndPath("tacz_sewv", "weights"), shippedWeights()));
+        double[] s = zeroSignals();
+        s[Signal.BASE.ordinal()] = 1.0;
+        s[Signal.ENEMY_VISIBLE.ordinal()] = 1.0;
+        com.neoalive.tacz_sewv.entity.ai.command.PlayId pursuit = com.neoalive.tacz_sewv.entity.ai.command.PlayId.PURSUIT;
+        com.neoalive.tacz_sewv.entity.ai.command.PlayId withdraw =
+                com.neoalive.tacz_sewv.entity.ai.command.PlayId.FIGHTING_WITHDRAWAL;
+        Doctrine bold = doctrineWith(Doctrine.Axis.AGGRESSION, 5);
+        Doctrine careful = doctrineWith(Doctrine.Axis.PRESERVATION, 5);
+        assert w.scorePlay(pursuit, s, bold) > w.scorePlay(pursuit, s, Doctrine.NEUTRAL) : "aggression does not favour pursuit";
+        assert w.scorePlay(withdraw, s, careful) > w.scorePlay(withdraw, s, Doctrine.NEUTRAL)
+                : "preservation does not favour the withdrawal";
+    }
+
+    /** One hull with three escort riflemen is half outnumbered, not fully; saturation is at 1:3. */
+    private static void outnumberedRampsToOneInThree() {
+        assertClose(0.0, DoctrineScenarios.outnumbered(1.0), "even fight");
+        assertClose(0.0, DoctrineScenarios.outnumbered(2.0), "we outnumber them");
+        assertClose(0.5, DoctrineScenarios.outnumbered(0.5), "one hull plus three riflemen");
+        assertClose(1.0, DoctrineScenarios.outnumbered(1.0 / 3.0), "1:3 saturates");
+        assertClose(1.0, DoctrineScenarios.outnumbered(0.1), "worse still saturates");
+    }
+
+    /**
+     * The audit's finding, pinned: at the shipped weights a neutral crew FIGHTS an escorted hull when healthy and
+     * breaks off when hurt, and the ledger makes recognisably different crews out of the same sample.
+     */
+    private static void doctrinesMakeDistinctCrews() {
+        UtilityWeights w = UtilityWeights.parse(
+                Map.of(ResourceLocation.fromNamespaceAndPath("tacz_sewv", "weights"), shippedWeights()));
+        Doctrine neutral = Doctrine.NEUTRAL;
+        Doctrine blitz = Doctrine.ofAxes(new int[] {5, 0, 0, 5, 0, 0, 5, 5});
+        Doctrine fortress = Doctrine.ofAxes(new int[] {-5, 5, 5, -5, 0, 0, 0, 0});
+        Doctrine timid = Doctrine.ofAxes(new int[] {-5, 5, 5, 0, 0, 0, 0, -5});
+        DoctrineScenarios.Scenario esc = DoctrineScenarios.Scenario.ESCORTED_DUEL;
+
+        Action n = DoctrineScenarios.decide(w, neutral, esc).action();
+        assert n != Action.RETREAT && n != Action.DEPLOY_SMOKE : "healthy neutral crew breaks off an even-ish fight: " + n;
+        Action nh = DoctrineScenarios.decide(w, neutral, DoctrineScenarios.Scenario.HURT).action();
+        assert nh == Action.RETREAT || nh == Action.DEPLOY_SMOKE : "hurt neutral crew keeps fighting: " + nh;
+        assert DoctrineScenarios.decide(w, blitz, esc).action() == Action.ADVANCE : "blitz does not advance";
+        assert DoctrineScenarios.decide(w, blitz, DoctrineScenarios.Scenario.HURT).action().needsTarget()
+                && DoctrineScenarios.decide(w, blitz, DoctrineScenarios.Scenario.HURT).action() != Action.RETREAT
+                : "blitz retreats at 30%";
+        assert DoctrineScenarios.decide(w, fortress, DoctrineScenarios.Scenario.EVEN_DUEL).action() == Action.HOLD
+                : "fortress does not hold an even fight";
+        assert DoctrineScenarios.decide(w, timid, esc).action() == Action.RETREAT : "risk-averse crew stays in";
+    }
+
+    /**
+     * A {@code mod} scales its signal's weight by {@code clamp(1 + k * axis)}: neutral is untouched, the axis moves it
+     * both ways, the clamp holds, and a signal with no mod is never scaled.
+     */
+    private static void modsScaleTheirSignal() {
+        JsonElement json = JsonParser.parseString("{\"attack\": {\"enemyVisible\": 10, \"lowHealth\": -20,"
+                + " \"mod\": {\"enemyVisible\": {\"aggression\": 0.5}, \"lowHealth\": {\"riskTolerance\": 2.0}}}}");
+        UtilityWeights weights = UtilityWeights.parse(Map.of(ResourceLocation.fromNamespaceAndPath("tacz_sewv", "mods"), json));
+        double[] seen = zeroSignals();
+        seen[Signal.ENEMY_VISIBLE.ordinal()] = 1.0;
+        assertClose(10.0, weights.score(Action.ATTACK, seen, Doctrine.NEUTRAL), "neutral leaves the weight alone");
+        assertClose(15.0, weights.score(Action.ATTACK, seen, doctrineWith(Doctrine.Axis.AGGRESSION, 5)), "+axis scales up");
+        assertClose(5.0, weights.score(Action.ATTACK, seen, doctrineWith(Doctrine.Axis.AGGRESSION, -5)), "-axis scales down");
+        assertClose(10.0, weights.score(Action.ATTACK, seen, doctrineWith(Doctrine.Axis.RISK_TOLERANCE, 5)),
+                "an axis with no mod on this signal does nothing");
+
+        double[] hurt = zeroSignals();
+        hurt[Signal.LOW_HEALTH.ordinal()] = 1.0;
+        assertClose(-20.0 * UtilityWeights.MOD_MAX, weights.score(Action.ATTACK, hurt, doctrineWith(Doctrine.Axis.RISK_TOLERANCE, 5)),
+                "factor clamps at MOD_MAX");
+        assertClose(-20.0 * UtilityWeights.MOD_MIN, weights.score(Action.ATTACK, hurt, doctrineWith(Doctrine.Axis.RISK_TOLERANCE, -5)),
+                "factor clamps at MOD_MIN");
     }
 
     /** A score is the plain sum of weight x signal over every named modifier. */
@@ -144,6 +224,7 @@ public final class UtilityWeightsSelfCheck {
                 Map.of(ResourceLocation.fromNamespaceAndPath("tacz_sewv", "weights"), shippedWeights()));
 
         for (Action[] pair : MIRRORED_ACTIONS) {
+            assert weights.sameMods(pair[0], pair[1]) : pair[0].key + "/" + pair[1].key + " have different mod blocks";
             // Walk one signal at a time rather than testing an all-ones sample: a difference in two
             // modifiers that happens to cancel out would slip past a single combined total.
             for (Signal signal : Signal.VALUES) {

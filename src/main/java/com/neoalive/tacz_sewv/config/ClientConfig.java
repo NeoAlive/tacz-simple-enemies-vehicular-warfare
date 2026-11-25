@@ -41,6 +41,14 @@ public final class ClientConfig {
     public static final ModConfigSpec.BooleanValue RADIO_CHATTER;
     public static final ModConfigSpec.BooleanValue RADIO_VOICE_EFFECT;
     public static final ModConfigSpec.BooleanValue RADIO_VOICE_CLICKS;
+    public static final ModConfigSpec.BooleanValue VOICE_ORDERS_ENABLED;
+    public static final ModConfigSpec.BooleanValue VOICE_ORDERS_TRANSCRIPT;
+    public static final ModConfigSpec.DoubleValue VOICE_ORDERS_MIN_CONFIDENCE;
+    public static final ModConfigSpec.ConfigValue<String> VOICE_ORDERS_MIC_DEVICE;
+    public static final ModConfigSpec.BooleanValue VOICE_SETUP_PROMPT;
+    public static final ModConfigSpec.BooleanValue VOICE_ORDERS_CUES;
+    public static final ModConfigSpec.BooleanValue VOICE_ORDERS_TRANSMIT;
+    public static final ModConfigSpec.BooleanValue VOICE_ORDERS_ON_RADIO;
     public static final ModConfigSpec.BooleanValue HELMET_GRAYSCALE;
     public static final ModConfigSpec.BooleanValue SHOW_LAG_TIP;
 
@@ -124,6 +132,30 @@ public final class ClientConfig {
         RADIO_VOICE_CLICKS = builder
                 .comment("Play press-to-talk clicks at the start and end of radio voice transmissions.")
                 .define("radioVoiceClicks", true);
+        VOICE_ORDERS_ENABLED = builder
+                .comment("Push to talk voice orders (needs VoskLib and a speech model picked in its settings).")
+                .define("voiceOrdersEnabled", true);
+        VOICE_ORDERS_TRANSCRIPT = builder
+                .comment("Show what was heard while the voice order key is held, and the order it became.")
+                .define("voiceOrdersTranscript", true);
+        VOICE_ORDERS_MIN_CONFIDENCE = builder
+                .comment("Words the recognizer is less sure of than this are ignored (0 keeps everything).")
+                .defineInRange("voiceOrdersMinConfidence", 0.5, 0.0, 1.0);
+        VOICE_ORDERS_MIC_DEVICE = builder
+                .comment("Part of the name of the microphone to record voice orders from (the log lists them). Empty uses the system default.")
+                .define("voiceOrdersMicDevice", "");
+        VOICE_ORDERS_CUES = builder
+                .comment("Play a radio key click when the voice order microphone opens and a click and squelch when it closes.")
+                .define("voiceOrdersCues", true);
+        VOICE_SETUP_PROMPT = builder
+                .comment("Offer voice order setup on the title screen while VoskLib has no speech model.")
+                .define("voiceSetupPrompt", true);
+        VOICE_ORDERS_TRANSMIT = builder
+                .comment("With Simple Voice Chat, let other players hear you while you speak a voice order.")
+                .define("voiceOrdersTransmit", false);
+        VOICE_ORDERS_ON_RADIO = builder
+                .comment("With Simple Voice Chat, also take orders from what you say on a handheld radio, no key needed.")
+                .define("voiceOrdersOnRadio", false);
         HELMET_GRAYSCALE = builder
                 .comment("Desaturate only the PMC MICH DogTag UV to low-contrast grey (logo alpha kept).")
                 .define("helmetGrayscale", true);

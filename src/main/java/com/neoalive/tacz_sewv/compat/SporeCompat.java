@@ -52,10 +52,10 @@ public final class SporeCompat {
      * {@code categoryName} by default on a fresh per-faction list, same as vanilla
      * {@code monster}. Without this, {@code infected}/{@code organoid}/{@code experiments}
      * would sit in the default EXCLUDE set (that file's default is "monster allowed, everything
-     * else excluded"), and {@link com.neoalive.tacz_sewv.entity.ai.goal.SoftEnemyTargetPriorityGoal}
+     * else excluded"), and {@link com.neoalive.tacz_sewv.entity.ai.goal.StackTargetGoal}
      * would never get a chance to run — {@code categoryAllowed} rejects the target before the
      * tier scorer ever sees it. This only changes what a NEW per-faction list defaults to; a
-     * server that already customised its list via {@code /sewv targetingAllow} is untouched.
+     * server that already customised its list via {@code /sewv targetpriority} is untouched.
      */
     public static boolean defaultAllowsCategory(String categoryName) {
         if (!present()) return false;

@@ -502,7 +502,11 @@ public final class CommandCoordinator {
                 zs[i] = group.centroidZ();
             }
         }
-        GroupSnapshot snap = new GroupSnapshot(ids, xs, zs);
+        // The commander's doctrine steers the play; a group with no live commander plays neutral.
+        var commander = level.getEntity(group.commanderId());
+        GroupSnapshot snap = new GroupSnapshot(ids, xs, zs,
+                commander == null ? com.neoalive.tacz_sewv.entity.ai.utility.Doctrine.NEUTRAL
+                        : com.neoalive.tacz_sewv.entity.ai.utility.Doctrine.forCrew(commander));
         PlaySelection.Result result = PlaySelection.select(
                 group.battleField(), snap,
                 group.currentPlay(), group.playStartedTick(), nowTick,

@@ -85,6 +85,22 @@ final class ConfigRegistryBootstrap {
                 ClientConfig.RADIO_VOICE_EFFECT, ClientConfig.RADIO_VOICE_EFFECT::set);
         b.bool(ConfigScope.CLIENT, "overlay", "radioVoiceClicks",
                 ClientConfig.RADIO_VOICE_CLICKS, ClientConfig.RADIO_VOICE_CLICKS::set);
+        b.bool(ConfigScope.CLIENT, "overlay", "voiceOrdersEnabled",
+                ClientConfig.VOICE_ORDERS_ENABLED, ClientConfig.VOICE_ORDERS_ENABLED::set);
+        b.bool(ConfigScope.CLIENT, "overlay", "voiceOrdersTranscript",
+                ClientConfig.VOICE_ORDERS_TRANSCRIPT, ClientConfig.VOICE_ORDERS_TRANSCRIPT::set);
+        b.doubleRange(ConfigScope.CLIENT, "overlay", "voiceOrdersMinConfidence", 0.0, 1.0,
+                ClientConfig.VOICE_ORDERS_MIN_CONFIDENCE, ClientConfig.VOICE_ORDERS_MIN_CONFIDENCE::set);
+        b.string(ConfigScope.CLIENT, "overlay", "voiceOrdersMicDevice",
+                ClientConfig.VOICE_ORDERS_MIC_DEVICE, ClientConfig.VOICE_ORDERS_MIC_DEVICE::set);
+        b.bool(ConfigScope.CLIENT, "overlay", "voiceOrdersCues",
+                ClientConfig.VOICE_ORDERS_CUES, ClientConfig.VOICE_ORDERS_CUES::set);
+        b.bool(ConfigScope.CLIENT, "overlay", "voiceSetupPrompt",
+                ClientConfig.VOICE_SETUP_PROMPT, ClientConfig.VOICE_SETUP_PROMPT::set);
+        b.bool(ConfigScope.CLIENT, "overlay", "voiceOrdersTransmit",
+                ClientConfig.VOICE_ORDERS_TRANSMIT, ClientConfig.VOICE_ORDERS_TRANSMIT::set);
+        b.bool(ConfigScope.CLIENT, "overlay", "voiceOrdersOnRadio",
+                ClientConfig.VOICE_ORDERS_ON_RADIO, ClientConfig.VOICE_ORDERS_ON_RADIO::set);
         b.bool(ConfigScope.CLIENT, "overlay", "helmetGrayscale",
                 ClientConfig.HELMET_GRAYSCALE, ClientConfig.HELMET_GRAYSCALE::set);
         b.bool(ConfigScope.CLIENT, "overlay", "showLagTip",
@@ -470,6 +486,15 @@ final class ConfigRegistryBootstrap {
                 SewvConfig.AI_FIRE_COOLDOWN_TICKS, SewvConfig.AI_FIRE_COOLDOWN_TICKS::set);
         b.intRange(ConfigScope.SERVER, "crew_ai", "aiFireHesitationTicks", 0, 200,
                 SewvConfig.AI_FIRE_HESITATION_TICKS, SewvConfig.AI_FIRE_HESITATION_TICKS::set);
+        b.multilineIds(ConfigScope.SERVER, "crew_ai", "heavyMobNamespaces",
+                () -> List.copyOf(SewvConfig.HEAVY_MOB_NAMESPACES.get()),
+                v -> SewvConfig.HEAVY_MOB_NAMESPACES.set(v));
+        b.bool(ConfigScope.SERVER, "crew_ai", "scoredWeaponSelection",
+                SewvConfig.SCORED_WEAPON_SELECTION, SewvConfig.SCORED_WEAPON_SELECTION::set);
+        b.doubleRange(ConfigScope.SERVER, "crew_ai", "targetStackMaxFactor", 1.0, 16.0,
+                SewvConfig.TARGET_STACK_MAX_FACTOR, SewvConfig.TARGET_STACK_MAX_FACTOR::set);
+        b.intRange(ConfigScope.SERVER, "crew_ai", "stackRecheckTicks", 5, 200,
+                SewvConfig.STACK_RECHECK_TICKS, SewvConfig.STACK_RECHECK_TICKS::set);
         b.doubleRange(ConfigScope.SERVER, "crew_ai", "aiFireHesitationJitter", 0.0, 1.0,
                 SewvConfig.AI_FIRE_HESITATION_JITTER, SewvConfig.AI_FIRE_HESITATION_JITTER::set);
         b.intRange(ConfigScope.SERVER, "crew_ai", "aiLosCacheTicks", 1, 40,
@@ -746,6 +771,10 @@ final class ConfigRegistryBootstrap {
                 SewvConfig.ACQUISITION_DELAY_ENABLED, SewvConfig.ACQUISITION_DELAY_ENABLED::set);
         b.bool(ConfigScope.SERVER, "crew_ai", "suppressiveFireEnabled",
                 SewvConfig.SUPPRESSIVE_FIRE_ENABLED, SewvConfig.SUPPRESSIVE_FIRE_ENABLED::set);
+        b.bool(ConfigScope.SERVER, "crew_ai", "reverseGearEnabled",
+                SewvConfig.REVERSE_GEAR_ENABLED, SewvConfig.REVERSE_GEAR_ENABLED::set);
+        b.intRange(ConfigScope.SERVER, "crew_ai", "reverseMaxBlocks", 4, 96,
+                SewvConfig.REVERSE_MAX_BLOCKS, SewvConfig.REVERSE_MAX_BLOCKS::set);
         b.bool(ConfigScope.SERVER, "crew_ai", "coverCacheEnabled",
                 SewvConfig.COVER_CACHE_ENABLED, SewvConfig.COVER_CACHE_ENABLED::set);
         b.intRange(ConfigScope.SERVER, "crew_ai", "coverCacheBakeCellsPerTick", 8, 256,

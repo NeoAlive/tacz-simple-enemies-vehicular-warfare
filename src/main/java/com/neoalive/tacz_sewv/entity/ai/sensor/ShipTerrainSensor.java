@@ -64,6 +64,7 @@ public final class ShipTerrainSensor extends TerrainSensor {
     private static final double MIN_PREF_SPEED = 0.1;
 
     private List<VehicleOrca.Peer> peers = List.of();
+    private VehicleOrca.Footprint selfFoot = VehicleOrca.Footprint.round(1.0);
     private long lastBlockedDiagTick = Long.MIN_VALUE;
 
     public ShipTerrainSensor(AbstractUnit unit) {
@@ -120,15 +121,14 @@ public final class ShipTerrainSensor extends TerrainSensor {
         Vec3 v = this.vehicle.getDeltaMovement();
         double ax = v.x;
         double az = v.z;
-        double half = halfWidth();
         double selfX = this.vehicle.getX();
         double selfZ = this.vehicle.getZ();
         for (VehicleOrca.Peer peer : this.peers) {
             // Contact disc only — same packed-pair lock as GroundTerrainSensor when CLEARANCE
             // fed imminent (TTC=0 for every heading while soft-overlapping).
-            double contactR = VehicleOrca.contactRadius(half, peer.half());
             double px = peer.x() - selfX;
             double pz = peer.z() - selfZ;
+            double contactR = VehicleOrca.contactRadius(this.selfFoot, peer.foot(), px, pz);
             double distSq = px * px + pz * pz;
             if (distSq <= contactR * contactR) {
                 if (VehicleOrca.overlappingAndClosing(
@@ -162,9 +162,11 @@ public final class ShipTerrainSensor extends TerrainSensor {
                         v -> VehiclePeerSpacing.isCollisionPeer(this.vehicle, this.unit, v)).stream()
                 .map(v -> {
                     Vec3 vel = v.getDeltaMovement();
-                    return new VehicleOrca.Peer(v.getId(), v.getX(), v.getZ(), vel.x, vel.z, v.getBbWidth() * 0.5);
+                    return new VehicleOrca.Peer(v.getId(), v.getX(), v.getZ(), vel.x, vel.z,
+                            v.getBbWidth() * 0.5, VehiclePeerSpacing.footprintOf(v));
                 })
                 .toList();
+        this.selfFoot = selfFootprint();
         return List.of();
     }
 

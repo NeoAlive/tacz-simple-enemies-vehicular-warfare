@@ -211,8 +211,6 @@ public class DrivePlaneGoal extends Goal {
     /** RU/US: get down while still controllable, above the spiral. */
     private static final float EMERGENCY_LAND_HEALTH = 0.15F;
     private static final int EMERGENCY_LAND_RETRY_TICKS = 100;
-    private static final float DECOY_HEALTH_FRACTION = 0.5F;
-    private static final float PRESERVE_DECOY_CHANCE = 0.5F;
 
     // --- Cruise altitude (terrain-relative, clamped to this band) ------------------------------
     /**
@@ -300,8 +298,6 @@ public class DrivePlaneGoal extends Goal {
      */
     private static final double GUIDED_RUN_PITCH_DEG = 25.0;
     private static final double BOMB_RUN_PITCH_DEG = 8.0;
-    /** No delivery is flown lower than this over the target's own ground. */
-    private static final double MIN_RUN_AGL = 40.0;
     /** Yaw rate scale in the reversal — gentle, so a heavy hull's momentum can follow the nose. */
     private static final double TURN_YAW_SCALE = 0.3;
     private static final double TURN_ALIGN_DEG = 35.0;
@@ -671,8 +667,9 @@ public class DrivePlaneGoal extends Goal {
         boolean parked = this.mode == PlaneMode.LANDED || this.mode == PlaneMode.GROUNDED;
         AirframeSupport.updateChunkLoading(this.chunkTicket, this.vehicle,
                 SewvConfig.PLANE_CHUNK_LOADING.get() && !parked);
+        com.neoalive.tacz_sewv.entity.ai.utility.Doctrine doctrine = com.neoalive.tacz_sewv.entity.ai.utility.Doctrine.forCrew(this.unit);
         AirframeSupport.updateDecoy(this.vehicle, this.unit, this.flares,
-                DECOY_HEALTH_FRACTION, PRESERVE_DECOY_CHANCE);
+                com.neoalive.tacz_sewv.entity.ai.utility.DoctrineKnobs.decoyHealth(doctrine), com.neoalive.tacz_sewv.entity.ai.utility.DoctrineKnobs.decoyChance(doctrine));
 
         long now = this.unit.level().getGameTime();
         int flightCommand = (this.unit instanceof IHelicopterPilot p ? p.sewv$getHeliCommand() : IHelicopterPilot.HELI_CMD_NONE);
@@ -2239,7 +2236,8 @@ public class DrivePlaneGoal extends Goal {
         if (!Double.isNaN(this.runY)) return this.runY;
         double geometric = Math.tan(Math.toRadians(deliveryPitchLimit()))
                 * SewvConfig.PLANE_ENGAGE_RADIUS.get();
-        double agl = Mth.clamp(geometric, MIN_RUN_AGL, ATTACK_ENTRY_AGL);
+        double agl = Mth.clamp(geometric, Math.min(com.neoalive.tacz_sewv.entity.ai.utility.DoctrineKnobs.planeMinRunAgl(com.neoalive.tacz_sewv.entity.ai.utility.Doctrine.forCrew(this.unit)), ATTACK_ENTRY_AGL),
+                ATTACK_ENTRY_AGL);
         double planned = Math.max(groundAt(tx, tz) + agl, ty + MIN_OVER_DEST);
         double enRoute = AirframeSupport.highestGroundToward(this.vehicle, tx, tz, TERRAIN_LOOKAHEAD)
                 + MIN_INGRESS_CLEARANCE;
@@ -2949,7 +2947,7 @@ public class DrivePlaneGoal extends Goal {
             return;
         }
         if (!(maxHealth > 0.0F)
-                || this.vehicle.getHealth() >= maxHealth * EMERGENCY_LAND_HEALTH) {
+                || this.vehicle.getHealth() >= maxHealth * EMERGENCY_LAND_HEALTH * com.neoalive.tacz_sewv.entity.ai.utility.DoctrineKnobs.emergencyLandScale(com.neoalive.tacz_sewv.entity.ai.utility.Doctrine.forCrew(this.unit))) {
             return;
         }
         if (now < this.nextEmergencyLandTry) return;

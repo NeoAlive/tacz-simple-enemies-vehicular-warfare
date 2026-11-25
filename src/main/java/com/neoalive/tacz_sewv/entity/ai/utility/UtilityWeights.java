@@ -85,10 +85,27 @@ public final class UtilityWeights {
     /** [play][doctrine axis] */
     private final double[][] playAxisWeights;
 
+    /**
+     * Reserved key inside a row: {@code "mod": {"<signal>": {"<axis>": k}}}. Doctrine scales that signal's weight by
+     * {@code clamp(1 + sum(k * axis), MOD_MIN, MOD_MAX)}, so an axis changes WHEN a crew breaks off or presses, not
+     * only a constant lean. Flat arrays [signal * AXES + axis], all zero (no effect) unless a row names them.
+     */
+    public static final String MOD_KEY = "mod";
+    public static final double MOD_MIN = 0.25;
+    public static final double MOD_MAX = 2.0;
+    private static final int AXES = Doctrine.Axis.VALUES.length;
+
+    /** [action][signal * AXES + axis] */
+    private final double[][] signalMods;
+    private final double[] confidenceMods;
+    /** [play][signal * AXES + axis] */
+    private final double[][] playSignalMods;
+
     private UtilityWeights(double[][] signalWeights, double[][] axisWeights,
                            double[] confidenceSignals, double[] confidenceAxes,
                            double[] commanderWeights,
-                           double[][] playSignalWeights, double[][] playAxisWeights) {
+                           double[][] playSignalWeights, double[][] playAxisWeights,
+                           double[][] signalMods, double[] confidenceMods, double[][] playSignalMods) {
         this.signalWeights = signalWeights;
         this.axisWeights = axisWeights;
         this.confidenceSignals = confidenceSignals;
@@ -96,6 +113,28 @@ public final class UtilityWeights {
         this.commanderWeights = commanderWeights;
         this.playSignalWeights = playSignalWeights;
         this.playAxisWeights = playAxisWeights;
+        this.signalMods = signalMods;
+        this.confidenceMods = confidenceMods;
+        this.playSignalMods = playSignalMods;
+    }
+
+    private static double[][] emptyMods(int rows) {
+        return new double[rows][Signal.VALUES.length * AXES];
+    }
+
+    /** The doctrine factor on one signal's weight; exactly 1 when the row has no mod for it. */
+    static double modFactor(double[] mods, int signal, Doctrine doctrine) {
+        int base = signal * AXES;
+        double sum = 0.0;
+        boolean any = false;
+        for (int x = 0; x < AXES; x++) {
+            double k = mods[base + x];
+            if (k != 0.0) {
+                sum += k * doctrine.get(Doctrine.Axis.VALUES[x]);
+                any = true;
+            }
+        }
+        return any ? Mth.clamp(1.0 + sum, MOD_MIN, MOD_MAX) : 1.0;
     }
 
     /**
@@ -114,8 +153,9 @@ public final class UtilityWeights {
         int p = play.ordinal();
         double total = 0.0;
         double[] weights = this.playSignalWeights[p];
+        double[] mods = this.playSignalMods[p];
         for (int s = 0; s < weights.length; s++) {
-            if (weights[s] != 0.0) total += weights[s] * signals[s];
+            if (weights[s] != 0.0 && signals[s] != 0.0) total += weights[s] * modFactor(mods, s, doctrine) * signals[s];
         }
         double[] axes = this.playAxisWeights[p];
         for (int x = 0; x < axes.length; x++) {
@@ -134,7 +174,9 @@ public final class UtilityWeights {
         double total = 0.0;
         for (int s = 0; s < this.confidenceSignals.length; s++) {
             if (s == Signal.CONFIDENCE.ordinal()) continue;
-            if (this.confidenceSignals[s] != 0.0) total += this.confidenceSignals[s] * signals[s];
+            if (this.confidenceSignals[s] != 0.0 && signals[s] != 0.0) {
+                total += this.confidenceSignals[s] * modFactor(this.confidenceMods, s, doctrine) * signals[s];
+            }
         }
         for (int x = 0; x < this.confidenceAxes.length; x++) {
             if (this.confidenceAxes[x] != 0.0) {
@@ -154,8 +196,9 @@ public final class UtilityWeights {
         double total = 0.0;
 
         double[] weights = this.signalWeights[a];
+        double[] mods = this.signalMods[a];
         for (int s = 0; s < weights.length; s++) {
-            if (weights[s] != 0.0) total += weights[s] * signals[s];
+            if (weights[s] != 0.0 && signals[s] != 0.0) total += weights[s] * modFactor(mods, s, doctrine) * signals[s];
         }
 
         double[] axes = this.axisWeights[a];
@@ -221,7 +264,9 @@ public final class UtilityWeights {
         playSignals[PlayId.FIGHTING_WITHDRAWAL.ordinal()][Signal.OUTNUMBERED.ordinal()] = 40.0;
 
         return new UtilityWeights(signals, axes, confSignals,
-                new double[Doctrine.Axis.VALUES.length], commander, playSignals, playAxes);
+                new double[Doctrine.Axis.VALUES.length], commander, playSignals, playAxes,
+                emptyMods(Action.VALUES.length), new double[Signal.VALUES.length * AXES],
+                emptyMods(PlayId.VALUES.length));
     }
 
     /**
@@ -244,6 +289,9 @@ public final class UtilityWeights {
         double[] commander = new double[CMD_LEN];
         double[][] playSignals = new double[PlayId.VALUES.length][Signal.VALUES.length];
         double[][] playAxes = new double[PlayId.VALUES.length][Doctrine.Axis.VALUES.length];
+        double[][] mods = emptyMods(Action.VALUES.length);
+        double[] confMods = new double[Signal.VALUES.length * AXES];
+        double[][] playMods = emptyMods(PlayId.VALUES.length);
         int applied = 0;
         boolean commanderApplied = false;
         boolean holdPlayApplied = false;
@@ -261,7 +309,7 @@ public final class UtilityWeights {
             for (Map.Entry<String, JsonElement> entry : root.entrySet()) {
                 if (CONFIDENCE_KEY.equals(entry.getKey())) {
                     applied += readRow(file.getKey(), CONFIDENCE_KEY, entry.getValue(),
-                            confSignals, confAxes);
+                            confSignals, confAxes, confMods);
                     continue;
                 }
                 if (COMMANDER_KEY.equals(entry.getKey())) {
@@ -278,7 +326,7 @@ public final class UtilityWeights {
                         continue;
                     }
                     int n = readRow(file.getKey(), entry.getKey(), entry.getValue(),
-                            playSignals[play.ordinal()], playAxes[play.ordinal()]);
+                            playSignals[play.ordinal()], playAxes[play.ordinal()], playMods[play.ordinal()]);
                     applied += n;
                     if (play == PlayId.HOLD_DEFEND && n > 0) holdPlayApplied = true;
                     continue;
@@ -290,7 +338,7 @@ public final class UtilityWeights {
                     continue;
                 }
                 applied += readRow(file.getKey(), action.key, entry.getValue(),
-                        signals[action.ordinal()], axes[action.ordinal()]);
+                        signals[action.ordinal()], axes[action.ordinal()], mods[action.ordinal()]);
             }
         }
 
@@ -311,7 +359,7 @@ public final class UtilityWeights {
         }
         LOGGER.info("[sewv] Loaded {} AI utility weights from {} file(s)", applied, files.size());
         return new UtilityWeights(signals, axes, confSignals, confAxes, commander,
-                playSignals, playAxes);
+                playSignals, playAxes, mods, confMods, playMods);
     }
 
     private static int readCommanderRow(ResourceLocation source, JsonElement element, double[] out) {
@@ -355,7 +403,7 @@ public final class UtilityWeights {
 
     /** Read one row — an action's modifiers, or the confidence row — into its weight arrays. */
     private static int readRow(ResourceLocation source, String rowKey, JsonElement element,
-                               double[] signals, double[] axes) {
+                               double[] signals, double[] axes, double[] mods) {
         JsonObject modifiers;
         try {
             modifiers = GsonHelper.convertToJsonObject(element, rowKey);
@@ -368,10 +416,15 @@ public final class UtilityWeights {
         // exactly the attack it wrote rather than its numbers layered over ours.
         java.util.Arrays.fill(signals, 0.0);
         java.util.Arrays.fill(axes, 0.0);
+        java.util.Arrays.fill(mods, 0.0);
 
         int count = 0;
         for (Map.Entry<String, JsonElement> modifier : modifiers.entrySet()) {
             String key = modifier.getKey();
+            if (MOD_KEY.equals(key)) {
+                count += readMods(source, rowKey, modifier.getValue(), mods);
+                continue;
+            }
             double weight;
             try {
                 weight = GsonHelper.convertToDouble(modifier.getValue(), key);
@@ -400,6 +453,49 @@ public final class UtilityWeights {
                     + "ignored", source, rowKey, key);
         }
         return count;
+    }
+
+    /** Read a row's {@code mod} block: {@code {"<signal>": {"<axis>": k}}}. Bad entries warn and are skipped. */
+    private static int readMods(ResourceLocation source, String rowKey, JsonElement element, double[] mods) {
+        JsonObject bySignal;
+        try {
+            bySignal = GsonHelper.convertToJsonObject(element, MOD_KEY);
+        } catch (RuntimeException e) {
+            LOGGER.warn("[sewv] AI weights {}: '{}.mod' is not an object: ignored", source, rowKey);
+            return 0;
+        }
+        int count = 0;
+        for (Map.Entry<String, JsonElement> sig : bySignal.entrySet()) {
+            Signal signal = Signal.byKey(sig.getKey());
+            if (signal == null || !sig.getValue().isJsonObject()) {
+                LOGGER.warn("[sewv] AI weights {}: '{}.mod.{}' is not a signal with an axis object: ignored",
+                        source, rowKey, sig.getKey());
+                continue;
+            }
+            for (Map.Entry<String, JsonElement> ax : sig.getValue().getAsJsonObject().entrySet()) {
+                Doctrine.Axis axis = Doctrine.Axis.byKey(ax.getKey());
+                double k;
+                try {
+                    k = GsonHelper.convertToDouble(ax.getValue(), ax.getKey());
+                } catch (RuntimeException e) {
+                    axis = null;
+                    k = 0.0;
+                }
+                if (axis == null) {
+                    LOGGER.warn("[sewv] AI weights {}: '{}.mod.{}.{}' is not a doctrine axis with a number: ignored",
+                            source, rowKey, sig.getKey(), ax.getKey());
+                    continue;
+                }
+                mods[signal.ordinal() * AXES + axis.ordinal()] = Mth.clamp(k, -2.0, 2.0);
+                count++;
+            }
+        }
+        return count;
+    }
+
+    /** True when two rows' mod blocks are identical. For the mirrored-action self-check. */
+    public boolean sameMods(Action a, Action b) {
+        return java.util.Arrays.equals(this.signalMods[a.ordinal()], this.signalMods[b.ordinal()]);
     }
 
     /**

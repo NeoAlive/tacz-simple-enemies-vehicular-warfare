@@ -455,7 +455,8 @@ public final class TerritoryManager {
             rows.add(new Row(u.getId(), u.getDisplayName().getString(),
                     (byte) (u.isPassenger() ? 1 : 0), u.getHealth() / max, statusByte(status(u)),
                     posted, posted && p.sewv$isTerritoryLost(),
-                    posted ? p.sewv$getTerritoryChunkX() : 0, posted ? p.sewv$getTerritoryChunkZ() : 0));
+                    posted ? p.sewv$getTerritoryChunkX() : 0, posted ? p.sewv$getTerritoryChunkZ() : 0,
+                    (byte) com.neoalive.tacz_sewv.crew.Veterancy.level(u)));
         }
         return rows;
     }
@@ -514,6 +515,11 @@ public final class TerritoryManager {
     }
 
     // ---- notifications ----------------------------------------------------------------------------------
+
+    /** The player stood a posted unit down: the chunk it leaves is not "going uncovered", so do not toast it. */
+    public static void forgetCoverage(UUID player) {
+        LAST_COVERED.remove(player);
+    }
 
     /** An order was refused because the unit is on a post: tell the player where to release it. */
     public static void notifyRefused(ServerPlayer issuer, PmcUnitEntity pmc, String channel) {

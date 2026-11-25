@@ -53,8 +53,10 @@ public class PacketSaveDoctrine {
                 }
                 total += Math.abs(val);
             }
-            if (total != 20) {
-                player.displayClientMessage(Component.translatable("message.tacz_sewv.doctrine.bad_total")
+            PlayerDoctrineData budgetData = PlayerDoctrineData.get(player.level());
+            if (total != budgetData.budget(player.getUUID())) {
+                player.displayClientMessage(Component.translatable("message.tacz_sewv.doctrine.bad_total",
+                        budgetData.budget(player.getUUID()))
                         .withStyle(ChatFormatting.RED), true);
                 return;
             }
@@ -85,6 +87,7 @@ public class PacketSaveDoctrine {
             // 6. Consume item
             held.shrink(1);
             player.displayClientMessage(Component.translatable("message.tacz_sewv.doctrine.saved").withStyle(ChatFormatting.GREEN), true);
+            PacketDoctrineSync.sendTo(player);
         });
         ctx.get().setPacketHandled(true);
     }

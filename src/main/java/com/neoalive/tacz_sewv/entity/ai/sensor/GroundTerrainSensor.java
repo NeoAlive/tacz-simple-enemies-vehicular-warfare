@@ -147,6 +147,7 @@ public final class GroundTerrainSensor extends TerrainSensor {
 
     private List<AABB> allyFootObstacles = List.of();
     private List<VehicleOrca.Peer> peers = List.of();
+    private VehicleOrca.Footprint selfFoot = VehicleOrca.Footprint.round(1.0);
     /** Peer/ally entity scan cadence — block probes stay per whisker; this only gates AABB fills. */
     private static final int PEER_SCAN_INTERVAL = 5;
     private long peerScanTick = Long.MIN_VALUE;
@@ -185,6 +186,7 @@ public final class GroundTerrainSensor extends TerrainSensor {
         this.lastFanResult = null;
         this.allyFootObstacles = List.of();
         this.peers = List.of();
+        this.selfFoot = VehicleOrca.Footprint.round(width * 0.5);
         this.peerScanTick = Long.MIN_VALUE;
         for (int i = 0; i < N; i++) this.slotCenterProbes[i] = null;
     }
@@ -614,7 +616,8 @@ public final class GroundTerrainSensor extends TerrainSensor {
         double selfX = this.vehicle.getX();
         double selfZ = this.vehicle.getZ();
         for (VehicleOrca.Peer peer : this.peers) {
-            double clearance = VehicleOrca.sweepRadius(half, peer.half());
+            double clearance = VehicleOrca.sweepRadius(
+                    this.selfFoot, peer.foot(), peer.x() - selfX, peer.z() - selfZ);
             if (!VehicleOrca.sweepKeepsClear(selfX, selfZ, x, z, peer.x(), peer.z(), clearance)) {
                 logBlockedHeading(new Vec3(hx[0], 0.0, hz[0]), 0, "sweep-hull");
                 return false;
@@ -639,13 +642,12 @@ public final class GroundTerrainSensor extends TerrainSensor {
     public boolean maneuverMustYield(double ticks) {
         if (this.peers.isEmpty()) return false;
         Vec3 v = this.vehicle.getDeltaMovement();
-        double half = halfWidth();
         int selfId = this.vehicle.getId();
         for (VehicleOrca.Peer peer : this.peers) {
             if (!VehicleOrca.yieldsTo(selfId, peer, PEER_MOVING_SPEED)) continue;
             double px = peer.x() - this.vehicle.getX();
             double pz = peer.z() - this.vehicle.getZ();
-            double contactR = VehicleOrca.contactRadius(half, peer.half());
+            double contactR = VehicleOrca.contactRadius(this.selfFoot, peer.foot(), px, pz);
             // Already touching: TTC is 0 for every velocity there, separating ones included, so ask
             // only whether it is getting deeper — the same split applyRvo makes.
             boolean hit = px * px + pz * pz <= contactR * contactR
@@ -664,7 +666,6 @@ public final class GroundTerrainSensor extends TerrainSensor {
         Vec3 v = this.vehicle.getDeltaMovement();
         double ax = v.x;
         double az = v.z;
-        double half = halfWidth();
         double selfX = this.vehicle.getX();
         double selfZ = this.vehicle.getZ();
         int selfId = this.vehicle.getId();
@@ -675,10 +676,10 @@ public final class GroundTerrainSensor extends TerrainSensor {
             // Soft disc → skirt only. Hard vetoes → contact disc. imminent/overlappingAndClosing
             // short-circuit to TTC=0 whenever dist≤radius, so feeding CLEARANCE_SCALE there locked
             // every heading for a packed pair (verified: only a player shove freed them).
-            double softR = VehicleOrca.radius(half, peer.half());
-            double contactR = VehicleOrca.contactRadius(half, peer.half());
             double px = peer.x() - selfX;
             double pz = peer.z() - selfZ;
+            double softR = VehicleOrca.radius(this.selfFoot, peer.foot(), px, pz);
+            double contactR = VehicleOrca.contactRadius(this.selfFoot, peer.foot(), px, pz);
             double distSq = px * px + pz * pz;
             double along = (ndx != 0.0 || ndz != 0.0) ? px * ndx + pz * ndz : 0.0;
             if (distSq <= contactR * contactR) {
@@ -899,9 +900,11 @@ public final class GroundTerrainSensor extends TerrainSensor {
                         v -> VehiclePeerSpacing.isCollisionPeer(this.vehicle, this.unit, v)).stream()
                 .map(v -> {
                     Vec3 vel = v.getDeltaMovement();
-                    return new VehicleOrca.Peer(v.getId(), v.getX(), v.getZ(), vel.x, vel.z, v.getBbWidth() * 0.5);
+                    return new VehicleOrca.Peer(v.getId(), v.getX(), v.getZ(), vel.x, vel.z,
+                            v.getBbWidth() * 0.5, VehiclePeerSpacing.footprintOf(v));
                 })
                 .toList();
+        this.selfFoot = selfFootprint();
         this.allyFootObstacles = this.unit.level().getEntitiesOfClass(AbstractUnit.class, search,
                         this::isAllyFootObstacle).stream()
                 .map(u -> u.getBoundingBox().inflate(half, 0.0, half))

@@ -74,10 +74,12 @@ public final class HullPressure {
     }
 
     /**
-     * Should a crew drop its current lock for the shooter that just landed a heavy hit on it? Only a visible shooter,
-     * and only if the current lock is not a better use of the gun: a target it cannot see, a target that is not
-     * armour, or one farther away than the shooter. The last rule is what stops two tanks trading hits from flipping
-     * the turret back and forth: only a CLOSER shooter takes the gun. Rifle fire is never heavy, so it never gets here.
+     * Should a crew drop its current lock for the shooter that just landed a heavy hit on it? Only a shooter the
+     * gun can lay on, and only if the current lock is not a better use of that gun: a target the gun cannot lay on,
+     * a target that is not armour, or one farther away than the shooter. The last rule is what stops two tanks
+     * trading hits from flipping the turret back and forth: only a CLOSER shooter takes the gun. Rifle fire is
+     * never heavy, so it never gets here. The caller decides "can lay on" — for a crewed hull that is the fire
+     * gate's muzzle line, not the crewman's eyes.
      */
     public static boolean shouldRetaliate(boolean attackerVisible, boolean attackerIsCurrent, boolean currentVisible,
                                           boolean currentIsArmour, boolean attackerCloser) {

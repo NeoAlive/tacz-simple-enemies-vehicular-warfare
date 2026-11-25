@@ -14,7 +14,6 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.MobCategory;
 import net.minecraft.world.entity.animal.IronGolem;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.entity.EntityTypeTest;
@@ -32,8 +31,6 @@ import com.neoalive.tacz_sewv.bridge.IMortarCrew;
 import com.neoalive.tacz_sewv.compat.TripodCompat;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
-import com.neoalive.tacz_sewv.spawn.TankSpawner.TankFaction;
-import com.neoalive.tacz_sewv.util.WorldTargetPriority;
 
 /**
  * Per-level spatial index of the things a crew can fight, rebuilt on a budget (never on demand) and
@@ -302,8 +299,7 @@ public final class CombatantIndex {
 
     private static Snapshot rebuild(ServerLevel level, long now, State st) {
         long t0 = System.nanoTime();
-        WorldTargetPriority priority = WorldTargetPriority.get(level);
-        Map<String, Boolean> softCategory = new HashMap<>();
+        Map<net.minecraft.world.entity.EntityType<?>, Boolean> softType = new HashMap<>();
 
         List<Entry> living = new ArrayList<>();
         for (LivingEntity e : level.getEntities(EntityTypeTest.forClass(LivingEntity.class), x -> true)) {
@@ -313,7 +309,7 @@ public final class CombatantIndex {
                         && c.sewv$getMortarTargetId() != IMortarCrew.NO_MORTAR && !unit.isPassenger();
                 living.add(new Entry(e.getId(), crew ? Kind.MORTAR_CREW : Kind.UNIT,
                         e.getX(), e.getY(), e.getZ(), e, unit, false, 0.0));
-            } else if (isSoft(e, priority, softCategory)) {
+            } else if (isSoft(e, softType)) {
                 living.add(new Entry(e.getId(), Kind.SOFT, e.getX(), e.getY(), e.getZ(), e, null, false, 0.0));
             }
         }
@@ -360,16 +356,12 @@ public final class CombatantIndex {
      * Players, iron golems, and mobs of a category at least one faction may still target. Memoised per
      * rebuild: the category lookup is the only per-mob cost.
      */
-    private static boolean isSoft(LivingEntity e, WorldTargetPriority priority, Map<String, Boolean> memo) {
+    private static boolean isSoft(LivingEntity e, Map<net.minecraft.world.entity.EntityType<?>, Boolean> memo) {
         if (e instanceof Player p) return !p.isSpectator();
         if (e instanceof IronGolem) return true;
-        MobCategory category = e.getType().getCategory();
-        return memo.computeIfAbsent(category.getName(), name -> {
-            for (TankFaction f : TankFaction.values()) {
-                if (!priority.isExcluded(f, name)) return true;
-            }
-            return false;
-        });
+        // Per type: the heavy-creature group can exclude by toughness, but a type is one answer here.
+        return memo.computeIfAbsent(e.getType(),
+                t -> com.neoalive.tacz_sewv.entity.ai.targeting.TargetStack.anyFactionAllows(e.level(), e));
     }
 
     /**

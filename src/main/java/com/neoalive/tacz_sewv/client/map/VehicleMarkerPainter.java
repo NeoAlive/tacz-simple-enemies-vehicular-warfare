@@ -17,6 +17,7 @@ import com.neoalive.tacz_sewv.client.MapMarkers;
 import com.neoalive.tacz_sewv.config.ClientConfig;
 import com.neoalive.tacz_sewv.crew.CrewFacts;
 import com.neoalive.tacz_sewv.map.FactionColors;
+import com.neoalive.tacz_sewv.map.MarkerTags;
 import com.neoalive.tacz_sewv.map.VehicleMarker;
 
 /**
@@ -159,6 +160,7 @@ public final class VehicleMarkerPainter {
         // setColor flushes a managed batch, so the tinted symbol stays outside one.
         if (ClientConfig.MAP_SHOW_ICONS.get()) {
             drawSymbol(guiGraphics, marker, color);
+            drawPlan(guiGraphics, marker, color);
         }
         guiGraphics.drawManaged(() -> {
             if (style.labels()) {
@@ -451,6 +453,40 @@ public final class VehicleMarkerPainter {
         float s = (float) size / ICON_SIZE;
         pose.scale(s, s, 1.0F);
         drawSymbol(guiGraphics, marker, markerColor(marker));
+        pose.popPose();
+    }
+
+    /** Side of the posture glyph on screen, and its texture size (white on transparency, tinted like the symbol). */
+    private static final int PLAN_SIZE = 11;
+    private static final int PLAN_TEXTURE_SIZE = 64;
+    private static final Map<MarkerTags.Plan, ResourceLocation> PLAN_TEXTURES = new EnumMap<>(MarkerTags.Plan.class);
+
+    static {
+        for (MarkerTags.Plan plan : MarkerTags.Plan.values()) {
+            if (plan == MarkerTags.Plan.NONE) continue;
+            PLAN_TEXTURES.put(plan, ResourceLocation.fromNamespaceAndPath(TaczSewv.MODID, "textures/map/plan/" + plan.texture() + ".png"));
+        }
+    }
+
+    /**
+     * What the crew is doing in contact (advance, hold, flank, fall back, smoke), top-right of the symbol, so a player
+     * can watch their doctrine at work on the map. Own markers only; the art is placeholder, read by path, so a
+     * replacement PNG of the same name and size needs no code change.
+     */
+    private static void drawPlan(GuiGraphics guiGraphics, VehicleMarker marker, int color) {
+        if (marker.allegiance() != VehicleMarker.Allegiance.OWN) return;
+        ResourceLocation texture = PLAN_TEXTURES.get(marker.tags().plan());
+        if (texture == null) return;
+        PoseStack pose = guiGraphics.pose();
+        pose.pushPose();
+        pose.translate(ICON_SIZE / 2.0F - 2.0F, -ICON_SIZE / 2.0F - PLAN_SIZE + 3.0F, 0.0F);
+        float scale = (float) PLAN_SIZE / PLAN_TEXTURE_SIZE;
+        pose.scale(scale, scale, 1.0F);
+        guiGraphics.setColor(
+                (color >> 16 & 0xFF) / 255.0F, (color >> 8 & 0xFF) / 255.0F, (color & 0xFF) / 255.0F, 1.0F);
+        guiGraphics.blit(texture, 0, 0, 0, 0.0F, 0.0F, PLAN_TEXTURE_SIZE, PLAN_TEXTURE_SIZE,
+                PLAN_TEXTURE_SIZE, PLAN_TEXTURE_SIZE);
+        guiGraphics.setColor(1.0F, 1.0F, 1.0F, 1.0F);
         pose.popPose();
     }
 

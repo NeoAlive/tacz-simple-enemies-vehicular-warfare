@@ -4,7 +4,7 @@ import net.minecraft.world.entity.LivingEntity;
 
 /**
  * Combined third-party-enemy target-priority classification for
- * {@link com.neoalive.tacz_sewv.entity.ai.goal.SoftEnemyTargetPriorityGoal}. Spore
+ * {@link com.neoalive.tacz_sewv.entity.ai.goal.StackTargetGoal}. Spore
  * ({@link SporeCompat}) and Phayriosis Two ({@link PhayriosisCompat}) are detected and
  * classified completely independently of each other — each mod's tier still applies with the
  * other absent, and neither compat class ever throws when its own mod is missing.

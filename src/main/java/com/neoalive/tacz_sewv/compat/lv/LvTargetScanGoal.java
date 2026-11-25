@@ -60,18 +60,19 @@ final class LvTargetScanGoal extends Goal {
         double height = SewvConfig.VEHICLE_TARGET_SCAN_HEIGHT.get();
         AABB box = this.unit.getBoundingBox().inflate(radius, height, radius);
         double r2 = radius * radius;
-        LivingEntity best = null;
-        double bestSq = Double.MAX_VALUE;
+        java.util.List<LivingEntity> found = new java.util.ArrayList<>();
         for (LivingEntity e : this.unit.level().getEntitiesOfClass(LivingEntity.class, box,
                 e -> e != this.unit && e.isAlive() && VehicleTargeting.isValidHostileTarget(this.unit, e))) {
             double dx = e.getX() - this.unit.getX();
             double dz = e.getZ() - this.unit.getZ();
-            double d = dx * dx + dz * dz;
-            if (d > r2 || d >= bestSq) continue;
-            if (!this.unit.getSensing().hasLineOfSight(e)) continue;
-            best = e;
-            bestSq = d;
+            if (dx * dx + dz * dz <= r2) found.add(e);
         }
-        return best;
+        // The faction's priority stack orders the candidates; LOS in that order until one passes.
+        for (com.neoalive.tacz_sewv.entity.ai.targeting.TargetRanker.Candidate<LivingEntity> c
+                : com.neoalive.tacz_sewv.entity.ai.targeting.TargetStack.rank(this.unit, found,
+                        e -> Math.hypot(e.getX() - this.unit.getX(), e.getZ() - this.unit.getZ()))) {
+            if (this.unit.getSensing().hasLineOfSight(c.ref)) return c.ref;
+        }
+        return null;
     }
 }

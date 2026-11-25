@@ -207,7 +207,7 @@ public abstract class MixinVehicleFireCooldown implements IAiFireTracker {
             return true;
         }
         return SmokeVision.lineBlockedBySmoke(
-                self.level(), self, from, to, EasyMode.smokeBlockRadius());
+                self.level(), self, from, to, EasyMode.smokeBlockRadius(self));
     }
 
     // vehicleShoot has TWO independent overloads and the AI paths split between

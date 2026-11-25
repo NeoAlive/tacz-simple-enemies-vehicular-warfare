@@ -86,12 +86,15 @@ public final class WeaponPackPresets {
     private static Map<TankFaction, List<String>> taczDefault() {
         String ns = "tacz";
         return new Builder()
-                .put(TankFaction.RU, ns, "ak47", "rpk", "sks_tactical", "type_81", "qbz_95", "qbz_191", "cz75")
+                .put(TankFaction.RU, ns, "ak47", "rpk", "sks_tactical", "type_81", "qbz_95", "qbz_191", "cz75",
+                        "ak12", "ak74m", "svd", "pkm")
                 .put(TankFaction.US, ns, "m4a1", "m16a4", "hk416d", "scar_l", "scar_h", "mk14", "spr15hb", "m249",
                         "fn_evolys", "m700", "m107", "m870", "m1014", "hk_mp5a5", "aug", "g36k", "glock_17", "m1911",
-                        "m9a4")
+                        "m9a4", "hcar", "hk_mp7a1", "hm50b", "m1897", "mcx_spear_lt", "mk18", "mrad", "scar_mk20",
+                        "urgi")
                 .put(TankFaction.PMC, ns, "ak47", "m4a1", "m16a1", "fn_fal", "hk_g3", "aug", "g36k", "sks_tactical",
-                        "ump45", "vector45", "p90", "uzi", "aa12", "spas_12", "m870", "ai_awp", "deagle", "p320", "b93r")
+                        "ump45", "vector45", "p90", "uzi", "aa12", "spas_12", "m870", "ai_awp", "deagle", "p320", "b93r",
+                        "tec_9", "m1866", "qr_24")
                 .freeze();
     }
 

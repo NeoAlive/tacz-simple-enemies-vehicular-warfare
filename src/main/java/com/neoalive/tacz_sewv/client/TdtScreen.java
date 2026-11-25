@@ -100,6 +100,8 @@ public class TdtScreen extends Screen {
     // Drafts, committed by Apply.
     private static String draftCompany = "";
     private static String draftNames = NamePools.RANDOM;
+    /** Name categories as the server has them, synced with the identity. */
+    private static List<String> serverNameCategories = List.of();
     private static String draftVoice = PmcVoices.DEFAULT;
     private static String draftPool = PmcIdentityPreference.DEFAULT_POOL;
     private static String draftLogo = PmcIdentityPreference.DEFAULT_LOGO;
@@ -126,7 +128,8 @@ public class TdtScreen extends Screen {
     }
 
     public static void receiveIdentitySync(String company, String pool, String logo, String url, String names,
-            String voice) {
+            String voice, List<String> nameCategories) {
+        serverNameCategories = List.copyOf(nameCategories);
         savedCompany = company;
         savedPool = pool;
         savedLogo = logo;
@@ -316,7 +319,8 @@ public class TdtScreen extends Screen {
     private static List<Opt> nameOptions() {
         List<Opt> out = new ArrayList<>();
         out.add(new Opt(NamePools.RANDOM, I18n.get("gui.tacz_sewv.tdt.names.random")));
-        for (String k : NamePools.active().categoryKeys()) out.add(new Opt(k, pretty(k)));
+        List<String> keys = serverNameCategories.isEmpty() ? NamePools.active().categoryKeys() : serverNameCategories;
+        for (String k : keys) out.add(new Opt(k, pretty(k)));
         return out;
     }
 

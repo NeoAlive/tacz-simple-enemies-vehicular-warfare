@@ -35,9 +35,14 @@ public final class PlaySignals {
     }
 
     public static double score(PlayId id, BattleField bf, UtilityWeights weights) {
+        return score(id, bf, weights, Doctrine.NEUTRAL);
+    }
+
+    /** With the group's doctrine, so a Blitz commander picks pursuit and a Fortress one holds. */
+    public static double score(PlayId id, BattleField bf, UtilityWeights weights, Doctrine doctrine) {
         double[] s = new double[Signal.VALUES.length];
         sample(bf, s);
-        return weights.scorePlay(id, s, Doctrine.NEUTRAL);
+        return weights.scorePlay(id, s, doctrine);
     }
 
     /** Enemy-side open-flank mark world X (left = +1). */

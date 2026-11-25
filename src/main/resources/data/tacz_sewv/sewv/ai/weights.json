@@ -18,9 +18,14 @@
     "cannotShoot": -10,
     "outnumbered": -15,
     "storm": -20,
-    "snow": -10
+    "snow": -10,
+    "mod": {
+      "outnumbered": {
+        "riskTolerance": -0.6
+      }
+    },
+    "base": 10
   },
-
   "advance": {
     "caution": -20,
     "inBattlePosition": -40,
@@ -44,18 +49,29 @@
     "outnumbered": -25,
     "enemyArmor": -10,
     "steepGround": -20,
-    "swamp": -15
+    "swamp": -15,
+    "mod": {
+      "outnumbered": {
+        "riskTolerance": -0.6
+      },
+      "tooFar": {
+        "aggression": 0.5,
+        "initiative": 0.4
+      },
+      "underFire": {
+        "riskTolerance": -0.5
+      }
+    }
   },
-
   "hold": {
     "caution": 10,
     "inBattlePosition": 20,
     "underFire": -10,
-    "base": 20,
+    "base": 25,
     "cannotShoot": 15,
     "lowAmmo": 20,
     "tooClose": 10,
-    "preservation": 10,
+    "preservation": 20,
     "mountain": 15,
     "steepGround": 10,
     "taskedHold": 45,
@@ -71,37 +87,62 @@
     "initiative": -10,
     "idleGroupSize": -10
   },
-
   "retreat": {
     "caution": 15,
     "inBattlePosition": -15,
     "underFire": 20,
     "lowHealth": 85,
     "lowAmmo": 45,
-    "outnumbered": 25,
+    "outnumbered": 20,
     "lowEnergy": 20,
-    "preservation": 25,
+    "preservation": 10,
     "taskedWithdraw": 50,
     "confidence": -15,
-    "aggression": -15,
-    "riskTolerance": -15,
+    "aggression": -10,
+    "riskTolerance": -10,
     "postureSeekCover": 45,
-    "exposed": 15
+    "exposed": 8,
+    "mod": {
+      "lowHealth": {
+        "preservation": 0.5,
+        "riskTolerance": -0.4,
+        "aggression": -0.3
+      },
+      "outnumbered": {
+        "riskTolerance": -0.6,
+        "preservation": 0.4
+      },
+      "underFire": {
+        "riskTolerance": -0.5,
+        "preservation": 0.4
+      },
+      "exposed": {
+        "riskTolerance": -0.5
+      }
+    }
   },
-
   "deploySmoke": {
     "underFire": 35,
     "lowHealth": 70,
     "recentlyHit": 25,
-    "enemyArmor": 15,
+    "enemyArmor": 5,
     "smokeReady": 10,
-    "preservation": 20,
-    "open": 15,
+    "preservation": 5,
+    "open": 5,
     "desert": 15,
     "screened": -200,
-    "aggression": -10
+    "aggression": -10,
+    "mod": {
+      "recentlyHit": {
+        "preservation": 0.6
+      },
+      "lowHealth": {
+        "preservation": 0.5,
+        "riskTolerance": -0.4,
+        "aggression": -0.3
+      }
+    }
   },
-
   "flankLeft": {
     "caution": -10,
     "inBattlePosition": -30,
@@ -124,9 +165,17 @@
     "tooFar": -20,
     "urban": -30,
     "swamp": -20,
-    "steepGround": -15
+    "steepGround": -15,
+    "mod": {
+      "alone": {
+        "cohesion": 0.6,
+        "maneuver": -0.4
+      },
+      "enemyArmor": {
+        "maneuver": 0.5
+      }
+    }
   },
-
   "flankRight": {
     "caution": -10,
     "inBattlePosition": -30,
@@ -149,26 +198,42 @@
     "tooFar": -20,
     "urban": -30,
     "swamp": -20,
-    "steepGround": -15
+    "steepGround": -15,
+    "mod": {
+      "alone": {
+        "cohesion": 0.6,
+        "maneuver": -0.4
+      },
+      "enemyArmor": {
+        "maneuver": 0.5
+      }
+    }
   },
-
   "callMortars": {
     "base": 25,
     "enemyInfantry": 30,
     "supportReliance": 40,
     "cannotShoot": 20,
     "tooFar": 15,
-    "enemyArmor": -15
+    "enemyArmor": -15,
+    "mod": {
+      "base": {
+        "supportReliance": 0.8
+      }
+    }
   },
-
   "callTow": {
     "base": 25,
     "enemyArmor": 45,
     "supportReliance": 40,
     "cannotShoot": 20,
-    "enemyInfantry": -25
+    "enemyInfantry": -25,
+    "mod": {
+      "base": {
+        "supportReliance": 0.8
+      }
+    }
   },
-
   "callCas": {
     "base": 20,
     "enemyArmor": 35,
@@ -179,25 +244,32 @@
     "storm": -80,
     "snow": -30,
     "urban": -20,
-    "forest": -15
+    "forest": -15,
+    "mod": {
+      "base": {
+        "supportReliance": 0.8
+      }
+    }
   },
-
   "delegateTarget": {
     "base": 15,
     "idleAlly": 35,
     "cohesion": 30,
     "cannotShoot": 20,
     "lowAmmo": 25,
-    "lowHealth": 20
+    "lowHealth": 20,
+    "mod": {
+      "idleAlly": {
+        "cohesion": 0.6
+      }
+    }
   },
-
   "patrol": {
     "base": 30,
     "underOrders": 40,
     "initiative": 10,
     "idleGroupSize": -15
   },
-
   "idleHold": {
     "base": 28,
     "idleGroupSize": 25,
@@ -211,7 +283,6 @@
     "lostContact": -50,
     "initiative": 8
   },
-
   "idleTravel": {
     "base": 12,
     "idleHoldExpired": 50,
@@ -225,7 +296,6 @@
     "distantContact": -40,
     "lostContact": -50
   },
-
   "searchLastKnown": {
     "lostContact": 45,
     "distantContact": 25,
@@ -234,9 +304,13 @@
     "riskTolerance": 10,
     "lowHealth": -40,
     "lowAmmo": -35,
-    "alone": -15
+    "alone": -15,
+    "mod": {
+      "lostContact": {
+        "initiative": 0.5
+      }
+    }
   },
-
   "suppress": {
     "lostContact": 60,
     "aggression": 15,
@@ -247,7 +321,6 @@
     "underFire": -10,
     "initiative": -10
   },
-
   "regroup": {
     "lowAmmo": 50,
     "lowHealth": 40,
@@ -257,7 +330,6 @@
     "aggression": -20,
     "initiative": -15
   },
-
   "confidence": {
     "underFire": -20,
     "alliesNearby": 20,
@@ -275,46 +347,65 @@
     "storm": -12,
     "snow": -6,
     "rain": -3,
-    "preservation": -12
+    "preservation": -12,
+    "mod": {
+      "outnumbered": {
+        "riskTolerance": -0.5
+      },
+      "underFire": {
+        "riskTolerance": -0.5
+      },
+      "alliesNearby": {
+        "cohesion": 0.5
+      }
+    }
   },
-
   "commander": {
     "health": 1.0,
     "ammo": 0.35,
     "centrality": 0.25,
     "alliesNearby": 0.25
   },
-
   "play.frontal_fix_and_flank": {
     "base": 40,
     "enemyVisible": 15,
-    "tooFar": 10
+    "tooFar": 10,
+    "maneuver": 25
   },
   "play.double_envelopment": {
     "base": 55,
     "enemyVisible": 10,
-    "confidence": 20
+    "confidence": 20,
+    "maneuver": 25
   },
   "play.bounding_overwatch_advance": {
     "base": 30,
     "enemyVisible": 10,
-    "tooFar": 20
+    "tooFar": 20,
+    "cohesion": 15,
+    "initiative": 10
   },
   "play.fighting_withdrawal": {
     "base": 20,
     "outnumbered": 45,
-    "confidence": -15
+    "confidence": -15,
+    "preservation": 25,
+    "riskTolerance": -15
   },
   "play.hold_defend": {
-    "base": 15
+    "base": 15,
+    "preservation": 15,
+    "cohesion": 10
   },
   "play.pursuit": {
     "base": 70,
-    "confidence": 20
+    "confidence": 20,
+    "aggression": 25
   },
   "play.cohesive_line": {
     "base": 50,
     "confidence": 30,
-    "allyInfantryNear": 30
+    "allyInfantryNear": 30,
+    "cohesion": 25
   }
 }

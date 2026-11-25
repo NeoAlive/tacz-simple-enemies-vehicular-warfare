@@ -43,6 +43,7 @@ public final class OrderStandDown {
         SuppressOrders.clear(pmc);
         com.neoalive.tacz_sewv.fpas.SignalTasks.clear(pmc);
         CoverHoldOrders.clear(pmc);
+        TimedCeaseFire.clear(pmc);
         com.neoalive.tacz_sewv.command.quick.GearSearchTracker.release(pmc);
         com.neoalive.tacz_sewv.command.quick.MinefieldTracker.release(pmc);
         com.neoalive.tacz_sewv.command.quick.scavenge.ScavengeTracker.release(pmc);
@@ -80,6 +81,7 @@ public final class OrderStandDown {
         SuppressOrders.clear(pmc);
         com.neoalive.tacz_sewv.fpas.SignalTasks.clear(pmc);
         CoverHoldOrders.clear(pmc);
+        TimedCeaseFire.clear(pmc);
         com.neoalive.tacz_sewv.command.quick.GearSearchTracker.release(pmc);
         com.neoalive.tacz_sewv.command.quick.MinefieldTracker.release(pmc);
         com.neoalive.tacz_sewv.command.quick.scavenge.ScavengeTracker.release(pmc);
@@ -127,6 +129,7 @@ public final class OrderStandDown {
         SuppressOrders.clear(pmc);
         com.neoalive.tacz_sewv.fpas.SignalTasks.clear(pmc);
         CoverHoldOrders.clear(pmc);
+        TimedCeaseFire.clear(pmc);
         ((IEscort) pmc).tacz_sewv$setEscortTargetId(-1);
         PatrolSupport.clearSweepMembership(pmc, "BailOutSupport");
         TerritorySupport.dropPost(pmc);

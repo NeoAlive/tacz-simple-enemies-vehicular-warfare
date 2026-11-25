@@ -114,6 +114,7 @@ public class SewvCommand {
                         .then(Commands.literal("stop")
                                 .requires(source -> source.hasPermission(2))
                                 .executes(ctx -> graceStop(ctx.getSource()))))
+                .then(DoctrineCommand.node())
                 // Territory Mode debugging without the RTS panel (see TerritoryDebug).
                 .then(Commands.literal("territory")
                         .requires(source -> source.hasPermission(2))
@@ -139,7 +140,7 @@ public class SewvCommand {
                                                 .executes(ctx -> exportLoadouts(ctx.getSource(), TankFaction.US)))
                                         .then(Commands.literal("pmc")
                                                 .executes(ctx -> exportLoadouts(ctx.getSource(), TankFaction.PMC))))))
-                .then(Commands.literal("targetingAllow")
+                .then(Commands.literal("targetpriority")
                         .requires(source -> source.hasPermission(2))
                         .executes(ctx -> openTargetPriority(ctx.getSource())))
                 .then(ZoneCommand.zones("zones"))
@@ -188,6 +189,8 @@ public class SewvCommand {
                                 .executes(ctx -> debugPerf(ctx.getSource())))
                         .then(Commands.literal("pressure")
                                 .executes(ctx -> debugPressure(ctx.getSource())))
+                        .then(Commands.literal("gunnery")
+                                .executes(ctx -> debugGunnery(ctx.getSource())))
                         .then(Commands.literal("artillery")
                                 .executes(ctx -> debugArtillery(ctx.getSource())))
                         .then(Commands.literal("StartConfigFix")
@@ -966,6 +969,13 @@ public class SewvCommand {
 
     private static int debugPressure(CommandSourceStack source) {
         for (String line : com.neoalive.tacz_sewv.debug.PressureProbe.report(source.getLevel(), source.getPosition())) {
+            source.sendSuccess(() -> Component.literal(line), false);
+        }
+        return 1;
+    }
+
+    private static int debugGunnery(CommandSourceStack source) {
+        for (String line : com.neoalive.tacz_sewv.debug.GunneryProbe.report(source.getLevel(), source.getPosition())) {
             source.sendSuccess(() -> Component.literal(line), false);
         }
         return 1;

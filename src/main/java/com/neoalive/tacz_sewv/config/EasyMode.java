@@ -372,8 +372,9 @@ public final class EasyMode {
         return SewvConfig.VEHICLE_TARGET_REQUIRE_LOS.get();
     }
 
-    public static double smokeBlockRadius() {
-        if (on(SewvConfig.EASY_KEEP_LOS_GATES)) {
+    /** Easy widens smoke only for a hostile shooter: a bigger screen is a nerf for whoever fires. */
+    public static double smokeBlockRadius(@Nullable Entity shooter) {
+        if (on(SewvConfig.EASY_KEEP_LOS_GATES) && nerfs(shooter)) {
             return Math.max(SewvConfig.SMOKE_BLOCK_RADIUS.get(), 10.0);
         }
         return SewvConfig.SMOKE_BLOCK_RADIUS.get();

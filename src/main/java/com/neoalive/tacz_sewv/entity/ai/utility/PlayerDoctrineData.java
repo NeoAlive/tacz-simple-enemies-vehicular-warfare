@@ -25,6 +25,8 @@ public class PlayerDoctrineData extends SavedData {
 
     private final Map<UUID, Doctrine> doctrines = new HashMap<>();
     private final Set<UUID> receivedBook = new HashSet<>();
+    /** Command rating: the summed veterancy XP the player's units ever earned. Kept when units die. */
+    private final Map<UUID, Integer> ratings = new HashMap<>();
 
     public PlayerDoctrineData() {}
 
@@ -48,6 +50,14 @@ public class PlayerDoctrineData extends SavedData {
             for (int i = 0; i < booksList.size(); i++) {
                 CompoundTag tag = booksList.getCompound(i);
                 data.receivedBook.add(tag.getUUID("uuid"));
+            }
+        }
+
+        if (nbt.contains("ratings", Tag.TAG_LIST)) {
+            ListTag list = nbt.getList("ratings", Tag.TAG_COMPOUND);
+            for (int i = 0; i < list.size(); i++) {
+                CompoundTag tag = list.getCompound(i);
+                data.ratings.put(tag.getUUID("uuid"), Math.max(0, tag.getInt("rating")));
             }
         }
 
@@ -77,6 +87,15 @@ public class PlayerDoctrineData extends SavedData {
         }
         nbt.put("receivedBook", booksList);
 
+        ListTag ratingList = new ListTag();
+        for (Map.Entry<UUID, Integer> entry : ratings.entrySet()) {
+            CompoundTag tag = new CompoundTag();
+            tag.putUUID("uuid", entry.getKey());
+            tag.putInt("rating", entry.getValue());
+            ratingList.add(tag);
+        }
+        nbt.put("ratings", ratingList);
+
         return nbt;
     }
 
@@ -98,6 +117,27 @@ public class PlayerDoctrineData extends SavedData {
     public void setDoctrine(UUID playerUuid, Doctrine doctrine) {
         doctrines.put(playerUuid, doctrine);
         setDirty();
+    }
+
+    /** Points every ledger must spend, before any progression. */
+    public static final int BASE_BUDGET = 20;
+
+    /** The points this player's ledger must spend, exactly: the base plus what their command rating earned. */
+    public int budget(UUID playerUuid) {
+        return DoctrineKnobs.budget(BASE_BUDGET, rating(playerUuid));
+    }
+
+    public int rating(UUID playerUuid) {
+        return ratings.getOrDefault(playerUuid, 0);
+    }
+
+    /** Adds to the player's rating; returns true when it earned a new ledger point. */
+    public boolean addRating(UUID playerUuid, int amount) {
+        if (amount <= 0) return false;
+        int before = budget(playerUuid);
+        ratings.merge(playerUuid, amount, Integer::sum);
+        setDirty();
+        return budget(playerUuid) > before;
     }
 
     public boolean hasReceivedBook(UUID playerUuid) {

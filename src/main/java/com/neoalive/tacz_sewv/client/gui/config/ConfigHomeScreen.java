@@ -86,6 +86,12 @@ public final class ConfigHomeScreen extends SewvScreen {
         addCategoryButtons(rows, ConfigScope.SERVER);
         rows.add(new ConfigEntryList.SectionRow(this.font, heading("gui.tacz_sewv.config.home.client")));
         addCategoryButtons(rows, ConfigScope.CLIENT);
+        if (com.neoalive.tacz_sewv.compat.vosk.VoskCompat.present()) {
+            addPairs(rows, List.of(Button.builder(Component.translatable("gui.tacz_sewv.voice_setup.open"),
+                            b -> this.minecraft.setScreen(new com.neoalive.tacz_sewv.client.voice.VoiceSetupScreen(this)))
+                    .tooltip(Tooltip.create(Component.translatable("gui.tacz_sewv.voice_setup.open.tooltip")))
+                    .size(100, 20).build()));
+        }
 
         if (this.session.canEditServer) {
             List<Button> tools = new ArrayList<>();

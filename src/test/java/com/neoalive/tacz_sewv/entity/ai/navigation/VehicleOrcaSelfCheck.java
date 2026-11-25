@@ -52,6 +52,8 @@ public final class VehicleOrcaSelfCheck {
         sweepKeepsPlanMargin();
         sweepLetsATooCloseHullBackAway();
         exactlyOneOfAPairYields();
+        footprintReadsTankLength();
+        roundFootprintMatchesOldDisc();
 
         System.out.println("ORCA geometry self-check: OK");
     }
@@ -249,6 +251,32 @@ public final class VehicleOrcaSelfCheck {
         VehicleOrca.Peer parked = new VehicleOrca.Peer(3, 10, 0, 0.0, 0.0, 2.0);
         assert VehicleOrca.yieldsTo(99, parked, 0.02) && VehicleOrca.yieldsTo(1, parked, 0.02)
                 : "a parked peer cannot make way, so everyone yields to it";
+    }
+
+    /** T-90A collision box measured live: 2.438 across, 4.600 along. */
+    private static final VehicleOrca.Footprint T90_NORTH = new VehicleOrca.Footprint(2.438, 4.600, 0.0, 1.0, false);
+    private static final VehicleOrca.Footprint T90_EAST = new VehicleOrca.Footprint(2.438, 4.600, 1.0, 0.0, false);
+
+    private static void footprintReadsTankLength() {
+        double pad = VehicleOrca.RADIUS_PAD;
+        assertClose(9.2 * pad, VehicleOrca.contactRadius(T90_NORTH, T90_NORTH, 0, 20), "nose to nose");
+        assertClose(4.876 * pad, VehicleOrca.contactRadius(T90_NORTH, T90_NORTH, 20, 0), "side by side");
+        assertClose(7.038 * pad, VehicleOrca.contactRadius(T90_NORTH, T90_EAST, 0, 20), "nose to flank");
+        double soft = VehicleOrca.radius(T90_NORTH, T90_NORTH, 20, 0);
+        double old = VehicleOrca.radius(2.31, 2.31);
+        assert Math.abs(soft - old) < 0.6 : "side by side soft ring must stay near the old one, got " + soft + " vs " + old;
+        assertClose(VehicleOrca.contactRadius(T90_NORTH, T90_NORTH, 0, 20) + VehicleOrca.SWEEP_MARGIN,
+                VehicleOrca.sweepRadius(T90_NORTH, T90_NORTH, 0, 20), "oriented sweep radius");
+        // The hard veto must see a nose to nose pair 9 blocks apart as already touching.
+        double r = VehicleOrca.contactRadius(T90_NORTH, T90_NORTH, 0, 9.0);
+        assert VehicleOrca.overlappingAndClosing(0, 9.0, 0, 0.4, 0, 0.4, 0, -0.4, r) : "nose to nose at 9 blocks must be contact";
+    }
+
+    private static void roundFootprintMatchesOldDisc() {
+        VehicleOrca.Footprint a = VehicleOrca.Footprint.round(2.0);
+        assertClose(VehicleOrca.contactRadius(2.0, 2.0), VehicleOrca.contactRadius(a, a, 3, 7), "round contact");
+        assertClose(VehicleOrca.radius(2.0, 2.0), VehicleOrca.radius(a, a, 3, 7), "round soft");
+        assertClose(VehicleOrca.sweepRadius(2.0, 2.0), VehicleOrca.sweepRadius(a, a, 3, 7), "round sweep");
     }
 
     private static void assertClose(double expected, double actual, String label) {

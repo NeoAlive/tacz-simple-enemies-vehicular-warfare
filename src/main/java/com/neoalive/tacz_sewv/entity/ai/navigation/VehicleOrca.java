@@ -97,10 +97,57 @@ public final class VehicleOrca {
         return selfId > peer.id();
     }
 
-    /** One hull to steer around: position, current velocity, half-width, entity id. The id is
-     * carried only so a caller can break the exact-head-on tie deterministically and
+    /**
+     * Ground plan of a hull: collision box half extents across ({@code ex}) and along ({@code ez})
+     * its heading {@code (fx, fz)}. A bounding box width alone reads a tank as half its length.
+     */
+    public record Footprint(double ex, double ez, double fx, double fz, boolean round) {
+        public static Footprint round(double half) {
+            return new Footprint(half, half, 0.0, 1.0, true);
+        }
+
+        /** Reach of the footprint from its centre along unit direction {@code (dx, dz)}. */
+        public double support(double dx, double dz) {
+            if (this.round) return this.ex;
+            double along = Math.abs(dx * this.fx + dz * this.fz);
+            double across = Math.abs(dz * this.fx - dx * this.fz);
+            return this.ez * along + this.ex * across;
+        }
+
+        public double width() {
+            return Math.min(this.ex, this.ez);
+        }
+    }
+
+    /** Contact distance of two footprints along the centre line {@code (px, pz)}, padded. */
+    public static double contactRadius(Footprint a, Footprint b, double px, double pz) {
+        double dist = Math.sqrt(px * px + pz * pz);
+        if (dist < EPS) {
+            return (Math.max(a.ex(), a.ez()) + Math.max(b.ex(), b.ez())) * RADIUS_PAD;
+        }
+        double dx = px / dist;
+        double dz = pz / dist;
+        return (a.support(dx, dz) + b.support(dx, dz)) * RADIUS_PAD;
+    }
+
+    /** Soft disc: oriented contact plus the same width based clearance {@link #radius} adds. */
+    public static double radius(Footprint a, Footprint b, double px, double pz) {
+        return contactRadius(a, b, px, pz)
+                + (a.width() + b.width()) * RADIUS_PAD * (CLEARANCE_SCALE - 1.0);
+    }
+
+    public static double sweepRadius(Footprint a, Footprint b, double px, double pz) {
+        return contactRadius(a, b, px, pz) + SWEEP_MARGIN;
+    }
+
+    /** One hull to steer around: position, current velocity, half-width, entity id, footprint.
+     * The id is carried only so a caller can break the exact-head-on tie deterministically and
      * reciprocally — see {@link #halfPlane}'s {@code sideBias} parameter. */
-    public record Peer(int id, double x, double z, double vx, double vz, double half) {}
+    public record Peer(int id, double x, double z, double vx, double vz, double half, Footprint foot) {
+        public Peer(int id, double x, double z, double vx, double vz, double half) {
+            this(id, x, z, vx, vz, half, Footprint.round(half));
+        }
+    }
 
     /** The peer-only half of the ORCA construction: the vector from the pair's relative velocity
      * to the nearest point on the boundary of the velocity obstacle. Independent of the candidate

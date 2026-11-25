@@ -22,6 +22,7 @@ import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.debug.PathingPerf;
 import com.neoalive.tacz_sewv.debug.SewvDiag;
 import com.neoalive.tacz_sewv.entity.ai.formation.DrivableGround;
+import com.neoalive.tacz_sewv.entity.ai.maneuver.GearChoice;
 import com.neoalive.tacz_sewv.entity.ai.maneuver.Maneuver;
 import com.neoalive.tacz_sewv.entity.ai.maneuver.ManeuverPlanner;
 import com.neoalive.tacz_sewv.entity.ai.maneuver.SweepCheck;
@@ -286,6 +287,20 @@ public final class VehicleDriver {
      * ground — the same no-per-hull-constant reasoning as the ship's turn duty. A march sets it so infantry keep up.
      */
     private double speedCap = Double.NaN;
+    private final HullPace.Sampler paceSampler = new HullPace.Sampler();
+
+    // Reverse gear (GearChoice). The decision is latched per destination in both gears, so a hull
+    // turning round for 60-200 ticks decides once; only a reverse is re-scored.
+    private GearChoice.Gear gear = GearChoice.Gear.FORWARD;
+    private BlockPos gearDest;
+    private long gearRescoreAt;
+    private int gearLegTicks;
+    private int gearLegCap;
+    private int gearCooldown;
+    private int sternTurn;
+    private BlockPos gearGoal;
+    private BlockPos frontThreat;
+    private long frontThreatAt = Long.MIN_VALUE;
 
     // Planned multi-point maneuvers (ManeuverPlanner). The route run is recovery-like state and
     // clearRecovery drops it; the ARRIVAL state below must not live there, because DriveVehicleGoal
@@ -359,6 +374,8 @@ public final class VehicleDriver {
     public void tickTimers() {
         if (this.pathRecalcCooldown > 0) this.pathRecalcCooldown--;
         if (this.maneuverCooldown > 0) this.maneuverCooldown--;
+        if (this.gearCooldown > 0) this.gearCooldown--;
+        if (this.sbw != null) this.paceSampler.sample(this.sbw, this.hull.pace(), this.hull.turnSteeringSpeed());
     }
 
     /**
@@ -487,6 +504,13 @@ public final class VehicleDriver {
                 return;
             }
         } else if (updateStuck()) {
+            if (this.gear == GearChoice.Gear.REVERSE) {
+                // Wedged astern: never unstick by reversing further. Turn round instead.
+                dropGear("stuck", true);
+                this.stuckTicks = 0;
+                stop();
+                return;
+            }
             if (settleFromPerch()) return;
             if (this.sbw != null) TowRecoverySupport.onStuckThresholdReached(this.sbw);
             this.unstickTicksLeft = UNSTICK_DURATION;
@@ -502,6 +526,7 @@ public final class VehicleDriver {
             return;
         }
 
+        this.gearGoal = dest;
         driveGroundVehicle(getSteerTarget(dest), distanceSq);
     }
 
@@ -518,6 +543,9 @@ public final class VehicleDriver {
             return;
         }
         if (checkSubmergedFailsafe()) return;
+        // A retreat names its threat: the gear choice may then back off bow-on rather than turn tail.
+        this.frontThreat = targetPos;
+        this.frontThreatAt = this.vehicle.level().getGameTime();
         navigateTo(VehicleTargeting.computeStandoffPoint(this.vehicle, this.input::forwardDirection, targetPos, retreatRadius, 0.0),
                 distanceSq);
     }
@@ -581,6 +609,11 @@ public final class VehicleDriver {
         this.wheelReverseTotal = 0;
         this.wheelThrottlePhase = 0;
         this.routeRun = null;
+        this.gear = GearChoice.Gear.FORWARD;
+        this.gearDest = null;
+        this.gearLegTicks = 0;
+        this.gearCooldown = 0;
+        this.sternTurn = 0;
     }
 
     /** Forget the hull entirely, for a crew leaving its seat. */
@@ -909,6 +942,7 @@ public final class VehicleDriver {
                             targetPos, desired, this.vehicle.isInWater(), this.vehicle.blockPosition());
                 }
                 this.currentPath = null;
+                if (this.gear == GearChoice.Gear.REVERSE) dropGear("boxedIn", true);
                 if (noteBankLipFanBlocked(desired)) {
                     return; // reverse recovery started — inputs already set
                 }
@@ -938,6 +972,8 @@ public final class VehicleDriver {
             }
         }
         this.bankLipFanBlockedTicks = 0;
+
+        if (reverseGearTick(steer, targetPos)) return;
 
         Vector3f forward = this.input.forwardDirection().normalize();
         double angle = VehicleTargeting.signedAngleTo(forward, steer);
@@ -999,6 +1035,183 @@ public final class VehicleDriver {
             this.input.setInputs(roll && underSpeedCap() && wheelThrottleTick(Math.abs(angle)), false, angle > 0,
                     angle < 0);
         }
+    }
+
+    // ------------------------------------------------------------------ reverse gear
+
+    private static final double GEAR_DEST_DRIFT = 4.0;
+    private static final int GEAR_RESCORE_TICKS = 10;
+    private static final int GEAR_LEG_HARD_CAP = 300;
+    private static final double FRONT_BIAS_BASE = 0.3;
+    private static final double FRONT_ARC_RAD = Math.toRadians(60.0);
+
+    private static boolean reverseGearEnabled() {
+        try {
+            return SewvConfig.REVERSE_GEAR_ENABLED.get();
+        } catch (Throwable unbaked) {
+            return false;
+        }
+    }
+
+    private static int reverseMaxBlocks() {
+        try {
+            return SewvConfig.REVERSE_MAX_BLOCKS.get();
+        } catch (Throwable unbaked) {
+            return 24;
+        }
+    }
+
+    /**
+     * Drive this tick astern when {@link GearChoice} says that arrives sooner than turning round.
+     * True when the inputs are set. {@code travel} is the clear bearing the fan chose, which is a
+     * travel direction, not a facing, so it holds astern as well.
+     */
+    private boolean reverseGearTick(Vec3 travel, BlockPos targetPos) {
+        if (!reverseGearEnabled() || this.sbw == null || this.gearGoal == null
+                || !(this.hull.isTracked() || this.hull.isWheeled()) || this.vehicle.isInFluidType()) {
+            if (this.gear == GearChoice.Gear.REVERSE) dropGear("gated", false);
+            return false;
+        }
+        Vector3f forward = this.input.forwardDirection().normalize();
+        double theta = VehicleTargeting.signedAngleTo(forward, travel);
+        BlockPos goal = this.gearGoal;
+        double toGoal = Math.sqrt(horizontalDistSq(goal));
+        boolean sameDest = this.gearDest != null
+                && this.gearDest.distSqr(goal) <= sq(Math.max(GEAR_DEST_DRIFT, 0.2 * toGoal));
+        long now = this.vehicle.level().getGameTime();
+
+        if (this.gear == GearChoice.Gear.REVERSE) {
+            if (!sameDest) {
+                dropGear("destMoved", false);
+            } else if (++this.gearLegTicks > this.gearLegCap) {
+                dropGear("legCap", true);
+                return false;
+            } else if (now >= this.gearRescoreAt) {
+                this.gearRescoreAt = now + GEAR_RESCORE_TICKS;
+                if (decideGear(theta, travel, goal, true).gear() != GearChoice.Gear.REVERSE) {
+                    dropGear("rescored", false);
+                    return false;
+                }
+            }
+        }
+        if (this.gear != GearChoice.Gear.REVERSE) {
+            if (Math.abs(theta) <= GearChoice.CONSULT_MIN_RAD) {
+                this.gearDest = null; // past the decision: a later overshoot decides afresh
+                return false;
+            }
+            if (this.gearCooldown > 0 || sameDest) return false;
+            GearChoice.Result r = decideGear(theta, travel, goal, false);
+            this.gearDest = goal;
+            if (r.gear() != GearChoice.Gear.REVERSE) return false;
+            this.gear = GearChoice.Gear.REVERSE;
+            this.gearLegTicks = 0;
+            this.gearLegCap = Math.min(GEAR_LEG_HARD_CAP, (int) Math.ceil(1.5 * r.costReverse()) + 20);
+            this.gearRescoreAt = now + GEAR_RESCORE_TICKS;
+            this.sternTurn = 0;
+            PathingPerf.gearReverse++;
+            if (SewvDiag.groundPathingVerbose()) {
+                SewvDiag.pathing("gear REVERSE unit={}#{} vehicle={}#{} thetaDeg={} d={} dStar={} cFwd={} cRev={} cap={}",
+                        this.unit.getClass().getSimpleName(), this.unit.getId(),
+                        this.vehicle.getName().getString(), this.vehicle.getId(),
+                        Math.toDegrees(theta), remainingPathLength(goal), r.breakEven(),
+                        r.costForward(), r.costReverse(), this.gearLegCap);
+            }
+        }
+
+        Vec3 stern = new Vec3(-forward.x, 0, -forward.z);
+        if (this.sensor.enabled() && (!this.sensor.headingClear(stern, this.sensor.lookahead())
+                || this.sensor.maneuverMustYield(RUN_YIELD_TICKS))) {
+            dropGear("sternBlocked", true);
+            stop();
+            return true;
+        }
+        driveSternOnto(travel, forward);
+        return true;
+    }
+
+    private GearChoice.Result decideGear(double theta, Vec3 travel, BlockPos goal, boolean latched) {
+        long t0 = System.nanoTime();
+        double s = this.hull.turnSteeringSpeed();
+        double speed = this.vehicle.getDeltaMovement().horizontalDistance();
+        HullPace.Rec pace = this.hull.pace();
+        GearChoice.Result r = GearChoice.decide(new GearChoice.Input(theta, remainingPathLength(goal),
+                HullPace.forward(pace, this.hull.forwardRate()),
+                HullPace.backward(pace, this.hull.forwardRate(), this.hull.backwardRate()),
+                Double.NaN, Double.NaN, this.hull.isTracked(), s, false, speed, reverseMaxBlocks(), latched,
+                frontBias(travel)));
+        PathingPerf.gearNanos += System.nanoTime() - t0;
+        PathingPerf.gearCalls++;
+        return r;
+    }
+
+    /**
+     * Share of the astern cost forgiven for keeping the bow on a retreat's threat: only while a retreat is
+     * running this tick, and only when the leg astern keeps the threat within the frontal arc. Neutral
+     * doctrine gets {@link #FRONT_BIAS_BASE}; preserving crews more, bold ones less.
+     */
+    private double frontBias(Vec3 travel) {
+        BlockPos threat = this.frontThreat;
+        if (threat == null || this.vehicle.level().getGameTime() - this.frontThreatAt > 1) return 0.0;
+        Vec3 toThreat = new Vec3(threat.getX() + 0.5 - this.vehicle.getX(), 0, threat.getZ() + 0.5 - this.vehicle.getZ());
+        if (toThreat.lengthSqr() < 1.0E-6) return 0.0;
+        Vector3f bowAstern = new Vector3f((float) -travel.x, 0, (float) -travel.z);
+        if (Math.abs(VehicleTargeting.signedAngleTo(bowAstern, toThreat.normalize())) > FRONT_ARC_RAD) return 0.0;
+        return FRONT_BIAS_BASE * com.neoalive.tacz_sewv.entity.ai.utility.DoctrineKnobs.frontBiasScale(
+                com.neoalive.tacz_sewv.entity.ai.utility.Doctrine.forCrew(this.unit));
+    }
+
+    /** Hold the back key and turn the stern onto {@code travel}. Astern the bow swing inverts against the key. */
+    private void driveSternOnto(Vec3 travel, Vector3f forward) {
+        Vector3f stern = new Vector3f(-forward.x, 0, -forward.z);
+        double phi = VehicleTargeting.signedAngleTo(stern, travel);
+        boolean aligned = Math.abs(phi) < FACING_DEADBAND_RAD;
+        boolean swingLeft;
+        if (this.sternTurn > 0) {
+            swingLeft = phi > -REVERSE_FACE_HYSTERESIS_RAD;
+        } else if (this.sternTurn < 0) {
+            swingLeft = phi > REVERSE_FACE_HYSTERESIS_RAD;
+        } else {
+            swingLeft = phi > 0;
+        }
+        this.sternTurn = aligned ? 0 : (swingLeft ? 1 : -1);
+        boolean keyLeft = !aligned && !swingLeft;
+        boolean keyRight = !aligned && swingLeft;
+        this.input.setInputs(false, underSpeedCap(), keyLeft, keyRight);
+    }
+
+    private void dropGear(String why, boolean cooldown) {
+        if (this.gear == GearChoice.Gear.REVERSE && SewvDiag.groundPathingVerbose()) {
+            SewvDiag.pathing("gear FORWARD unit={}#{} vehicle={}#{} why={} legTicks={} pos={}",
+                    this.unit.getClass().getSimpleName(), this.unit.getId(),
+                    this.vehicle.getName().getString(), this.vehicle.getId(), why, this.gearLegTicks,
+                    this.vehicle.blockPosition());
+        }
+        this.gear = GearChoice.Gear.FORWARD;
+        this.gearLegTicks = 0;
+        this.sternTurn = 0;
+        if (cooldown) this.gearCooldown = pathFailCooldown();
+    }
+
+    /** Blocks still to drive: the rest of the route from the next node, or straight-line when there is none. */
+    private double remainingPathLength(BlockPos goal) {
+        Path p = this.currentPath;
+        if (p == null || p.isDone()) return Math.sqrt(horizontalDistSq(goal));
+        double total = 0.0;
+        double px = this.vehicle.getX();
+        double pz = this.vehicle.getZ();
+        for (int i = p.getNextNodeIndex(); i < p.getNodeCount(); i++) {
+            var n = p.getNode(i);
+            double nx = n.x + 0.5;
+            double nz = n.z + 0.5;
+            total += Math.sqrt((nx - px) * (nx - px) + (nz - pz) * (nz - pz));
+            px = nx;
+            pz = nz;
+        }
+        return total;
+    }
+
+    private static double sq(double v) {
+        return v * v;
     }
 
     /** Pulse throttle on wheeled turns — same duty idea as {@link DriveShipGoal}, ground-side. */

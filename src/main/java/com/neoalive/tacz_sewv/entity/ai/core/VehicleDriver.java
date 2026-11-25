@@ -286,6 +286,7 @@ public final class VehicleDriver {
      * ground — the same no-per-hull-constant reasoning as the ship's turn duty. A march sets it so infantry keep up.
      */
     private double speedCap = Double.NaN;
+    private final HullPace.Sampler paceSampler = new HullPace.Sampler();
 
     // Planned multi-point maneuvers (ManeuverPlanner). The route run is recovery-like state and
     // clearRecovery drops it; the ARRIVAL state below must not live there, because DriveVehicleGoal
@@ -359,6 +360,7 @@ public final class VehicleDriver {
     public void tickTimers() {
         if (this.pathRecalcCooldown > 0) this.pathRecalcCooldown--;
         if (this.maneuverCooldown > 0) this.maneuverCooldown--;
+        if (this.sbw != null) this.paceSampler.sample(this.sbw, this.hull.pace(), this.hull.turnSteeringSpeed());
     }
 
     /**

@@ -56,6 +56,12 @@ public final class HullFacts {
     private boolean artillery;
     /** SBW {@code SteeringSpeed} for a wheeled hull; NaN = unreadable (the maneuver planner refuses). */
     private double steeringSpeed = Double.NaN;
+    /** SBW {@code SteeringSpeed} for any ground hull, wheeled or tracked; the pivot model reads it. */
+    private double turnSteeringSpeed = Double.NaN;
+    /** SBW {@code MaxForwardSpeedRate} / {@code MaxBackwardSpeedRate}, as magnitudes; NaN = unreadable. */
+    private double forwardRate = Double.NaN;
+    private double backwardRate = Double.NaN;
+    private HullPace.Rec pace;
     private Set<Integer> crewSeats = Set.of(0);
     private Set<Integer> climbSeats = Set.of();
 
@@ -74,6 +80,11 @@ public final class HullFacts {
         this.tracked = computeTracked(v);
         this.wheeled = computeWheeled(v);
         this.steeringSpeed = this.wheeled ? computeSteeringSpeed(v) : Double.NaN;
+        boolean ground = this.wheeled || this.tracked;
+        this.turnSteeringSpeed = ground ? computeSteeringSpeed(v) : Double.NaN;
+        this.forwardRate = ground ? engineRate(v, "MaxForwardSpeedRate", SBW_DEFAULT_FORWARD_RATE) : Double.NaN;
+        this.backwardRate = ground ? engineRate(v, "MaxBackwardSpeedRate", SBW_DEFAULT_BACKWARD_RATE) : Double.NaN;
+        this.pace = ground ? HullPace.of(v.getType()) : null;
         this.ship = computeShip(v);
         this.groundMobile = computeGroundMobile(v);
         this.ifv = computeIfv(v);
@@ -98,6 +109,10 @@ public final class HullFacts {
         this.tracked = p.tracked();
         this.wheeled = p.wheeled();
         this.steeringSpeed = p.steeringSpeed();
+        this.turnSteeringSpeed = Double.NaN;
+        this.forwardRate = Double.NaN;
+        this.backwardRate = Double.NaN;
+        this.pace = null;
         this.ship = p.ship();
         this.groundMobile = p.tracked() || p.wheeled();
         this.ifv = false;
@@ -146,6 +161,26 @@ public final class HullFacts {
      */
     public double steeringSpeed() {
         return this.steeringSpeed;
+    }
+
+    /** SBW {@code SteeringSpeed} of any ground hull; NaN off the ground or unreadable. */
+    public double turnSteeringSpeed() {
+        return this.turnSteeringSpeed;
+    }
+
+    /** Data top-speed rate ahead, a magnitude; NaN for LV hulls, non-ground hulls or unreadable data. */
+    public double forwardRate() {
+        return this.forwardRate;
+    }
+
+    /** Data top-speed rate astern, a magnitude (SBW's own default is negative); NaN as {@link #forwardRate}. */
+    public double backwardRate() {
+        return this.backwardRate;
+    }
+
+    /** Measured pace for this hull's type; null for LV and non-ground hulls. */
+    public HullPace.Rec pace() {
+        return this.pace;
     }
 
     /** Wheel or track hulls only — excludes {@code FIXED} emplacements (they don't drive),
@@ -540,6 +575,24 @@ public final class HullFacts {
             if (value == null) return WheelTurnModel.SBW_DEFAULT_STEERING_SPEED;
             double s = value.getAsDouble();
             return s > 0.0 && !Double.isInfinite(s) ? s : Double.NaN;
+        } catch (Throwable ignored) {
+            return Double.NaN;
+        }
+    }
+
+    // EngineInfo.Wheel no-arg defaults. The backward default is stored negative; only its size counts.
+    private static final double SBW_DEFAULT_FORWARD_RATE = 0.2;
+    private static final double SBW_DEFAULT_BACKWARD_RATE = 0.1;
+
+    /** A speed rate off the engine data as a magnitude. Absent: SBW's default. Unreadable or zero: NaN. */
+    private static double engineRate(VehicleEntity v, String key, double fallback) {
+        try {
+            var data = v.data().compute();
+            if (data == null) return Double.NaN;
+            var value = data.getEngineInfo().get(key);
+            if (value == null) return fallback;
+            double r = Math.abs(value.getAsDouble());
+            return r > 0.0 && !Double.isInfinite(r) ? r : Double.NaN;
         } catch (Throwable ignored) {
             return Double.NaN;
         }

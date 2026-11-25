@@ -132,6 +132,13 @@ public final class GearChoice {
         return rate > 1.0E-9 ? n + (deg - cum[n]) / rate : Double.NaN;
     }
 
+    /** Settled pivot rate the model predicts, degrees per tick; for comparing against a measurement. */
+    public static double pivotSteadyDegPerTick(double s) {
+        if (!(s > 0.0) || Double.isInfinite(s)) return Double.NaN;
+        double[] cum = PIVOT_TABLES.computeIfAbsent(Double.doubleToLongBits(s), k -> pivotTable(s));
+        return cum[cum.length - 1] - cum[cum.length - 2];
+    }
+
     private static double[] pivotTable(double s) {
         double[] cum = new double[PIVOT_TABLE_TICKS + 1];
         double rot = 0.0;

@@ -125,7 +125,16 @@ public class PlayerDoctrineData extends SavedData {
     /** Points every ledger must spend, before any progression. */
     public static final int BASE_BUDGET = 20;
 
-    /** The points this player's ledger must spend, exactly: the base plus what their command rating earned. */
+    /**
+     * A ledger is valid when it spends at least the base budget and no more than the player's current budget. Earned
+     * points are optional to spend, so a doctrine saved before the budget grew (and every preset) stays confirmable.
+     * Shared by the editor's Confirm button and the server's save check.
+     */
+    public static boolean validTotal(int total, int budget) {
+        return total >= Math.min(BASE_BUDGET, budget) && total <= budget;
+    }
+
+    /** The most points this player's ledger may spend: the base plus what their command rating earned. */
     public int budget(UUID playerUuid) {
         return DoctrineKnobs.budget(BASE_BUDGET, rating(playerUuid));
     }

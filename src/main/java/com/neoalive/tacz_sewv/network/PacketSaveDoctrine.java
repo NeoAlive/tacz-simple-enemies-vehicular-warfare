@@ -53,9 +53,10 @@ public class PacketSaveDoctrine {
                 total += Math.abs(val);
             }
             PlayerDoctrineData budgetData = PlayerDoctrineData.get(player.level());
-            if (total != budgetData.budget(player.getUUID())) {
+            int budget = budgetData.budget(player.getUUID());
+            if (!PlayerDoctrineData.validTotal(total, budget)) {
                 player.displayClientMessage(Component.translatable("message.tacz_sewv.doctrine.bad_total",
-                        budgetData.budget(player.getUUID()))
+                        Math.min(PlayerDoctrineData.BASE_BUDGET, budget), budget)
                         .withStyle(ChatFormatting.RED), true);
                 return;
             }
@@ -71,20 +72,9 @@ public class PacketSaveDoctrine {
                 }
             }
 
-            // 4. Initial Ledger vs Respec Ledger validation
-            PlayerDoctrineData doctrineData = PlayerDoctrineData.get(player.level());
-            boolean isInitial = held.hasTag() && held.getTag().getBoolean("sewv_is_initial");
-            if (isInitial && doctrineData.getDoctrine(player.getUUID()) != null) {
-                player.displayClientMessage(Component.translatable("message.tacz_sewv.doctrine.already_set").withStyle(ChatFormatting.RED), true);
-                return;
-            }
-
-            // 5. Save doctrine
-            Doctrine customDoctrine = Doctrine.ofAxes(this.axes);
-            doctrineData.setDoctrine(player.getUUID(), customDoctrine);
-
-            // 6. Consume item
-            held.shrink(1);
+            // 4. Save. The ledger is kept: a doctrine can be revised at any time with the same book. Old ledgers
+            // still carry the retired sewv_is_initial tag; it is ignored.
+            budgetData.setDoctrine(player.getUUID(), Doctrine.ofAxes(this.axes));
             player.displayClientMessage(Component.translatable("message.tacz_sewv.doctrine.saved").withStyle(ChatFormatting.GREEN), true);
             PacketDoctrineSync.sendTo(player);
         });

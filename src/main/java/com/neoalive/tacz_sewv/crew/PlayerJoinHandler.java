@@ -30,7 +30,6 @@ public class PlayerJoinHandler {
 
         if (!data.hasReceivedBook(playerUuid)) {
             ItemStack ledger = new ItemStack(ModItems.DOCTRINE_LEDGER.get());
-            ledger.getOrCreateTag().putBoolean("sewv_is_initial", true);
 
             if (player.getInventory().add(ledger)) {
                 data.setReceivedBook(playerUuid);

@@ -988,7 +988,7 @@
   "message.tacz_sewv.doctrine.bad_packet": "Could not save doctrine, invalid data.",
   "message.tacz_sewv.doctrine.bad_total": "Spend between %s and %s points.",
   "message.tacz_sewv.doctrine.need_ledger": "Hold a Doctrine Ledger to save.",
-  "tooltip.tacz_sewv.doctrine_ledger": "Sets how your PMC units fight. Reusable: change it at any time.",
+  "tooltip.tacz_sewv.doctrine_ledger": "Sets how your PMC units fight.",
   "gui.tacz_sewv.doctrine.confirm": "Confirm",
   "gui.tacz_sewv.doctrine.remaining": "Remaining Points: %s",
   "gui.tacz_sewv.doctrine.axis.aggression": "Aggression",

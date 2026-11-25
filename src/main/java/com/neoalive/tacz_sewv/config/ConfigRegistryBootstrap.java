@@ -93,6 +93,8 @@ final class ConfigRegistryBootstrap {
                 ClientConfig.VOICE_ORDERS_MIN_CONFIDENCE, ClientConfig.VOICE_ORDERS_MIN_CONFIDENCE::set);
         b.string(ConfigScope.CLIENT, "overlay", "voiceOrdersMicDevice",
                 ClientConfig.VOICE_ORDERS_MIC_DEVICE, ClientConfig.VOICE_ORDERS_MIC_DEVICE::set);
+        b.bool(ConfigScope.CLIENT, "overlay", "voiceSetupPrompt",
+                ClientConfig.VOICE_SETUP_PROMPT, ClientConfig.VOICE_SETUP_PROMPT::set);
         b.bool(ConfigScope.CLIENT, "overlay", "voiceOrdersTransmit",
                 ClientConfig.VOICE_ORDERS_TRANSMIT, ClientConfig.VOICE_ORDERS_TRANSMIT::set);
         b.bool(ConfigScope.CLIENT, "overlay", "voiceOrdersOnRadio",

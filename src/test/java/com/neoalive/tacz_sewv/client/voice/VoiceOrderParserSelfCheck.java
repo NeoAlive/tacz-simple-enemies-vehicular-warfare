@@ -51,6 +51,7 @@ public final class VoiceOrderParserSelfCheck {
             ids(t);
         }
         languages();
+        models();
         freeText(table);
         grammar(table);
         colours();
@@ -89,6 +90,21 @@ public final class VoiceOrderParserSelfCheck {
     }
 
     /** A model's name picks its table, and a locale without one falls back inside its language. */
+    private static void models() {
+        for (String table : new java.util.TreeSet<>(VoicePhrases.FAMILY.values())) {
+            String model = VoiceModels.BY_TABLE.get(table);
+            assert model != null : table + " has no setup model";
+            assert table.equals(VoicePhrases.langOfModel(model)) : model + " reads back as " + VoicePhrases.langOfModel(model);
+            assert VoiceModels.SIZE_MIB.containsKey(model) : model + " has no size";
+            assert VoiceModels.url(model).endsWith("/" + model + ".zip");
+        }
+        assert VoiceModels.BY_TABLE.size() == new java.util.HashSet<>(VoicePhrases.FAMILY.values()).size();
+        assert VoiceModels.forGameLanguage("it_it").equals("vosk-model-small-it-0.22");
+        assert VoiceModels.forGameLanguage("es_mx").equals("vosk-model-small-es-0.42");
+        assert VoiceModels.forGameLanguage("pt_PT").equals("vosk-model-small-pt-0.3");
+        assert VoiceModels.forGameLanguage("ja_jp").equals("vosk-model-small-en-us-0.15") : "no table falls back to English";
+    }
+
     private static void languages() {
         assert "it_it".equals(VoicePhrases.langOfModel("vosk-model-small-it-0.22"));
         assert "en_us".equals(VoicePhrases.langOfModel("vosk-model-small-en-us-0.15"));

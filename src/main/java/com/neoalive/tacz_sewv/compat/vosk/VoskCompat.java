@@ -43,6 +43,22 @@ public final class VoskCompat {
         return present() ? VoiceSession.modelName() : null;
     }
 
+    /** VoskLib has a model selected that exists on disk. */
+    public static boolean configured() {
+        return present() && VoskSetup.configured();
+    }
+
+    /** Download a model if missing, then select and load it. Callbacks run off the client thread. */
+    public static void install(String model, String url, Runnable done, Runnable fail) {
+        if (present()) VoskSetup.install(model, url, done, fail);
+        else fail.run();
+    }
+
+    /** Download progress: bytes so far and total (0 while unknown). */
+    public static long[] progress() {
+        return present() ? new long[] {VoskSetup.bytesDone(), VoskSetup.bytesTotal()} : new long[] {0, 0};
+    }
+
     /** A voice order is being listened to or decoded. */
     public static boolean active() {
         return present() && VoiceSession.active();

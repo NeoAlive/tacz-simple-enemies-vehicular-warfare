@@ -47,6 +47,15 @@ public final class JavaSoundMic implements MicSource {
         return out;
     }
 
+    /** The names of the devices {@link #devices()} lists, in the same order. */
+    public static List<String> deviceNames() {
+        List<String> out = new ArrayList<>();
+        for (Mixer.Info m : AudioSystem.getMixerInfo()) {
+            if (AudioSystem.getMixer(m).isLineSupported(LINE)) out.add(m.getName());
+        }
+        return out;
+    }
+
     private TargetDataLine open() throws Exception {
         if (!listed) {
             listed = true;

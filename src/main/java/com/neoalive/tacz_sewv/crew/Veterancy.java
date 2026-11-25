@@ -1,11 +1,14 @@
 package com.neoalive.tacz_sewv.crew;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 
 import com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity;
 import net.minecraft.ChatFormatting;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
@@ -69,7 +72,38 @@ public final class Veterancy {
 
     // ---- awarding ------------------------------------------------------------------------------------------------
 
-    static void award(PmcUnitEntity pmc, int amount) {
+    /**
+     * What one event earned one owner. The action bar holds a single line, so promotions and a new ledger point from
+     * the same kill are gathered here and announced once, rather than each overwriting the last.
+     */
+    private static final class Report {
+        final ServerPlayer player;
+        Component promoted;
+        int promotions;
+        boolean budgetUp;
+
+        Report(ServerPlayer player) {
+            this.player = player;
+        }
+
+        void send() {
+            if (this.promotions == 0 && !this.budgetUp) return;
+            MutableComponent line = Component.empty();
+            if (this.promotions == 1) line.append(this.promoted);
+            else if (this.promotions > 1) {
+                line.append(Component.translatable("message.tacz_sewv.veterancy.promoted_many", this.promotions));
+            }
+            if (this.budgetUp) {
+                if (this.promotions > 0) line.append("   ");
+                line.append(Component.translatable("message.tacz_sewv.veterancy.budget",
+                        PlayerDoctrineData.get(this.player.level()).budget(this.player.getUUID())));
+                PacketDoctrineSync.sendTo(this.player);
+            }
+            this.player.displayClientMessage(line.withStyle(ChatFormatting.GOLD), true);
+        }
+    }
+
+    static void award(PmcUnitEntity pmc, int amount, Map<UUID, Report> reports) {
         UUID owner = pmc.getOwnerUUID();
         if (owner == null || amount <= 0 || pmc.level().isClientSide()) return;
         CompoundTag tag = pmc.getPersistentData();
@@ -79,31 +113,37 @@ public final class Veterancy {
 
         MinecraftServer server = pmc.getServer();
         if (server == null) return;
+        boolean budgetUp = PlayerDoctrineData.get(pmc.level()).addRating(owner, amount);
         ServerPlayer player = server.getPlayerList().getPlayer(owner);
-        if (after > before && player != null) {
-            player.displayClientMessage(Component.translatable("message.tacz_sewv.veterancy.promoted",
-                    pmc.getDisplayName(), Component.translatable("gui.tacz_sewv.veterancy." + after))
-                    .withStyle(ChatFormatting.GOLD), false);
+        if (player == null || (after <= before && !budgetUp)) return;
+        Report report = reports.computeIfAbsent(owner, k -> new Report(player));
+        if (after > before) {
+            report.promotions++;
+            report.promoted = Component.translatable("message.tacz_sewv.veterancy.promoted",
+                    pmc.getDisplayName(), Component.translatable("gui.tacz_sewv.veterancy." + after));
         }
-        if (PlayerDoctrineData.get(pmc.level()).addRating(owner, amount) && player != null) {
-            player.displayClientMessage(Component.translatable("message.tacz_sewv.veterancy.budget",
-                    PlayerDoctrineData.get(pmc.level()).budget(owner)).withStyle(ChatFormatting.GOLD), false);
-            PacketDoctrineSync.sendTo(player);
-        }
+        report.budgetUp |= budgetUp;
+    }
+
+    private static void announce(Map<UUID, Report> reports) {
+        for (Report report : reports.values()) report.send();
     }
 
     /** Credits {@code amount} to whoever {@code attacker} is: an owned PMC on foot, or every owned PMC of a hull. */
     static void credit(Entity attacker, Entity victim, int amount) {
+        Map<UUID, Report> reports = new HashMap<>();
         if (attacker instanceof PmcUnitEntity pmc && pmc.getVehicle() == null) {
-            if (!sameSide(pmc, victim)) award(pmc, amount);
+            if (!sameSide(pmc, victim)) award(pmc, amount, reports);
+            announce(reports);
             return;
         }
         VehicleEntity hull = attacker instanceof VehicleEntity v ? v
                 : attacker instanceof AbstractUnit u && u.getVehicle() instanceof VehicleEntity v ? v : null;
         if (hull == null) return;
         for (Entity passenger : hull.getPassengers()) {
-            if (passenger instanceof PmcUnitEntity pmc && !sameSide(pmc, victim)) award(pmc, amount);
+            if (passenger instanceof PmcUnitEntity pmc && !sameSide(pmc, victim)) award(pmc, amount, reports);
         }
+        announce(reports);
     }
 
     /** No XP for killing your own units or yourself. */
@@ -147,8 +187,10 @@ public final class Veterancy {
         CompoundTag data = hull.getPersistentData();
         if (data.contains(TAG_SURVIVED_AT) && now - data.getLong(TAG_SURVIVED_AT) < SURVIVE_COOLDOWN_TICKS) return;
         data.putLong(TAG_SURVIVED_AT, now);
+        Map<UUID, Report> reports = new HashMap<>();
         for (Entity passenger : hull.getPassengers()) {
-            if (passenger instanceof PmcUnitEntity pmc) award(pmc, SURVIVE_XP);
+            if (passenger instanceof PmcUnitEntity pmc) award(pmc, SURVIVE_XP, reports);
         }
+        announce(reports);
     }
 }

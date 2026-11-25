@@ -106,14 +106,25 @@ public class DoctrineEditorScreen extends Screen {
         addRenderableWidget(Button.builder(Component.translatable("gui.cancel"), b -> onClose())
                 .bounds(centerBtnX + 5, btnY, 100, 20).build());
 
+        // Buttons sized to their labels (names differ a lot in length per language), shrunk evenly if the row overflows.
         int count = DoctrinePresets.ALL.size();
-        int presetW = Math.min(76, (Math.min(this.width - 20, 420) - PRESET_BTN_GAP * (count - 1)) / count);
-        int presetsX = this.width / 2 - (presetW * count + PRESET_BTN_GAP * (count - 1)) / 2;
+        int[] widths = new int[count];
+        int total = PRESET_BTN_GAP * (count - 1);
+        for (int i = 0; i < count; i++) {
+            widths[i] = this.font.width(Component.translatable(
+                    "gui.tacz_sewv.doctrine.preset." + DoctrinePresets.ALL.get(i).key())) + 12;
+            total += widths[i];
+        }
+        float shrink = Math.min(1.0F, (this.width - 20) / (float) Math.max(1, total));
+        int px = this.width / 2 - Math.round(total * shrink) / 2;
         for (int i = 0; i < count; i++) {
             DoctrinePresets.Preset preset = DoctrinePresets.ALL.get(i);
+            int w = Math.max(20, Math.round(widths[i] * shrink));
+            int x = px;
+            px += w + Math.round(PRESET_BTN_GAP * shrink);
             addRenderableWidget(Button.builder(Component.translatable("gui.tacz_sewv.doctrine.preset." + preset.key()),
                             b -> applyPreset(preset))
-                    .bounds(presetsX + i * (presetW + PRESET_BTN_GAP), this.height - 58, presetW, 20)
+                    .bounds(x, this.height - 58, w, 20)
                     .tooltip(net.minecraft.client.gui.components.Tooltip.create(
                             Component.translatable("gui.tacz_sewv.doctrine.preset." + preset.key() + ".tip")))
                     .build());
@@ -293,7 +304,7 @@ public class DoctrineEditorScreen extends Screen {
 
         renderScrollbar(g);
 
-        List<Component> effects = effectLines();
+        List<EffectRow> effects = effectRows();
         if (this.effectsBeside) renderEffects(g, effects);
 
         // Widgets (buttons) after panels so they sit on top; footer buttons stay outside the list.
@@ -302,51 +313,98 @@ public class DoctrineEditorScreen extends Screen {
         if (pendingAxisTip != null) {
             g.renderTooltip(this.font, Component.literal(pendingAxisTip), mouseX, mouseY);
         } else if (overRemaining) {
-            List<net.minecraft.util.FormattedCharSequence> tip = new ArrayList<>();
-            for (Component line : effects) tip.add(line.getVisualOrderText());
-            g.renderTooltip(this.font, tip, mouseX, mouseY);
+            g.renderTooltip(this.font, tooltipRows(effects), mouseX, mouseY);
         }
     }
 
     /**
-     * What the drafted doctrine does, in the numbers the AI will use (DoctrineKnobs), so a player sees the change
-     * before committing a ledger to it.
+     * One row of the Effects panel. {@code grade} is -1 (malus) .. 0 (neutral or balanced) .. +1 (benefit) and picks the
+     * value colour; NaN leaves a descriptive row uncoloured. Headers span the panel and carry no value.
      */
-    private List<Component> effectLines() {
+    private record EffectRow(Component label, Component value, double grade, boolean header) {
+        static EffectRow header(Component label) {
+            return new EffectRow(label, Component.empty(), Double.NaN, true);
+        }
+
+        static EffectRow of(String key, Component value, double grade) {
+            return new EffectRow(Component.translatable("gui.tacz_sewv.doctrine.row." + key), value, grade, false);
+        }
+    }
+
+    private static final int ROW_H = 11;
+    private static final int VALUE_W = 56;
+    private static final int TEXT = 0xFFDDDDDD;
+    private static final int HEADER = 0xFFFFAA00;
+    private static final int MALUS = 0xFFE05A4F;
+    private static final int BALANCED = 0xFFE8C547;
+    private static final int BENEFIT = 0xFF5FD068;
+
+    /** Red through yellow to green; grade is clamped to -1..1. */
+    static int gradeColour(double grade) {
+        if (Double.isNaN(grade)) return TEXT;
+        double g = Math.max(-1.0, Math.min(1.0, grade));
+        return g < 0 ? lerp(BALANCED, MALUS, -g) : lerp(BALANCED, BENEFIT, g);
+    }
+
+    private static int lerp(int from, int to, double t) {
+        int r = (int) Math.round(((from >> 16) & 0xFF) + (((to >> 16) & 0xFF) - ((from >> 16) & 0xFF)) * t);
+        int gr = (int) Math.round(((from >> 8) & 0xFF) + (((to >> 8) & 0xFF) - ((from >> 8) & 0xFF)) * t);
+        int b = (int) Math.round((from & 0xFF) + ((to & 0xFF) - (from & 0xFF)) * t);
+        return 0xFF000000 | (r << 16) | (gr << 8) | b;
+    }
+
+    private static Component pct(double fraction) {
+        return Component.translatable("gui.tacz_sewv.doctrine.value.percent", Math.round(100 * fraction));
+    }
+
+    /**
+     * What the drafted doctrine does, in the numbers the AI will use (DoctrineKnobs), so a player sees the change
+     * before committing a ledger to it. Green is survivability or responsiveness gained against neutral, red is the
+     * same lost, yellow is neutral or a trade-off; every grade is the knob's offset from neutral over its full range.
+     */
+    private List<EffectRow> effectRows() {
         Doctrine d = Doctrine.ofAxes(this.draftedAxes);
-        List<Component> out = new ArrayList<>();
-        out.add(Component.translatable(DoctrineClient.has()
-                ? "gui.tacz_sewv.doctrine.effects" : "gui.tacz_sewv.doctrine.effects_none")
-                .withStyle(net.minecraft.ChatFormatting.GOLD));
-        out.add(Component.translatable("gui.tacz_sewv.doctrine.effect.budget", this.budget));
-        out.add(Component.translatable("gui.tacz_sewv.doctrine.effect.temper",
-                Component.translatable("gui.tacz_sewv.doctrine.temper."
-                        + Doctrine.Temperament.of(Doctrine.cautionCentre(d)).name().toLowerCase(java.util.Locale.ROOT))));
-        out.add(Component.translatable("gui.tacz_sewv.doctrine.effect.ring",
-                Math.round(com.neoalive.tacz_sewv.entity.ai.utility.TacticalScale.of(BASE_ARMOUR_RING)
-                        * DoctrineKnobs.ringScale(d))));
-        out.add(Component.translatable("gui.tacz_sewv.doctrine.effect.break_off",
-                Math.round(100 * DoctrineKnobs.breakOffHealth(d))));
-        out.add(Component.translatable("gui.tacz_sewv.doctrine.effect.bail",
-                Math.round(100 * DoctrineKnobs.bailHealth(d))));
-        out.add(Component.translatable("gui.tacz_sewv.doctrine.effect.replan",
-                String.format(java.util.Locale.ROOT, "%.1f", DoctrineKnobs.commitTicks(d) / 20.0)));
-        out.add(Component.translatable("gui.tacz_sewv.doctrine.effect.reaction",
-                Math.round(100 * DoctrineKnobs.acquisitionScale(d))));
-        out.add(Component.translatable("gui.tacz_sewv.doctrine.effect.stalemate",
-                Math.round(100 * DoctrineKnobs.stalemateScale(d))));
-        out.add(Component.translatable("gui.tacz_sewv.doctrine.effect.support",
-                Math.round(100 * DoctrineKnobs.supportCooldownScale(d))));
+        List<EffectRow> out = new ArrayList<>();
+        out.add(EffectRow.header(Component.translatable(DoctrineClient.has()
+                ? "gui.tacz_sewv.doctrine.effects" : "gui.tacz_sewv.doctrine.effects_none")));
+        out.add(EffectRow.of("budget", Component.literal(String.valueOf(this.budget)),
+                (this.budget - com.neoalive.tacz_sewv.entity.ai.utility.PlayerDoctrineData.BASE_BUDGET)
+                        / (double) (DoctrineKnobs.MAX_BUDGET - com.neoalive.tacz_sewv.entity.ai.utility.PlayerDoctrineData.BASE_BUDGET)));
+        out.add(EffectRow.of("temper", Component.translatable("gui.tacz_sewv.doctrine.temper."
+                + Doctrine.Temperament.of(Doctrine.cautionCentre(d)).name().toLowerCase(java.util.Locale.ROOT)), Double.NaN));
+        double ring = DoctrineKnobs.ringScale(d);
+        out.add(EffectRow.of("ring", Component.translatable("gui.tacz_sewv.doctrine.value.metres",
+                Math.round(com.neoalive.tacz_sewv.entity.ai.utility.TacticalScale.of(BASE_ARMOUR_RING) * ring)),
+                (ring - 1.0) / 0.35));
+        double breakOff = DoctrineKnobs.breakOffHealth(d);
+        out.add(EffectRow.of("break_off", pct(breakOff), (breakOff - DoctrineKnobs.BASE_BREAK_OFF) / 0.17));
+        double bail = DoctrineKnobs.bailHealth(d);
+        out.add(EffectRow.of("bail", pct(bail), (bail - DoctrineKnobs.BASE_BAIL) / 0.07));
+        int commit = DoctrineKnobs.commitTicks(d);
+        out.add(EffectRow.of("replan", Component.translatable("gui.tacz_sewv.doctrine.value.seconds",
+                String.format(java.util.Locale.ROOT, "%.1f", commit / 20.0)),
+                (DoctrineKnobs.BASE_COMMIT_TICKS - commit) / 14.0));
+        double reaction = DoctrineKnobs.acquisitionScale(d);
+        out.add(EffectRow.of("reaction", pct(reaction), (1.0 - reaction) / 0.4));
+        double stalemate = DoctrineKnobs.stalemateScale(d);
+        out.add(EffectRow.of("stalemate", pct(stalemate), (1.0 - stalemate) / 0.4));
+        double support = DoctrineKnobs.supportCooldownScale(d);
+        out.add(EffectRow.of("support", pct(support), (1.0 - support) / 0.5));
         double t = DoctrineKnobs.armourPreference(d);
-        out.add(Component.translatable(t > 0.0 ? "gui.tacz_sewv.doctrine.effect.target_armour"
-                : t < 0.0 ? "gui.tacz_sewv.doctrine.effect.target_infantry" : "gui.tacz_sewv.doctrine.effect.target_none"));
-        if (DoctrineKnobs.smokeOnHit(d)) out.add(Component.translatable("gui.tacz_sewv.doctrine.effect.smoke"));
-        if (DoctrineKnobs.creepsOnCourse(d)) out.add(Component.translatable("gui.tacz_sewv.doctrine.effect.creep"));
+        out.add(EffectRow.of("target", Component.translatable(t > 0.0 ? "gui.tacz_sewv.doctrine.value.target_armour"
+                : t < 0.0 ? "gui.tacz_sewv.doctrine.value.target_infantry" : "gui.tacz_sewv.doctrine.value.target_none"),
+                Double.NaN));
+        boolean smoke = DoctrineKnobs.smokeOnHit(d);
+        out.add(EffectRow.of("smoke", Component.translatable(smoke ? "gui.yes" : "gui.no"), smoke ? 1.0 : 0.0));
+        // Creeping trades tempo for safety: always shown as a trade-off.
+        boolean creep = DoctrineKnobs.creepsOnCourse(d);
+        out.add(EffectRow.of("creep", Component.translatable(creep ? "gui.yes" : "gui.no"), 0.0));
 
         // What the server's own scorer says these drafts would do, scenario by scenario.
-        out.add(Component.translatable("gui.tacz_sewv.doctrine.preview").withStyle(net.minecraft.ChatFormatting.GOLD));
+        out.add(EffectRow.header(Component.translatable("gui.tacz_sewv.doctrine.preview")));
         if (!DoctrineClient.previewMatches(this.draftedAxes)) {
-            out.add(Component.translatable("gui.tacz_sewv.doctrine.preview.pending"));
+            out.add(new EffectRow(Component.translatable("gui.tacz_sewv.doctrine.preview.pending"), Component.empty(),
+                    Double.NaN, false));
         } else {
             byte[] actions = DoctrineClient.previewActions();
             com.neoalive.tacz_sewv.entity.ai.utility.DoctrineScenarios.Scenario[] scenarios =
@@ -355,28 +413,60 @@ public class DoctrineEditorScreen extends Screen {
                 com.neoalive.tacz_sewv.entity.ai.utility.Action action =
                         com.neoalive.tacz_sewv.network.PacketDoctrinePreview.action(actions[i]);
                 if (action == null) continue;
-                out.add(Component.translatable("gui.tacz_sewv.doctrine.preview.row",
-                        Component.translatable("gui.tacz_sewv.doctrine.scenario." + scenarios[i].key),
-                        Component.translatable("gui.tacz_sewv.doctrine.action." + action.key)));
+                out.add(new EffectRow(Component.translatable("gui.tacz_sewv.doctrine.scenario." + scenarios[i].key),
+                        Component.translatable("gui.tacz_sewv.doctrine.action." + action.key), Double.NaN, false));
             }
         }
         return out;
     }
 
-    private void renderEffects(GuiGraphics g, List<Component> lines) {
+    /** Zebra-striped rows: label on the left, the value in its own cell column, coloured by grade. */
+    private void renderEffects(GuiGraphics g, List<EffectRow> rows) {
         int x = this.listLeft + panelW() + EFFECTS_GAP;
         int y = this.listTop;
-        int h = Math.min(this.listBottom - this.listTop, 8 + lines.size() * 12);
-        g.fill(x, y, x + EFFECTS_W, y + h, 0x44000000);
-        g.renderOutline(x, y, EFFECTS_W, h, 0xFF444444);
-        int ly = y + 5;
-        for (int i = 0; i < lines.size(); i++) {
-            if (ly + 9 > y + h) break;
-            String text = this.font.plainSubstrByWidth(lines.get(i).getString(), EFFECTS_W - 10);
-            boolean header = lines.get(i).getStyle().getColor() != null;
-            g.drawString(this.font, text, x + 5, ly, header ? 0xFFFFAA00 : 0xFFDDDDDD, false);
-            ly += 12;
+        int h = Math.min(this.listBottom - this.listTop, 2 + rows.size() * ROW_H);
+        int cellX = x + EFFECTS_W - VALUE_W;
+        g.fill(x, y, x + EFFECTS_W, y + h, 0x66000000);
+        int ry = y + 1;
+        int stripe = 0;
+        for (EffectRow row : rows) {
+            if (ry + ROW_H > y + h) break;
+            if (row.header()) {
+                g.fill(x + 1, ry, x + EFFECTS_W - 1, ry + ROW_H, 0x55302008);
+                g.drawString(this.font, this.font.plainSubstrByWidth(row.label().getString(), EFFECTS_W - 8),
+                        x + 4, ry + 2, HEADER, false);
+                stripe = 0;
+            } else {
+                g.fill(x + 1, ry, x + EFFECTS_W - 1, ry + ROW_H, (stripe++ & 1) == 0 ? 0x22FFFFFF : 0x0AFFFFFF);
+                g.fill(cellX, ry, x + EFFECTS_W - 1, ry + ROW_H, 0x33000000);
+                g.fill(cellX, ry, cellX + 1, ry + ROW_H, 0x55FFFFFF);
+                boolean wide = row.value().getString().isEmpty();
+                int labelW = (wide ? EFFECTS_W : EFFECTS_W - VALUE_W) - 8;
+                g.drawString(this.font, this.font.plainSubstrByWidth(row.label().getString(), labelW),
+                        x + 4, ry + 2, TEXT, false);
+                if (!wide) {
+                    String value = this.font.plainSubstrByWidth(row.value().getString(), VALUE_W - 6);
+                    g.drawString(this.font, value, x + EFFECTS_W - 4 - this.font.width(value), ry + 2,
+                            gradeColour(row.grade()), false);
+                }
+            }
+            ry += ROW_H;
         }
+        g.renderOutline(x, y, EFFECTS_W, h, 0xFF444444);
+    }
+
+    /** The same rows for the narrow-screen tooltip: label, then the coloured value. */
+    private static List<net.minecraft.util.FormattedCharSequence> tooltipRows(List<EffectRow> rows) {
+        List<net.minecraft.util.FormattedCharSequence> out = new ArrayList<>();
+        for (EffectRow row : rows) {
+            Component line = row.header()
+                    ? row.label().copy().withStyle(s -> s.withColor(HEADER & 0xFFFFFF))
+                    : row.value().getString().isEmpty() ? row.label()
+                    : Component.empty().append(row.label()).append(": ").append(row.value().copy()
+                            .withStyle(s -> s.withColor(gradeColour(row.grade()) & 0xFFFFFF)));
+            out.add(line.getVisualOrderText());
+        }
+        return out;
     }
 
     @Override

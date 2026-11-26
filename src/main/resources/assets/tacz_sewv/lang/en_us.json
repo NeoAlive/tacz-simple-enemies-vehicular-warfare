@@ -1861,6 +1861,8 @@
   "config.tacz_sewv.infantryArmorAwareness.tooltip": "SEM riflemen take cover from a target riding a vehicle; anti-armour gunners close in on it.",
   "config.tacz_sewv.acquisitionDelayEnabled": "Gradual Target Acquisition",
   "config.tacz_sewv.acquisitionDelayEnabled.tooltip": "Infantry and crews take time to notice a new target: longer at range, in the dark, against a still or sneaking target.",
+  "config.tacz_sewv.semScanShare": "Shared Infantry Target Scan",
+  "config.tacz_sewv.semScanShare.tooltip": "Each unit gathers nearby entities once and shares the list between its target scans for up to half a second. Performance only.",
   "config.tacz_sewv.suppressiveFireEnabled": "Suppressive Fire",
   "config.tacz_sewv.suppressiveFireEnabled.tooltip": "A crew machine gun rakes the spot an enemy just vanished from, one gun per lost enemy. Also gates the Suppress Area order.",
   "config.tacz_sewv.reverseGearEnabled": "Reverse gear",

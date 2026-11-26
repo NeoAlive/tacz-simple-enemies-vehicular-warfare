@@ -48,4 +48,17 @@ public abstract class MixinUnitAcquisitionState implements IAcquisition {
     public void sewv$setAcqLastSeen(long gameTime) {
         this.tacz_sewv$acqLastSeen = gameTime;
     }
+
+    @Unique
+    private Object tacz_sewv$scanCache;
+
+    @Override
+    public Object sewv$getScanCache() {
+        return this.tacz_sewv$scanCache;
+    }
+
+    @Override
+    public void sewv$setScanCache(Object cache) {
+        this.tacz_sewv$scanCache = cache;
+    }
 }

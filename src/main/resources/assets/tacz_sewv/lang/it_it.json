@@ -1861,6 +1861,8 @@
   "config.tacz_sewv.infantryArmorAwareness.tooltip": "I fucilieri SEM si coprono da un bersaglio su un veicolo; i cannonieri anticarro gli si avvicinano.",
   "config.tacz_sewv.acquisitionDelayEnabled": "Acquisizione graduale del bersaglio",
   "config.tacz_sewv.acquisitionDelayEnabled.tooltip": "Fanteria ed equipaggi impiegano tempo a notare un bersaglio nuovo: di più a distanza, al buio, contro uno fermo o che si avvicina di soppiatto.",
+  "config.tacz_sewv.semScanShare": "Scansione bersagli condivisa",
+  "config.tacz_sewv.semScanShare.tooltip": "Ogni unità raccoglie le entità vicine una volta e condivide l'elenco tra le sue scansioni per mezzo secondo. Solo prestazioni.",
   "config.tacz_sewv.suppressiveFireEnabled": "Fuoco di soppressione",
   "config.tacz_sewv.suppressiveFireEnabled.tooltip": "Una mitragliatrice dell'equipaggio spazza il punto da cui un nemico è appena sparito, un'arma per nemico perso. Condiziona anche l'ordine Suppress Area.",
   "config.tacz_sewv.reverseGearEnabled": "Retromarcia",

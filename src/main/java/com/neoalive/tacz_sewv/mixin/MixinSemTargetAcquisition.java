@@ -1,16 +1,23 @@
 package com.neoalive.tacz_sewv.mixin;
 
+import java.util.List;
+import java.util.function.Predicate;
+
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.goal.target.NearestAttackableTargetGoal;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.AABB;
 import net.nekoyuni.SimpleEnemyMod.entity.ai.goals.VerticalAwareTargetGoal;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import com.neoalive.tacz_sewv.entity.ai.sensor.UnitAcquisition;
+import com.neoalive.tacz_sewv.entity.ai.sensor.UnitScanShare;
 
 /**
  * SEM infantry notice targets over time instead of instantly. SEM's proactive scan
@@ -41,6 +48,18 @@ public abstract class MixinSemTargetAcquisition<T extends LivingEntity> extends 
         if (this.mob.getVehicle() instanceof com.atsuishio.superbwarfare.entity.vehicle.base.VehicleEntity) {
             cir.setReturnValue(false);
         }
+    }
+
+    /**
+     * A unit's four or five scan goals walk the same box and differ only in the predicate, so they
+     * share one gather ({@link UnitScanShare}). Same answer, filtered live.
+     */
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    @Redirect(method = "findNearestTacticalTarget", remap = false, require = 0,
+            at = @At(value = "INVOKE", remap = true,
+                    target = "Lnet/minecraft/world/level/Level;getEntitiesOfClass(Ljava/lang/Class;Lnet/minecraft/world/phys/AABB;Ljava/util/function/Predicate;)Ljava/util/List;"))
+    private List tacz_sewv$sharedScan(Level level, Class cls, AABB box, Predicate predicate) {
+        return UnitScanShare.candidates(this.mob, level, cls, box, predicate);
     }
 
     @Inject(method = "canUse", at = @At("RETURN"), cancellable = true, require = 0)

@@ -1861,6 +1861,8 @@
   "config.tacz_sewv.infantryArmorAwareness.tooltip": "Os atiradores SEM abrigam-se de um alvo em cima de um veículo; os atiradores antiblindado aproximam-se dele.",
   "config.tacz_sewv.acquisitionDelayEnabled": "Aquisição Gradual de Alvos",
   "config.tacz_sewv.acquisitionDelayEnabled.tooltip": "A infantaria e as tripulações demoram a notar um alvo novo: mais ao longe, no escuro, contra um alvo parado ou agachado.",
+  "config.tacz_sewv.semScanShare": "Varrimento de alvos partilhado",
+  "config.tacz_sewv.semScanShare.tooltip": "Cada unidade reúne as entidades próximas uma vez e partilha a lista entre os seus varrimentos durante meio segundo. Apenas desempenho.",
   "config.tacz_sewv.suppressiveFireEnabled": "Fogo de Supressão",
   "config.tacz_sewv.suppressiveFireEnabled.tooltip": "Uma metralhadora da tripulação varre o sítio onde um inimigo acabou de desaparecer, uma arma por inimigo perdido. Também controla a ordem Suprimir Área.",
   "config.tacz_sewv.reverseGearEnabled": "Marcha-atrás",

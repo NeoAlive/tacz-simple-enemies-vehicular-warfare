@@ -16,6 +16,7 @@ public final class GroundMobilitySelfCheck {
         slopeGate();
         gradePreference();
         stepDangerFenceVsHill();
+        slopeWalkFromTrack();
         strongestWinsNotSum();
         flatMapReachesEverySlot();
         spikeMasksFarSlot();
@@ -80,6 +81,21 @@ public final class GroundMobilitySelfCheck {
                 : "fence-height is prefer-around, not reverse-trigger";
         assertClose(1.0F, GroundMobility.stepDanger(3.0, 1.0F), "cliff past STEP_WALL");
         assertClose(0.0F, GroundMobility.stepDanger(0.4, 1.0F), "kerb");
+    }
+
+    /** A probe line starts on its own track, so its first step spans one block like every other. */
+    private static void slopeWalkFromTrack() {
+        double slope = 1.0; // blocks of rise per block, a steep but drivable hillside
+        for (double half : new double[] {0.8, 1.5, 2.31, 3.5}) {
+            double firstSample = half + 0.5;
+            double span = firstSample - GroundMobility.lineSeedDistance(half);
+            assertClose(1.0F, (float) span, "first step spans one block at half " + half);
+            assert GroundMobility.stepDanger(span * slope, 1.0F) < GroundMobility.HARD_CAP
+                    : "hillside is not a wall from the track, half " + half;
+        }
+        // The old centre seed on a T-90A spanned the whole half width.
+        assert GroundMobility.stepDanger((2.31 + 0.5) * slope, 1.0F) >= GroundMobility.HARD_CAP
+                : "centre seed read the same hillside as a wall";
     }
 
     /**

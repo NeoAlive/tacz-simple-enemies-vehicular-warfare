@@ -122,6 +122,7 @@ public final class GroundTerrainSensor extends TerrainSensor {
     private boolean farIdle;
     private final Long2ObjectOpenHashMap<Column> columnCache = new Long2ObjectOpenHashMap<>();
     private final Long2DoubleOpenHashMap gradeCache = new Long2DoubleOpenHashMap();
+    private final BlockPos.MutableBlockPos seedPos = new BlockPos.MutableBlockPos();
     /** Centerline probes from the last {@link #fillMaps} — beam validate reuses the winner's. */
     private final Probe[] slotCenterProbes = new Probe[N];
 
@@ -472,7 +473,9 @@ public final class GroundTerrainSensor extends TerrainSensor {
         double startZ = this.vehicle.getZ();
         double half = halfWidth();
         obstacles(distance);
-        Walk w = new Walk(this.cachedCenterFloor);
+        double seed = GroundMobility.lineSeedDistance(half);
+        Walk w = new Walk(trackFloor(level, startX + dir.x * seed + side.x * lateral,
+                startZ + dir.z * seed + side.z * lateral));
 
         for (double d = half + 0.5; d <= half + distance; d += 1.0) {
             double sampleX = startX + dir.x * d + side.x * lateral;
@@ -480,6 +483,15 @@ public final class GroundTerrainSensor extends TerrainSensor {
             if (sampleStep(w, level, sampleX, sampleZ)) return w.out;
         }
         return w.out;
+    }
+
+    /**
+     * Footing under one track of the hull, where a probe line starts. Falls back to the centre column
+     * when that column has no floor in reach.
+     */
+    private double trackFloor(Level level, double x, double z) {
+        Column col = cachedColumn(level, this.seedPos, Mth.floor(x), Mth.floor(z));
+        return col.floorY != GroundMobility.NO_FLOOR ? col.floorY : this.cachedCenterFloor;
     }
 
     /** State of one walk along consecutive samples: the result so far and the footing it last stood on. */
@@ -601,8 +613,10 @@ public final class GroundTerrainSensor extends TerrainSensor {
         }
         obstacles(reach + half);
         double lead = reverse ? -(half + 0.5) : half + 0.5;
+        double seed = reverse ? -GroundMobility.lineSeedDistance(half) : GroundMobility.lineSeedDistance(half);
         for (int k = -1; k <= 1; k++) {
-            Walk w = new Walk(this.cachedCenterFloor);
+            Walk w = new Walk(trackFloor(level, x[0] + hx[0] * seed - hz[0] * k * half,
+                    z[0] + hz[0] * seed + hx[0] * k * half));
             for (int i = 0; i < x.length; i++) {
                 // side = (-hz, hx), as sideOf
                 double sx = x[i] + hx[i] * lead - hz[i] * k * half;

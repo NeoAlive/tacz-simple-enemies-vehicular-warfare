@@ -11,9 +11,9 @@ import com.neoalive.tacz_sewv.config.SewvConfig;
  * Reuse of SEM's infantry line of sight ({@code TacticalLineOfSightHelper.hasFoliageTransparentLineOfSight}).
  *
  * <p>Five SEM goals ask the same question, mostly about the unit's current target, and each casts up to four
- * rays plus a block walk. A four-slot ring on the observer keeps the last answers. At the default of one tick
- * it is exact: entities tick one after another, so a target cannot move inside the observer's own tick.
- * Server thread only.
+ * rays plus a block walk. A four-slot ring on the observer keeps the last answers. One tick would be exact,
+ * but the goals ask on different ticks and reuse was 0.3% in a 450-unit battle; at the default of three ticks
+ * half the rays are saved and an answer is at most 0.15 s old. Server thread only.
  */
 public final class SemLosCache {
 

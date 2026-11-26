@@ -1205,8 +1205,9 @@ public final class SewvConfig {
                 .define("semScanShare", true);
         SEM_LOS_CACHE_TICKS = builder.comment(
                         "SEM infantry reuse a line-of-sight answer to the same target for this many game ticks instead of",
-                        "casting it again for every goal that asks. 1 = only within the same tick (exact), 0 = off.")
-                .defineInRange("semLosCacheTicks", 1, 0, 5);
+                        "casting it again for every goal that asks. SEM's goals ask on different ticks, so 1 (exact) reuses",
+                        "almost nothing; 3 halves the rays in a large battle. 0 = off.")
+                .defineInRange("semLosCacheTicks", 3, 0, 5);
         SUPPRESSIVE_FIRE_ENABLED = builder.comment(
                         "For a few seconds after losing sight of an enemy, a crew machine gun may rake the spot it",
                         "vanished from (one gun per lost enemy). Also gates the player's Suppress Area order.")

@@ -24,6 +24,7 @@ public final class AcquisitionSelfCheck {
         monotonic();
         bounded();
         armorDoctrine();
+        losRing();
         FireRhythmProbe.check();
 
         System.out.println("acquisition self-check: OK");
@@ -72,5 +73,21 @@ public final class AcquisitionSelfCheck {
         assert InfantryArmorDoctrine.riflemanConfidence(0.1f, 1.0f) == 0.0f : "clamped";
         assert InfantryArmorDoctrine.gunnerConfidence(0.5f, 1.0f) > 0.5f : "a launcher closes in";
         assert InfantryArmorDoctrine.riflemanPressure(0.3f, 0.0f) == 0.3f : "no hull, no change";
+    }
+
+    private static void losRing() {
+        long[] r = SemLosCache.newRing();
+        assert SemLosCache.find(r, 7, 100, 1) == -1 : "empty ring answers nothing";
+        SemLosCache.put(r, 7, 100, true);
+        assert SemLosCache.find(r, 7, 100, 1) == 1 : "same tick reuses";
+        assert SemLosCache.find(r, 7, 101, 1) == -1 : "ticks=1 never crosses a tick";
+        assert SemLosCache.find(r, 7, 102, 3) == 1 : "ticks=3 reuses two ticks later";
+        assert SemLosCache.find(r, 7, 103, 3) == -1 : "and not three";
+        assert SemLosCache.find(r, 7, 99, 3) == -1 : "game time going backwards is a miss";
+        SemLosCache.put(r, 7, 104, false);
+        assert SemLosCache.find(r, 7, 104, 1) == 0 : "a target keeps one slot, newest answer";
+        for (int id = 20; id < 20 + SemLosCache.SLOTS; id++) SemLosCache.put(r, id, 105, true);
+        assert SemLosCache.find(r, 7, 105, 5) == -1 : "four new targets push the oldest out";
+        assert SemLosCache.find(r, 20, 105, 1) == 1 && SemLosCache.find(r, 23, 105, 1) == 1;
     }
 }

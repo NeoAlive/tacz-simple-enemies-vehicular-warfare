@@ -269,6 +269,7 @@ public final class SewvConfig {
     public static final ForgeConfigSpec.BooleanValue INFANTRY_ARMOR_AWARENESS;
     public static final ForgeConfigSpec.BooleanValue ACQUISITION_DELAY_ENABLED;
     public static final ForgeConfigSpec.BooleanValue SEM_SCAN_SHARE;
+    public static final ForgeConfigSpec.IntValue SEM_LOS_CACHE_TICKS;
     public static final ForgeConfigSpec.BooleanValue SUPPRESSIVE_FIRE_ENABLED;
     public static final ForgeConfigSpec.BooleanValue REVERSE_GEAR_ENABLED;
     public static final ForgeConfigSpec.IntValue REVERSE_MAX_BLOCKS;
@@ -1202,6 +1203,10 @@ public final class SewvConfig {
                         "SEM infantry gather one list of nearby entities per unit and share it between their target",
                         "scans for up to half a second, instead of walking the same area once per scan. Performance only.")
                 .define("semScanShare", true);
+        SEM_LOS_CACHE_TICKS = builder.comment(
+                        "SEM infantry reuse a line-of-sight answer to the same target for this many game ticks instead of",
+                        "casting it again for every goal that asks. 1 = only within the same tick (exact), 0 = off.")
+                .defineInRange("semLosCacheTicks", 1, 0, 5);
         SUPPRESSIVE_FIRE_ENABLED = builder.comment(
                         "For a few seconds after losing sight of an enemy, a crew machine gun may rake the spot it",
                         "vanished from (one gun per lost enemy). Also gates the player's Suppress Area order.")

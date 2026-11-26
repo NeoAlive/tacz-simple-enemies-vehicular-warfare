@@ -771,6 +771,8 @@ final class ConfigRegistryBootstrap {
                 SewvConfig.ACQUISITION_DELAY_ENABLED, SewvConfig.ACQUISITION_DELAY_ENABLED::set);
         b.bool(ConfigScope.SERVER, "crew_ai", "semScanShare",
                 SewvConfig.SEM_SCAN_SHARE, SewvConfig.SEM_SCAN_SHARE::set);
+        b.intRange(ConfigScope.SERVER, "crew_ai", "semLosCacheTicks", 0, 5,
+                SewvConfig.SEM_LOS_CACHE_TICKS, SewvConfig.SEM_LOS_CACHE_TICKS::set);
         b.bool(ConfigScope.SERVER, "crew_ai", "suppressiveFireEnabled",
                 SewvConfig.SUPPRESSIVE_FIRE_ENABLED, SewvConfig.SUPPRESSIVE_FIRE_ENABLED::set);
         b.bool(ConfigScope.SERVER, "crew_ai", "reverseGearEnabled",

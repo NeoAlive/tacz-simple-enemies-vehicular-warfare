@@ -23,4 +23,7 @@ public interface IAcquisition {
     Object sewv$getScanCache();
 
     void sewv$setScanCache(Object cache);
+
+    /** SEM line-of-sight cache ring ({@code SemLosCache}), allocated on first use. */
+    long[] sewv$losCache();
 }

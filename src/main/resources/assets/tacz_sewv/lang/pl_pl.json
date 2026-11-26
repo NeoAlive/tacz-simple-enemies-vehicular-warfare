@@ -1863,6 +1863,8 @@
   "config.tacz_sewv.acquisitionDelayEnabled.tooltip": "Piechota i załogi potrzebują czasu, żeby zauważyć nowy cel: dłużej z daleka, w ciemności, przy celu nieruchomym albo skradającym się.",
   "config.tacz_sewv.semScanShare": "Wspólne wyszukiwanie celów",
   "config.tacz_sewv.semScanShare.tooltip": "Każda jednostka zbiera pobliskie obiekty raz i dzieli listę między swoje wyszukiwania celów przez pół sekundy. Tylko wydajność.",
+  "config.tacz_sewv.semLosCacheTicks": "Ponowne użycie linii wzroku (ticki)",
+  "config.tacz_sewv.semLosCacheTicks.tooltip": "Jak długo piechota używa ponownie sprawdzenia linii wzroku do tego samego celu zamiast liczyć je dla każdego zadania. 1 = tylko w tym samym ticku, 0 = wyłączone. Tylko wydajność.",
   "config.tacz_sewv.suppressiveFireEnabled": "Ogień tłumiący",
   "config.tacz_sewv.suppressiveFireEnabled.tooltip": "Kaem załogi praży miejsce, z którego wróg właśnie zniknął, jeden kaem na zgubionego wroga. Bramkuje też rozkaz strefy tłumienia.",
   "config.tacz_sewv.reverseGearEnabled": "Bieg wsteczny",

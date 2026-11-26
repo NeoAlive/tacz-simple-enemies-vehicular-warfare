@@ -62,6 +62,7 @@ public final class PerfProbe {
         sb.append("IdleGroupSupport: ").append(
                 com.neoalive.tacz_sewv.entity.ai.support.IdleGroupSupport.stats()).append('\n');
         sb.append(com.neoalive.tacz_sewv.entity.ai.support.UnitLod.snapshotAndReset()).append('\n');
+        sb.append(com.neoalive.tacz_sewv.entity.ai.sensor.SemLosCache.snapshotAndReset()).append('\n');
         sb.append(PathingPerf.snapshotAndReset()).append('\n');
         sb.append(PlanePerf.snapshotAndReset());
         return sb.toString();

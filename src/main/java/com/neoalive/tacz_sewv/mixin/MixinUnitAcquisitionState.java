@@ -61,4 +61,15 @@ public abstract class MixinUnitAcquisitionState implements IAcquisition {
     public void sewv$setScanCache(Object cache) {
         this.tacz_sewv$scanCache = cache;
     }
+
+    @Unique
+    private long[] tacz_sewv$losCache;
+
+    @Override
+    public long[] sewv$losCache() {
+        if (this.tacz_sewv$losCache == null) {
+            this.tacz_sewv$losCache = com.neoalive.tacz_sewv.entity.ai.sensor.SemLosCache.newRing();
+        }
+        return this.tacz_sewv$losCache;
+    }
 }

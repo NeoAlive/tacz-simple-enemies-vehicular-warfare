@@ -1863,6 +1863,8 @@
   "config.tacz_sewv.acquisitionDelayEnabled.tooltip": "Infanterie und Besatzungen brauchen Zeit für ein neues Ziel: länger auf Distanz, im Dunkeln, gegen ein stilles oder schleichendes Ziel.",
   "config.tacz_sewv.semScanShare": "Geteilte Zielsuche der Infanterie",
   "config.tacz_sewv.semScanShare.tooltip": "Jede Einheit sammelt nahe Objekte einmal und teilt die Liste bis zu einer halben Sekunde zwischen ihren Zielsuchen. Nur Leistung.",
+  "config.tacz_sewv.semLosCacheTicks": "Sichtlinien-Wiederverwendung der Infanterie (Ticks)",
+  "config.tacz_sewv.semLosCacheTicks.tooltip": "Wie lange Infanterie eine Sichtlinienprüfung zum selben Ziel wiederverwendet, statt sie für jedes Ziel neu zu berechnen. 1 = nur im selben Tick, 0 = aus. Nur Leistung.",
   "config.tacz_sewv.suppressiveFireEnabled": "Niederhaltefeuer",
   "config.tacz_sewv.suppressiveFireEnabled.tooltip": "Ein MG der Besatzung bestreicht die Stelle, an der ein Gegner gerade verschwand, ein Geschütz pro verlorenem Gegner. Schaltet auch den Befehl Suppress Area.",
   "config.tacz_sewv.reverseGearEnabled": "Rückwärtsgang",

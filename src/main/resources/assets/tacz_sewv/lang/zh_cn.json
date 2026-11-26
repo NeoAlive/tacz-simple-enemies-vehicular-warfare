@@ -1863,6 +1863,8 @@
   "config.tacz_sewv.acquisitionDelayEnabled.tooltip": "步兵和乘员要过一会儿才注意到新目标：距离更远、黑暗中、目标静止或潜行时更久。",
   "config.tacz_sewv.semScanShare": "步兵共享目标扫描",
   "config.tacz_sewv.semScanShare.tooltip": "每个单位只收集一次附近实体，并在半秒内由其各个目标扫描共用该列表。仅影响性能。",
+  "config.tacz_sewv.semLosCacheTicks": "步兵视线结果复用（刻）",
+  "config.tacz_sewv.semLosCacheTicks.tooltip": "步兵对同一目标的视线判定结果复用多少游戏刻，而不是每个行为各算一次。1 = 仅同一刻，0 = 关闭。仅影响性能。",
   "config.tacz_sewv.suppressiveFireEnabled": "压制射击",
   "config.tacz_sewv.suppressiveFireEnabled.tooltip": "乘员机枪扫射敌人刚消失的位置，每个丢失的敌人一把。同时作为压制命令的门槛。",
   "config.tacz_sewv.reverseGearEnabled": "倒车",

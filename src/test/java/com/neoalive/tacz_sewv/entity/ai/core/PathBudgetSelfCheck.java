@@ -16,6 +16,7 @@ public final class PathBudgetSelfCheck {
         simulatedQueue();
         quantum();
         churn();
+        navBudget();
         System.out.println("PathBudgetSelfCheck OK");
     }
 
@@ -97,5 +98,14 @@ public final class PathBudgetSelfCheck {
         assert !VehicleTargeting.holdsArrival(true, 5.5 * 5.5, a) : "and leaves past it";
         assert VehicleTargeting.holdsArrival(true, 17.0 * 17.0, 12.0) && !VehicleTargeting.holdsArrival(true, 18.5 * 18.5, 12.0)
                 : "wide radius: 1.5x";
+    }
+
+    private static void navBudget() {
+        float m = com.neoalive.tacz_sewv.entity.ai.navigation.NavBudget.multiplier(5, 96);
+        assert m == 0.25F : "a short walk keeps the floor, " + m;
+        m = com.neoalive.tacz_sewv.entity.ai.navigation.NavBudget.multiplier(32, 96);
+        assert m > 0.5F && m < 0.65F : "boarding radius: about 900 of 1536 nodes, " + m;
+        assert com.neoalive.tacz_sewv.entity.ai.navigation.NavBudget.multiplier(90, 96) == 1.0F : "far: full budget";
+        assert com.neoalive.tacz_sewv.entity.ai.navigation.NavBudget.multiplier(-1, 0) >= 0.25F : "bad input stays bounded";
     }
 }

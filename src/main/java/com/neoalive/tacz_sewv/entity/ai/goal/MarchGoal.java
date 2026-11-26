@@ -8,6 +8,7 @@ import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 import com.neoalive.tacz_sewv.entity.ai.formation.GroundSnap;
 import com.neoalive.tacz_sewv.entity.ai.march.March;
 import com.neoalive.tacz_sewv.entity.ai.march.MarchRegistry;
+import com.neoalive.tacz_sewv.entity.ai.navigation.NavBudget;
 import com.neoalive.tacz_sewv.entity.ai.support.InfantryOrders;
 
 /**
@@ -80,7 +81,7 @@ public class MarchGoal extends Goal {
         double x = slot.x() + slot.fx() * carrot;
         double z = slot.z() + slot.fz() * carrot;
         double y = GroundSnap.groundY(this.unit.level(), x, z, this.unit.getY());
-        this.unit.getNavigation().moveTo(x, y, z, lag > HURRY_LAG ? HURRY_SPEED : SPEED);
+        NavBudget.moveTo(this.unit, x, y, z, lag > HURRY_LAG ? HURRY_SPEED : SPEED);
     }
 
     /** This unit's march slot if it may walk it now, else null. */

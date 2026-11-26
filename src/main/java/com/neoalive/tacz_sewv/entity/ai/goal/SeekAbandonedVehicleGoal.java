@@ -23,6 +23,7 @@ import com.neoalive.tacz_sewv.compat.TripodCompat;
 import com.neoalive.tacz_sewv.compat.lv.LvCompat;
 import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.entity.ai.core.HullFacts;
+import com.neoalive.tacz_sewv.entity.ai.sensor.CombatantIndex;
 import com.neoalive.tacz_sewv.item.LockItem;
 
 /**
@@ -120,14 +121,39 @@ public class SeekAbandonedVehicleGoal extends Goal {
                 this.unit.getBoundingBox().inflate(radius),
                 this::isAbandoned);
 
-        Entity best = candidates.stream()
-                .min(Comparator.comparingDouble(this.unit::distanceToSqr))
-                .orElse(null);
+        // Nearest hull that still has a seat nobody is walking to. Without this every idle unit in
+        // range took the same hull, each ran a full path search, and all but one were cancelled.
+        candidates.sort(Comparator.comparingDouble(this.unit::distanceToSqr));
+        CombatantIndex.Snapshot snap = CombatantIndex.snapshot(this.unit.level());
+        Entity best = null;
+        for (VehicleEntity hull : candidates) {
+            int free = hull.getMaxPassengers() - hull.getPassengers().size();
+            if (free > pendingBoarders(snap, hull, radius)) {
+                best = hull;
+                break;
+            }
+        }
         Entity lv = LvCompat.findAbandoned(this.unit, radius);
         if (lv != null && (best == null || this.unit.distanceToSqr(lv) < this.unit.distanceToSqr(best))) {
             return lv;
         }
         return best;
+    }
+
+    /**
+     * Units already ordered to board {@code hull}, read off the combatant index. Self-healing: a dead or
+     * unloaded boarder drops out of the index, so there is no claim to release.
+     */
+    private int pendingBoarders(CombatantIndex.Snapshot snap, VehicleEntity hull, double radius) {
+        if (snap == null) return 0;
+        int id = hull.getId();
+        int n = 0;
+        double r = radius + 8.0;
+        for (CombatantIndex.Entry e : snap.query(hull.getX(), hull.getZ(), r, hull.getY() - r, hull.getY() + r)) {
+            if (e.living == this.unit || !(e.living instanceof IVehicleBoarder b)) continue;
+            if (b.tacz_sewv$isBoarding() && b.tacz_sewv$getMountTargetId() == id) n++;
+        }
+        return n;
     }
 
     private boolean isAbandoned(VehicleEntity hull) {

@@ -44,14 +44,13 @@ public class GrenadeThrowGoal extends Goal {
         if (this.unit.isPassenger()) return false;
         if (MedicControl.isTreating(this.unit)) return false;
         if (this.unit instanceof IPmcDowned downed && downed.sewv$isDownedSynced()) return false;
-        if (SmallArmsSupport.holdsLauncher(this.unit)) return false;
-        if (UnitHolster.isThrowingGrenade(this.unit)) return false;
-        if (GrenadeSupport.onCooldown(this.unit)) return false;
-        // Lifetime NBT ceilings — bail before LOS / pick when nothing left to throw.
-        if (GrenadeSupport.allCapsExhausted(this.unit)) return false;
-
         LivingEntity target = this.unit.getTarget();
         if (target == null || !target.isAlive()) return false;
+        if (GrenadeSupport.onCooldown(this.unit)) return false;
+        if (UnitHolster.isThrowingGrenade(this.unit)) return false;
+        if (SmallArmsSupport.holdsLauncher(this.unit)) return false;
+        // Lifetime NBT ceilings — bail before LOS / pick when nothing left to throw.
+        if (GrenadeSupport.allCapsExhausted(this.unit)) return false;
         if (!this.unit.getSensing().hasLineOfSight(target)) return false;
 
         String id = GrenadeSupport.pick(this.unit, target);

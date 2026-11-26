@@ -5,6 +5,7 @@ import javax.annotation.Nullable;
 import com.atsuishio.superbwarfare.init.ModTags;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.SectionPos;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.ClipContext;
@@ -67,6 +68,17 @@ public final class LoadedClip implements BlockGetter {
     public static BlockHitResult clipAsVehicle(Level level, Vec3 from, Vec3 to,
             ClipContext.Block block, ClipContext.Fluid fluid) {
         return new LoadedClip(level, true).clip(new ClipContext(from, to, block, fluid, null));
+    }
+
+    /** One block read with the same rule as {@link #clip}: unloaded ground is air, never loaded. */
+    public static BlockState blockAt(Level level, BlockPos pos) {
+        if (!(level instanceof ServerLevel server)) return level.getBlockState(pos);
+        if (level.isOutsideBuildHeight(pos)) return Blocks.VOID_AIR.defaultBlockState();
+        LevelChunk chunk = server.getChunkSource().getChunkNow(
+                SectionPos.blockToSectionCoord(pos.getX()), SectionPos.blockToSectionCoord(pos.getZ()));
+        if (chunk == null) return Blocks.AIR.defaultBlockState();
+        BlockState state = chunk.getBlockState(pos);
+        return TripodCompat.isShield(state) ? Blocks.AIR.defaultBlockState() : state;
     }
 
     @Nullable

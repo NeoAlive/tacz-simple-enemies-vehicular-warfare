@@ -25,6 +25,7 @@ public final class AcquisitionSelfCheck {
         bounded();
         armorDoctrine();
         losRing();
+        deferredFilter();
         FireRhythmProbe.check();
 
         System.out.println("acquisition self-check: OK");
@@ -89,5 +90,57 @@ public final class AcquisitionSelfCheck {
         for (int id = 20; id < 20 + SemLosCache.SLOTS; id++) SemLosCache.put(r, id, 105, true);
         assert SemLosCache.find(r, 7, 105, 5) == -1 : "four new targets push the oldest out";
         assert SemLosCache.find(r, 20, 105, 1) == 1 && SemLosCache.find(r, 23, 105, 1) == 1;
+    }
+
+    private static void deferredFilter() {
+        java.util.Random rnd = new java.util.Random(1126);
+        for (int round = 0; round < 200; round++) {
+            int n = rnd.nextInt(60);
+            java.util.List<Integer> base = new java.util.ArrayList<>();
+            for (int i = 0; i < n; i++) base.add(rnd.nextInt(1000));
+            int mod = 2 + rnd.nextInt(4);
+            java.util.function.Predicate<Integer> p = v -> v % mod == 0;
+            java.util.Comparator<Integer> byValue = Integer::compare;
+
+            java.util.List<Integer> eager = new java.util.ArrayList<>();
+            for (Integer v : base) if (p.test(v)) eager.add(v);
+            eager.sort(byValue);
+
+            com.neoalive.tacz_sewv.util.DeferredFilterList<Integer> lazy =
+                    new com.neoalive.tacz_sewv.util.DeferredFilterList<>(new java.util.ArrayList<>(base), p);
+            lazy.sort(byValue);
+            java.util.List<Integer> walked = new java.util.ArrayList<>();
+            for (Integer v : lazy) walked.add(v);
+            assert walked.equals(eager) : "a full lazy walk equals the eager filter, round " + round;
+            assert lazy.size() == eager.size() && (eager.isEmpty() || lazy.get(0).equals(eager.get(0)));
+
+            int[] tests = {0};
+            com.neoalive.tacz_sewv.util.DeferredFilterList<Integer> partial =
+                    new com.neoalive.tacz_sewv.util.DeferredFilterList<>(new java.util.ArrayList<>(base), v -> {
+                        tests[0]++;
+                        return p.test(v);
+                    });
+            partial.sort(byValue);
+            java.util.Iterator<Integer> it = partial.iterator();
+            if (it.hasNext()) {
+                assert it.next().equals(eager.get(0)) : "first match is the nearest passing one";
+                java.util.List<Integer> sorted = new java.util.ArrayList<>(base);
+                sorted.sort(byValue);
+                int firstPass = 0;
+                while (!p.test(sorted.get(firstPass))) firstPass++;
+                int ahead = 1;
+                while (firstPass + ahead < sorted.size() && !p.test(sorted.get(firstPass + ahead))) ahead++;
+                assert tests[0] <= firstPass + ahead + 1 : "an early break tests only a prefix";
+            }
+            int before = tests[0];
+            partial.sort(java.util.Comparator.reverseOrder());
+            java.util.List<Integer> reversed = new java.util.ArrayList<>(eager);
+            reversed.sort(java.util.Comparator.reverseOrder());
+            java.util.List<Integer> again = new java.util.ArrayList<>();
+            for (Integer v : partial) again.add(v);
+            assert again.equals(reversed) : "sorting after a partial walk still answers the eager list";
+            for (Integer v : partial) again.add(v);
+            assert tests[0] <= before + n : "answers are memoised, a second walk does not test again";
+        }
     }
 }

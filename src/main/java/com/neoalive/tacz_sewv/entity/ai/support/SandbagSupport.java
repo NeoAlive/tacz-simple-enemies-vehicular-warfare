@@ -3,10 +3,13 @@ package com.neoalive.tacz_sewv.entity.ai.support;
 import javax.annotation.Nullable;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.SectionPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.phys.AABB;
 import net.nekoyuni.SimpleEnemyMod.entity.unit.AbstractUnit;
 
@@ -94,18 +97,30 @@ public final class SandbagSupport {
     @Nullable
     public static BlockPos findNearestFree(ServerLevel level, BlockPos near, double radius,
                                            @Nullable LivingEntity self) {
+        // Walk block entities of loaded chunks: a seat needs a SandbagBlockEntity anyway, and a block
+        // volume read here was ~47k getBlockState calls that could also load chunks.
         int r = (int) Math.ceil(radius);
         BlockPos best = null;
         double bestDist = Double.MAX_VALUE;
-        for (BlockPos p : BlockPos.betweenClosed(
-                near.getX() - r, near.getY() - 2, near.getZ() - r,
-                near.getX() + r, near.getY() + 2, near.getZ() + r)) {
-            if (!isSandbag(level, p)) continue;
-            if (!isSeatAvailable(level, p, self)) continue;
-            double d = p.distSqr(near);
-            if (d <= radius * radius && d < bestDist) {
-                bestDist = d;
-                best = p.immutable();
+        int cx0 = SectionPos.blockToSectionCoord(near.getX() - r);
+        int cx1 = SectionPos.blockToSectionCoord(near.getX() + r);
+        int cz0 = SectionPos.blockToSectionCoord(near.getZ() - r);
+        int cz1 = SectionPos.blockToSectionCoord(near.getZ() + r);
+        for (int cx = cx0; cx <= cx1; cx++) {
+            for (int cz = cz0; cz <= cz1; cz++) {
+                LevelChunk chunk = level.getChunkSource().getChunkNow(cx, cz);
+                if (chunk == null) continue;
+                for (BlockEntity be : chunk.getBlockEntities().values()) {
+                    if (!(be instanceof SandbagBlockEntity)) continue;
+                    BlockPos p = be.getBlockPos();
+                    if (Math.abs(p.getY() - near.getY()) > 2) continue;
+                    if (Math.abs(p.getX() - near.getX()) > r || Math.abs(p.getZ() - near.getZ()) > r) continue;
+                    double d = p.distSqr(near);
+                    if (d > radius * radius || d >= bestDist) continue;
+                    if (!isSeatAvailable(level, p, self)) continue;
+                    bestDist = d;
+                    best = p.immutable();
+                }
             }
         }
         return best;

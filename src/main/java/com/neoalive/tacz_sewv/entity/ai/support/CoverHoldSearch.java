@@ -27,13 +27,20 @@ import com.neoalive.tacz_sewv.util.WarnOnce;
  */
 public final class CoverHoldSearch {
 
-    /** One proxy per level, never spawned. Server thread only. */
+    /**
+     * One proxy per level, never spawned. Server thread only. The stand holds its level, so the weak key
+     * never clears by itself: {@link #clearAll()} on server stop.
+     */
     private static final Map<Level, ArmorStand> PROXIES = new WeakHashMap<>();
 
     /** A search answer: where to go, and whether SEM called it cover (false = holding in the open). */
     public record Result(BlockPos spot, boolean cover) {}
 
     private CoverHoldSearch() {}
+
+    public static void clearAll() {
+        PROXIES.clear();
+    }
 
     /**
      * Runs one SEM cover search for {@code unit} from {@code origin}, or answers null when SEM's per-tick

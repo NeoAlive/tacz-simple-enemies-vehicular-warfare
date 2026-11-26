@@ -63,6 +63,12 @@ public final class CorpseCompat {
 
     private CorpseCompat() {}
 
+    /** Corpses hold their level, so the weak key never clears by itself. Server stop. */
+    public static void clearAll() {
+        CAPPED.clear();
+        PMC_SNAPSHOTS.clear();
+    }
+
     public static boolean isLoaded() {
         return ModList.get().isLoaded(MODID);
     }

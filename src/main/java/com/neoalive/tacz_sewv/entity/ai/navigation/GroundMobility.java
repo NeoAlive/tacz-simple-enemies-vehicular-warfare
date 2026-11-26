@@ -106,6 +106,15 @@ public final class GroundMobility {
      * Climbable and marginal rises stay under the cap so a fan of ordinary hills cannot read
      * as boxed-in and trigger reverse recovery.
      */
+    /**
+     * How far along a probe line its starting footing is read: the last point still under the hull,
+     * one block inboard of the first sample at {@code half + 0.5}. Seeding from the centre column
+     * made the first step span the whole half width, so a hillside read as a wall on every bearing.
+     */
+    public static double lineSeedDistance(double half) {
+        return half - 0.5;
+    }
+
     public static float stepDanger(double delta, float maxUpStep) {
         if (delta <= 0.0 || maxUpStep <= 0.0F) return 0.0F;
         if (delta > STEP_WALL) return HARD_CAP;

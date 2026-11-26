@@ -52,6 +52,7 @@
     "MixinSoundToolAwareness",
     "MixinVehicleTurretNaN",
     "MixinNpcHullYaw",
+    "MixinVehicleTurretLockConsume",
     "MixinVehiclePassengerNaN",
     "MixinVehicleFactionEnergy",
     "MixinVehicleInertiaRotate",

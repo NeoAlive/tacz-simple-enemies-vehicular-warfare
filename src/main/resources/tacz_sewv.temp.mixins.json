@@ -6,7 +6,8 @@
   "refmap": "tacz_sewv.refmap.json",
   "mixins": [],
   "client": [
-    "MixinTacz120Render"
+    "MixinTacz120Render",
+    "MixinSemMuzzleFlashGuard"
   ],
   "server": [],
   "injectors": {

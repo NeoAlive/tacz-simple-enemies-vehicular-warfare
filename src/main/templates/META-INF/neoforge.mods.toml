@@ -39,6 +39,10 @@ config="tacz_sewv.playerrevive.mixins.json"
 [[mixins]]
 config="tacz_sewv.perf.mixins.json"
 
+# Temporary SEM muzzle flash guard. Delete with mixin/temp once SEM null checks the flash texture.
+[[mixins]]
+config="tacz_sewv.temp.mixins.json"
+
 # Corpse compat. Own config ("required": false) + CorpseMixinPlugin gate on mod id corpse.
 [[mixins]]
 config="tacz_sewv.corpse.mixins.json"

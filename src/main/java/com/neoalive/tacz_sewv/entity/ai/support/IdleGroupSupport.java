@@ -138,6 +138,10 @@ public final class IdleGroupSupport {
     public static void clearPublished() {
         PUBLISHED = new HashMap<>();
         PREVIOUS_PUBLISHED = new HashMap<>();
+        // Members hold their hulls and so the whole level: pruning only runs on a later pass, which a
+        // stopped server never makes.
+        CLUSTER_CACHE.clear();
+        lastClusterCacheGen = Long.MIN_VALUE;
     }
 
     /**

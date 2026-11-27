@@ -47,8 +47,8 @@ def dormantSources = [
         'com/neoalive/tacz_sewv/compat/TripodCompat.java',
         'com/neoalive/tacz_sewv/mixin/tripod/**',
         'com/neoalive/tacz_sewv/mixin/TripodMixinPlugin.java',
-        // TaCZ 1.2.0 (Forge 1.20.1) render hooks, temporary on main
-        'com/neoalive/tacz_sewv/mixin/temp/**',
+        // TaCZ 1.2.0 (Forge 1.20.1) render hook, temporary on main; the SEM muzzle flash guard stays live
+        'com/neoalive/tacz_sewv/mixin/temp/MixinTacz120Render.java',
         // VoskLib (VoiceSession and VoskSetup are stubbed)
         'com/neoalive/tacz_sewv/compat/vosk/VoiceSession.java',
         'com/neoalive/tacz_sewv/compat/vosk/VoskSetup.java',
@@ -60,7 +60,6 @@ def dormantMixinConfigs = [
         'tacz_sewv.komodo.mixins.json',
         'tacz_sewv.tripod.mixins.json',
         'tacz_sewv.gemrender.mixins.json',
-        'tacz_sewv.temp.mixins.json',
 ]
 sourceSets {
     main {

@@ -106,10 +106,8 @@ public final class SmallArmsSupport {
      * sniper/heavy player-ammo class is a sniper.
      */
     public static SbwClass classOf(Item item, @Nullable GunData gun) {
-        if (item instanceof IglaItem) return SbwClass.AA;
-        if (item.getClass().getName().startsWith("com.atsuishio.superbwarfare.item.gun.launcher.")) {
-            return SbwClass.AT;
-        }
+        SbwClass byItem = classByItem(item);
+        if (byItem != null) return byItem;
         Ammo ammoClass = null;
         boolean itemAmmo = false;
         if (gun != null) {
@@ -128,6 +126,16 @@ public final class SmallArmsSupport {
         if (ammoClass == Ammo.SNIPER || ammoClass == Ammo.HEAVY) return SbwClass.SNIPER;
         if (itemAmmo) return SbwClass.AT;
         return SbwClass.SMALL_ARMS;
+    }
+
+    /** The classes the item alone decides, with no gun data read. */
+    @Nullable
+    private static SbwClass classByItem(Item item) {
+        if (item instanceof IglaItem) return SbwClass.AA;
+        if (item.getClass().getName().startsWith("com.atsuishio.superbwarfare.item.gun.launcher.")) {
+            return SbwClass.AT;
+        }
+        return null;
     }
 
     /**
@@ -244,6 +252,10 @@ public final class SmallArmsSupport {
 
     @Nullable
     private static SbwClass launcherClass(ItemStack stack) {
+        // GunData.from is the expensive part and the common launchers never need it.
+        if (stack.isEmpty() || !isUsableSbwGun(stack.getItem())) return null;
+        SbwClass byItem = classByItem(stack.getItem());
+        if (byItem != null) return byItem;
         GunData gun = usableGun(stack);
         if (gun == null) return null;
         SbwClass cls = classOf(stack.getItem(), gun);

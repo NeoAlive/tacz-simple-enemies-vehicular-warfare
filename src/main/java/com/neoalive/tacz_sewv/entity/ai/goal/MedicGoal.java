@@ -18,6 +18,7 @@ import com.neoalive.tacz_sewv.config.SewvConfig;
 import com.neoalive.tacz_sewv.crew.CrewRadio;
 import com.neoalive.tacz_sewv.crew.UnitInventory;
 import com.neoalive.tacz_sewv.entity.ai.core.VehicleTargeting;
+import com.neoalive.tacz_sewv.entity.ai.navigation.NavBudget;
 import com.neoalive.tacz_sewv.entity.ai.support.MedicControl;
 import com.neoalive.tacz_sewv.entity.ai.support.SupportRole;
 
@@ -110,7 +111,7 @@ public class MedicGoal extends Goal {
         this.pulseCooldown = 0;
         this.healingVoiced = false;
         if (this.patient != this.unit) {
-            this.unit.getNavigation().moveTo(this.patient, 1.0);
+            NavBudget.moveTo(this.unit, this.patient, 1.0);
         }
     }
 
@@ -136,7 +137,7 @@ public class MedicGoal extends Goal {
                 // Repath only once the last one has run out — an unreachable patient reports "done"
                 // every tick and would otherwise force a full path search every tick until timeout.
                 if (this.unit.getNavigation().isDone()) {
-                    this.unit.getNavigation().moveTo(this.patient, 1.0);
+                    NavBudget.moveTo(this.unit, this.patient, 1.0);
                 }
                 return;
             }

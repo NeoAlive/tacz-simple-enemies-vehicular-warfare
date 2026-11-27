@@ -18,4 +18,12 @@ public interface IAcquisition {
     long sewv$getAcqLastSeen();
 
     void sewv$setAcqLastSeen(long gameTime);
+
+    /** Shared SEM scan cache ({@code UnitScanShare.Cache}), null when none is held. */
+    Object sewv$getScanCache();
+
+    void sewv$setScanCache(Object cache);
+
+    /** SEM line-of-sight cache ring ({@code SemLosCache}), allocated on first use. */
+    long[] sewv$losCache();
 }

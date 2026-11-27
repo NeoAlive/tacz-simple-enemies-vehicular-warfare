@@ -35,6 +35,7 @@
     "MixinDestroyableProjectileSiblingBlast",
     "MixinSemCombatDecision",
     "MixinSemTargetAcquisition",
+    "MixinSemLineOfSight",
     "MixinUnitAcquisitionState",
     "MixinAnnihilatorFireGate",
     "MixinVehicleTurretMobility",

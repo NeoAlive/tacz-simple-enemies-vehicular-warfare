@@ -16,6 +16,7 @@ import com.neoalive.tacz_sewv.bridge.IVehicleBoarder;
 import com.neoalive.tacz_sewv.compat.NpcVehicleOverrides;
 import com.neoalive.tacz_sewv.compat.lv.LvCompat;
 import com.neoalive.tacz_sewv.crew.VehicleAccessLive;
+import com.neoalive.tacz_sewv.entity.ai.navigation.NavBudget;
 import com.neoalive.tacz_sewv.entity.ai.support.CommanderSeating;
 import com.neoalive.tacz_sewv.entity.ai.support.PmcDownedSupport;
 import com.neoalive.tacz_sewv.item.LockItem;
@@ -140,7 +141,7 @@ public class BoardVehicleGoal extends Goal {
     @Override
     public void start() {
         this.boardingTicks = 0;
-        this.unit.getNavigation().moveTo(this.targetVehicle, 1.0);
+        NavBudget.moveTo(this.unit, this.targetVehicle, 1.0);
     }
 
     @Override
@@ -196,7 +197,7 @@ public class BoardVehicleGoal extends Goal {
         } else if (this.unit.getNavigation().isDone() && this.boardingTicks % REPATH_INTERVAL == 0) {
             // Throttled: an unreachable vehicle leaves navigation "done" every tick, which
             // would otherwise force a full repath every tick until the timeout.
-            this.unit.getNavigation().moveTo(this.targetVehicle, 1.0);
+            NavBudget.moveTo(this.unit, this.targetVehicle, 1.0);
         }
     }
 

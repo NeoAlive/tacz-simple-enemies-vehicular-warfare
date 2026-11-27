@@ -79,7 +79,7 @@ simpleenemymod/
 modpack/
 
 wiki/
-temp/
+/temp/
 libs/backup-sem-0.1.6-beta/
 
 # NeoForge port branch: 1.21.1 dependency jars (kept apart from the Forge libs/)

@@ -268,6 +268,8 @@ public final class SewvConfig {
     public static final ModConfigSpec.BooleanValue SUPPRESSION_BUS_ENABLED;
     public static final ModConfigSpec.BooleanValue INFANTRY_ARMOR_AWARENESS;
     public static final ModConfigSpec.BooleanValue ACQUISITION_DELAY_ENABLED;
+    public static final ModConfigSpec.BooleanValue SEM_SCAN_SHARE;
+    public static final ModConfigSpec.IntValue SEM_LOS_CACHE_TICKS;
     public static final ModConfigSpec.BooleanValue SUPPRESSIVE_FIRE_ENABLED;
     public static final ModConfigSpec.BooleanValue REVERSE_GEAR_ENABLED;
     public static final ModConfigSpec.IntValue REVERSE_MAX_BLOCKS;
@@ -1197,6 +1199,15 @@ public final class SewvConfig {
                         "SEM infantry and AI crews take time to notice a new target: longer at range, in the dark,",
                         "against a still or sneaking target; near-instant against a hull or someone who just fired.")
                 .define("acquisitionDelayEnabled", true);
+        SEM_SCAN_SHARE = builder.comment(
+                        "SEM infantry gather one list of nearby entities per unit and share it between their target",
+                        "scans for up to half a second, instead of walking the same area once per scan. Performance only.")
+                .define("semScanShare", true);
+        SEM_LOS_CACHE_TICKS = builder.comment(
+                        "SEM infantry reuse a line-of-sight answer to the same target for this many game ticks instead of",
+                        "casting it again for every goal that asks. SEM's goals ask on different ticks, so 1 (exact) reuses",
+                        "almost nothing; 3 halves the rays in a large battle. 0 = off.")
+                .defineInRange("semLosCacheTicks", 3, 0, 5);
         SUPPRESSIVE_FIRE_ENABLED = builder.comment(
                         "For a few seconds after losing sight of an enemy, a crew machine gun may rake the spot it",
                         "vanished from (one gun per lost enemy). Also gates the player's Suppress Area order.")

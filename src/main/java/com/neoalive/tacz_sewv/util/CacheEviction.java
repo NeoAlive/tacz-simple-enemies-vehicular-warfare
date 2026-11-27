@@ -85,6 +85,8 @@ public final class CacheEviction {
         BoardVehicleGoal.clearCancelFeedback();
         DroneSupport.clearOwnedCache();
         PreferredPathwayData.clearCatalogCache();
+        com.neoalive.tacz_sewv.entity.ai.support.CoverHoldSearch.clearAll();
+        com.neoalive.tacz_sewv.compat.CorpseCompat.clearAll();
         WarnOnce.clear();
     }
 
